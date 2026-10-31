@@ -1,0 +1,394 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+
+    .form-card { background: #fff; border-radius: 12px; padding: 1.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+    .form-card h5 { font-weight: 700; color: #111827; margin-bottom: 1.5rem; }
+
+    .form-label { font-weight: 600; color: #374151; font-size: 0.85rem; margin-bottom: 0.4rem; }
+    .form-label .text-danger { font-size: 0.85rem; }
+
+    .input-icon-wrap { position: relative; }
+    .input-icon-wrap > i {
+        position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%);
+        color: #9CA3AF; font-size: 0.95rem; pointer-events: none;
+    }
+    .input-icon-wrap .form-control,
+    .input-icon-wrap .form-select { padding-left: 2.4rem; }
+    .input-icon-wrap .toggle-eye {
+        position: absolute; right: 0.85rem; top: 50%; transform: translateY(-50%);
+        color: #9CA3AF; cursor: pointer; background: none; border: none; padding: 0;
+    }
+
+    .form-control, .form-select {
+        border: 1px solid #E5E7EB;
+        background-color: #F9FAFB;
+        border-radius: 8px;
+        padding: 0.6rem 0.85rem;
+        font-size: 0.9rem;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--accent-orange, #F59E0B);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+        background-color: #fff;
+    }
+
+    .avatar-upload-wrap { position: relative; width: 90px; }
+    .avatar-circle {
+        width: 90px; height: 90px; border-radius: 14px; background: #F3F4F6;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 1.7rem; color: #9CA3AF; overflow: hidden;
+    }
+    .avatar-camera-btn {
+        position: absolute; bottom: -6px; right: -6px; width: 30px; height: 30px;
+        border-radius: 50%; background: #6B7280; color: #fff; border: 3px solid #fff;
+        display: flex; align-items: center; justify-content: center; font-size: 0.8rem; cursor: pointer;
+    }
+    .avatar-input { display: none; }
+
+    .form-actions { border-top: 1px solid #F1F2F4; margin-top: 1.75rem; padding-top: 1.5rem; }
+    .doc-hint { font-size: 0.78rem; color: #9CA3AF; margin-top: 0.4rem; }
+
+    .list-card {
+        background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.05); padding: 1.5rem 1.75rem;
+    }
+    .list-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+    .list-card-header h5 { font-weight: 700; color: #111827; margin: 0; }
+
+    .total-badge {
+        background: #FEF3E2; color: #B45309; font-size: 0.78rem; font-weight: 700;
+        padding: 0.3rem 0.85rem; border-radius: 999px;
+    }
+
+    .employees-table { width: 100%; border-collapse: collapse; }
+    .employees-table thead th {
+        text-align: left; font-size: 0.78rem; font-weight: 700; color: #9CA3AF;
+        letter-spacing: 0.03em; padding: 0.75rem 1rem; border-bottom: 1px solid #F1F2F4;
+    }
+    .employees-table tbody td {
+        padding: 0.9rem 1rem; border-bottom: 1px solid #F1F2F4; font-size: 0.9rem;
+        color: #374151; vertical-align: middle;
+    }
+    .employees-table tbody tr:last-child td { border-bottom: none; }
+    .employees-table tbody tr:hover { background: #FAFAFA; }
+
+    .emp-name { font-weight: 700; color: #111827; }
+
+    .status-badge {
+        display: inline-block; font-size: 0.78rem; font-weight: 600;
+        padding: 0.25rem 0.75rem; border-radius: 999px;
+    }
+    .status-active   { background: #DCFCE7; color: #16A34A; }
+    .status-inactive { background: #F3F4F6; color: #6B7280; }
+
+    .action-btn {
+        width: 34px; height: 34px; border-radius: 8px; border: 1px solid #E5E7EB;
+        background: #fff; display: inline-flex; align-items: center; justify-content: center;
+        transition: border-color 0.15s, background 0.15s;
+    }
+    .action-btn.edit { color: #374151; }
+    .action-btn.edit:hover { border-color: var(--accent-orange, #F59E0B); color: var(--accent-orange, #F59E0B); }
+    .action-btn.delete { color: #DC2626; }
+    .action-btn.delete:hover { background: #FEE2E2; border-color: #FEE2E2; }
+
+    .dt-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    .dt-export-btn {
+        border: 1px solid #E5E7EB !important;
+        background: #fff !important;
+        color: #374151 !important;
+        border-radius: 8px !important;
+        padding: 0.5rem 1rem !important;
+        font-size: 0.85rem !important;
+        font-weight: 500 !important;
+        display: inline-flex !important;
+        align-items: center;
+        gap: 0.35rem;
+    }
+</style>
+
+<h2 class="page-title mb-4">Employees</h2>
+
+<!-- Add Employee Form -->
+<div class="form-card">
+    <h5>Add New Employee</h5>
+    <form action="{% url 'admin_employees_store' %}" method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="row g-3 align-items-start mb-2">
+            <div class="col-auto">
+                <label class="form-label d-block">&nbsp;</label>
+                <div class="avatar-upload-wrap">
+                    <div class="avatar-circle" id="avatarPreview">NE</div>
+                    <label class="avatar-camera-btn">
+                        <i class="bi bi-camera-fill"></i>
+                        <input type="file" name="photo" class="avatar-input" accept="image/*" onchange="previewAvatar(event)">
+                    </label>
+                </div>
+            </div>
+
+            <div class="col">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-person"></i>
+                            <input type="text" name="name" class="form-control" placeholder="Enter full name" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Assign Role <span class="text-danger">*</span></label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-briefcase"></i>
+                            <select name="role" class="form-select" required>
+                                <option value="" selected disabled>Choose role...</option>
+                                {% for desig in designations %}
+                                    <option value="{{ desig.id }}">{{ desig.designation_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Portal Username <span class="text-danger">*</span></label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-person-badge"></i>
+                            <input type="text" name="app_username" class="form-control" placeholder="username" required>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Portal Password <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-lock"></i>
+                    <input type="password" name="app_password" id="appPassword" class="form-control" placeholder="••••••" required>
+                    <button type="button" class="toggle-eye" onclick="togglePassword()"><i class="bi bi-eye" id="eyeIcon"></i></button>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Joining Date <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-calendar3"></i>
+                    <input type="date" name="joining_date" class="form-control" required>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Relieving Date</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-calendar3"></i>
+                    <input type="date" name="relieving_date" class="form-control">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    {% for status in statusOptions %}
+                        <option value="{{ status }}">{{ status|title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Gender</label>
+                <select name="gender" class="form-select">
+                    <option value="" selected disabled>Select gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Date of Birth</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-calendar3"></i>
+                    <input type="date" name="dob" class="form-control">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Email</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-envelope"></i>
+                    <input type="email" name="email" class="form-control" placeholder="email@company.com">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Phone</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-telephone"></i>
+                    <input type="text" name="phone" class="form-control" placeholder="10-digit number">
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Address</label>
+                <textarea name="address" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">City</label>
+                <input type="text" name="city" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">State</label>
+                <input type="text" name="state" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Pincode</label>
+                <input type="text" name="pincode" class="form-control">
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">Documents</label>
+                <input type="file" name="documents" class="form-control" multiple accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx">
+                <div class="doc-hint">PDF, DOC, DOCX, XLS, XLSX, JPG allowed (Max 2MB each)</div>
+            </div>
+        </div>
+
+        <div class="form-actions d-flex justify-content-end gap-2">
+            <button type="reset" class="btn btn-outline-secondary">Cancel</button>
+            <button type="submit" class="btn hover-lift" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                <i class="bi bi-check-lg"></i> Add Employee
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Registered Employees List -->
+<div class="list-card">
+    <div class="list-card-header">
+        <h5>Registered Employees</h5>
+        <span class="total-badge">{{ employees|length }} Total</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="employees-table" id="employeesTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Employee Name</th>
+                    <th>Role</th>
+                    <th>Username</th>
+                    <th>Status</th>
+                    <th>Created Date</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for employee in employees %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td class="emp-name">{{ employee.name }}</td>
+                        <td>{{ employee.role_name }}</td>
+                        <td>{{ employee.app_username }}</td>
+                        <td>
+                            <span class="status-badge status-{{ employee.status }}">
+                                {{ employee.status|title }}
+                            </span>
+                        </td>
+                        <td>{{ employee.created_at|date:"d M Y"|default:"—" }}</td>
+                        <td class="text-end">
+                            <a href="{% url 'admin_employees_edit' employee.id %}" class="action-btn edit" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form action="{% url 'admin_employees_destroy' employee.id %}" method="POST" class="d-inline" onsubmit="return confirm('Delete this employee?');">
+                                {% csrf_token %}
+                                <button type="submit" class="action-btn delete" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">No employees registered yet.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script>
+    $(document).ready(function () {
+        $('#employeesTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [5, 10, 25, 50],
+            columnDefs: [{ orderable: false, targets: -1 }],
+            dom: 'B lfrtip',
+            buttons: [
+                {
+                    extend: 'excelHtml5',
+                    text: '<i class="bi bi-file-earmark-excel"></i> Excel',
+                    className: 'btn dt-export-btn',
+                    title: 'Registered Employees',
+                    exportOptions: { columns: ':not(:last-child)' }
+                },
+                {
+                    extend: 'pdfHtml5',
+                    text: '<i class="bi bi-file-earmark-pdf"></i> PDF',
+                    className: 'btn dt-export-btn',
+                    title: 'Registered Employees',
+                    orientation: 'landscape',
+                    exportOptions: { columns: ':not(:last-child)' }
+                },
+                {
+                    extend: 'print',
+                    text: '<i class="bi bi-printer"></i> Print',
+                    className: 'btn dt-export-btn',
+                    title: 'Registered Employees',
+                    exportOptions: { columns: ':not(:last-child)' }
+                }
+            ]
+        });
+    });
+
+    function togglePassword() {
+        const input = document.getElementById('appPassword');
+        const icon = document.getElementById('eyeIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('bi-eye');
+            icon.classList.add('bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('bi-eye-slash');
+            icon.classList.add('bi-eye');
+        }
+    }
+
+    function previewAvatar(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const preview = document.getElementById('avatarPreview');
+            preview.innerHTML = '<img src="' + e.target.result + '" style="width:100%;height:100%;object-fit:cover;">';
+        };
+        reader.readAsDataURL(file);
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,194 @@
+<style>
+    .sidebar-brand { padding: 1.5rem; display: flex; align-items: center; gap: 12px; }
+    .brand-icon { width: 32px; height: 32px; background: var(--accent-orange); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .brand-icon i { color: #fff; font-size: 1.2rem; }
+    .sidebar-menu { list-style: none; padding: 0; margin: 0; }
+    .menu-section { color: #6B7280; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; padding: 1.5rem 1.5rem 0.5rem; letter-spacing: 0.05em; }
+    .menu-item { display: block; color: #9CA3AF; padding: 0.75rem 1.5rem; text-decoration: none; display: flex; align-items: center; gap: 12px; transition: all 0.2s; border-left: 3px solid transparent; }
+    .menu-item:hover, .menu-item.active { background-color: var(--sidebar-hover); color: #fff; border-radius: 0 20px 20px 0; margin-right: 1rem; }
+    .menu-item.active { background-color: rgba(255, 255, 255, 0.1); }
+</style>
+
+@php
+    // Admin (allowedModules === null) sees everything.
+    // Employee sees only module keys present in allowedModules (granted via Access Control).
+    canSee = fn(key) => is_null(allowedModules ?? null) || in_array(key, allowedModules ?? []);
+@endphp
+
+<aside class="sidebar">
+    <div class="sidebar-brand">
+        <div class="brand-icon"><i class="bi bi-brightness-high-fill"></i></div>
+        <div>
+            <h5 class="mb-0 fw-bold" style="font-size: 1.1rem;">SolarPro</h5>
+            <small style="font-size: 0.65rem; color: #9CA3AF;">ENERGY MANAGEMENT</small>
+        </div>
+    </div>
+
+    <ul class="sidebar-menu mt-2">
+        {% if canSee('common-dashboard' %})
+        <li class="menu-section">Overview</li>
+        <li><a href="{% url 'admin_dashboard' %}" class="menu-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}"><i class="bi bi-grid-1x2"></i> Dashboard</a></li>
+        {% endif %}
+
+        @php
+            masterKeys = ['department-master','designation-master','employee-master','access-control','smtp-config','expense-category-master','stock-category-master','site-master','document-type-master','attendance-master'];
+            hasAnyMaster = collect(masterKeys)->contains(fn(k) => canSee(k));
+            masterActive = request()->routeIs('admin.departments.index') || request()->routeIs('admin.designations.index') || request()->routeIs('admin.employees.index') || request()->routeIs('admin.access-control.index') || request()->routeIs('admin.smtp.*') || request()->routeIs('admin.expense-categories.index') || request()->routeIs('admin.stock.categories.index') || request()->routeIs('admin.sites.*') || request()->routeIs('admin.document-types.*');
+        @endphp
+        {% if hasAnyMaster %}
+        <li class="menu-item-has-children {{ masterActive ? 'active' : '' }}">
+            <a href="#masterSubmenu" data-bs-toggle="collapse" role="button" aria-expanded="{{ masterActive ? 'true' : 'false' }}" aria-controls="masterSubmenu" class="menu-item dropdown-toggle">
+                <i class="bi bi-layers"></i> Master
+            </a>
+            <ul class="collapse list-unstyled submenu {{ masterActive ? 'show' : '' }}" id="masterSubmenu">
+                {% if canSee('department-master' %})
+                <li><a href="{% url 'admin_departments' %}" class="menu-item {{ request()->routeIs('admin.departments.index') ? 'active' : '' }}"><i class="bi bi-people"></i> Department Master</a></li>
+                {% endif %}
+                {% if canSee('designation-master' %})
+                <li><a href="{% url 'admin_designations' %}" class="menu-item {{ request()->routeIs('admin.designations.index') ? 'active' : '' }}"><i class="bi bi-people"></i> Designation Master</a></li>
+                {% endif %}
+                {% if canSee('employee-master' %})
+                <li><a href="{% url 'admin_employees' %}" class="menu-item {{ request()->routeIs('admin.employees.index') ? 'active' : '' }}"><i class="bi bi-people"></i> Employee Master</a></li>
+                {% endif %}
+                {% if canSee('access-control' %})
+                <li><a href="{% url 'admin_access_control' %}" class="menu-item {{ request()->routeIs('admin.access-control.index') ? 'active' : '' }}"><i class="bi bi-shield-lock"></i> Access Control</a></li>
+                {% endif %}
+                {% if canSee('smtp-config' %})
+                <li><a href="{% url 'admin_smtp' %}" class="menu-item {{ request()->routeIs('admin.smtp.*') ? 'active' : '' }}"><i class="bi bi-envelope"></i> SMTP Config</a></li>
+                {% endif %}
+                {% if canSee('expense-category-master' %})
+                <li><a href="{% url 'admin_expense_categories' %}" class="menu-item {{ request()->routeIs('admin.expense-categories.index') ? 'active' : '' }}"><i class="bi bi-people"></i> Expense Category Master</a></li>
+                {% endif %}
+                {% if canSee('stock-category-master' %})
+                <li><a href="{% url 'admin_stock_categories' %}" class="menu-item {{ request()->routeIs('admin.stock.categories.index') ? 'active' : '' }}"><i class="bi bi-file-earmark-plus"></i> Stock Category Master</a></li>
+                {% endif %}
+                {% if canSee('site-master' %})
+                <li><a href="{% url 'admin_sites' %}" class="menu-item {{ request()->routeIs('admin.sites.*') ? 'active' : '' }}"><i class="bi bi-geo-alt"></i> Site Master</a></li>
+                {% endif %}
+                {% if canSee('document-type-master' %})
+                <li><a href="{% url 'admin_document_types' %}" class="menu-item {{ request()->routeIs('admin.document-types.*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Document Type Master</a></li>
+                {% endif %}
+                {% if canSee('attendance-master' %})
+                <li><a href="{% url 'admin_attendance_master' %}" class="menu-item {{ request()->routeIs('admin.attendance.master.create') ? 'active' : '' }}"><i class="bi bi-people"></i> Attendance Master</a></li>
+                {% endif %}
+            </ul>
+        </li>
+        {% endif %}
+
+        @php
+            reportKeys = ['project-reports','maintenance-reports','attendance-report','stock-report','expense-report'];
+            hasAnyReport = collect(reportKeys)->contains(fn(k) => canSee(k));
+            reportsActive = request()->routeIs('admin.projects.report') || request()->routeIs('admin.maintenance.report') || request()->routeIs('admin.attendance.report') || request()->routeIs('admin.stock.report') || request()->routeIs('admin.expense-report.*');
+        @endphp
+        {% if hasAnyReport %}
+        <li class="menu-item-has-children {{ reportsActive ? 'active' : '' }}">
+            <a href="#reportsSubmenu" data-bs-toggle="collapse" role="button" aria-expanded="{{ reportsActive ? 'true' : 'false' }}" aria-controls="reportsSubmenu" class="menu-item dropdown-toggle">
+                <i class="bi bi-bar-chart"></i> Reports
+            </a>
+            <ul class="collapse list-unstyled submenu {{ reportsActive ? 'show' : '' }}" id="reportsSubmenu">
+                {% if canSee('project-reports' %})
+                <li><a href="{% url 'admin_projects_report' %}" class="menu-item {{ request()->routeIs('admin.projects.report') ? 'active' : '' }}"><i class="bi bi-box-seam"></i> Project Reports</a></li>
+                {% endif %}
+                {% if canSee('maintenance-reports' %})
+                <li><a href="{% url 'admin_maintenance_report' %}" class="menu-item {{ request()->routeIs('admin.maintenance.report') ? 'active' : '' }}"><i class="bi bi-wrench"></i> Maintenance Reports</a></li>
+                {% endif %}
+                {% if canSee('attendance-report' %})
+                <li><a href="{% url 'admin_attendance_report' %}" class="menu-item {{ request()->routeIs('admin.attendance.report') ? 'active' : '' }}"><i class="bi bi-people"></i> Attendance Report</a></li>
+                {% endif %}
+                {% if canSee('stock-report' %})
+                <li><a href="{% url 'admin_stock_report' %}" class="menu-item {{ request()->routeIs('admin.stock.report') ? 'active' : '' }}"><i class="bi bi-clipboard-data"></i> Stock Report</a></li>
+                {% endif %}
+                {% if canSee('expense-report' %})
+                <li><a href="{% url 'admin_expense_report' %}" class="menu-item {{ request()->routeIs('admin.expense-report.*') ? 'active' : '' }}"><i class="bi bi-file-earmark-bar-graph"></i> Expense Report</a></li>
+                {% endif %}
+            </ul>
+        </li>
+        {% endif %}
+
+        @php
+            operationsKeys = ['all-projects','add-project','maintenance-charts'];
+            hasAnyOperations = collect(operationsKeys)->contains(fn(k) => canSee(k));
+        @endphp
+        {% if hasAnyOperations %}
+        <li class="menu-section">Operations</li>
+        {% if canSee('all-projects' %})
+        <li><a href="{% url 'admin_projects' %}" class="menu-item {{ request()->routeIs('admin.projects.index') ? 'active' : '' }}"><i class="bi bi-briefcase"></i> All Projects</a></li>
+        {% endif %}
+        {% if canSee('add-project' %})
+        <li><a href="{% url 'admin_projects_create' %}" class="menu-item {{ request()->routeIs('admin.projects.create') ? 'active' : '' }}"><i class="bi bi-plus-lg"></i> Add Project</a></li>
+        {% endif %}
+        {{--
+        {% if canSee('maintenance-charts' %})
+        <li><a href="{% url 'admin_maintenance_index' %}" class="menu-item {{ request()->routeIs('admin.maintenance.index') ? 'active' : '' }}"><i class="bi bi-bar-chart"></i> Maintenance Charts</a></li>
+        {% endif %}
+        --}}
+        {% endif %}
+
+        {% if canSee('employee-expenses' %})
+        <li class="menu-section">Expenses</li>
+        <li><a href="{% url 'admin_employee_expenses' %}" class="menu-item {{ request()->routeIs('admin.employee-expenses.*') ? 'active' : '' }}"><i class="bi bi-wallet2"></i>  Expenses Approval </a></li>
+        {% endif %}
+
+        @php
+            formsKeys = ['add-form','all-forms','form-submissions','dashboard-config','dynamic-dashboard'];
+            hasAnyForms = collect(formsKeys)->contains(fn(k) => canSee(k));
+        @endphp
+        {% if hasAnyForms %}
+        <li class="menu-section">Forms</li>
+        {% if canSee('add-form' %})
+        <li><a href="{% url 'admin_forms_create' %}" class="menu-item {{ request()->routeIs('admin.forms.create') ? 'active' : '' }}"><i class="bi bi-file-earmark-plus"></i> Add Form</a></li>
+        {% endif %}
+        {% if canSee('all-forms' %})
+        <li><a href="{% url 'admin_forms' %}" class="menu-item {{ request()->routeIs('admin.forms.index') ? 'active' : '' }}"><i class="bi bi-file-earmark"></i> All Forms</a></li>
+        {% endif %}
+        {% if canSee('form-submissions' %})
+        <li><a href="{% url 'admin_form_submissions' %}" class="menu-item {{ request()->routeIs('admin.form-submissions.*') ? 'active' : '' }}"><i class="bi bi-clipboard-check"></i> Form Submissions</a></li>
+        {% endif %}
+        {% if canSee('dashboard-config' %})
+        <li><a href="{% url 'admin_dashboard_config' %}" class="menu-item {{ request()->routeIs('admin.dashboard.config.backup') ? 'active' : '' }}"><i class="bi bi-sliders"></i> Dashboard Config</a></li>
+        {% endif %}
+        {% if canSee('dynamic-dashboard' %})
+        <li><a href="{% url 'admin_dynamic_dashboard' %}" class="menu-item {{ request()->routeIs('admin.dynamic.dashboard.backup') ? 'active' : '' }}"><i class="bi bi-speedometer2"></i> Dynamic Dashboard</a></li>
+        {% endif %}
+        {% endif %}
+
+        @php
+            stockKeys = ['stock-dashboard','opening-stock','assign-stock'];
+            hasAnyStock = collect(stockKeys)->contains(fn(k) => canSee(k));
+        @endphp
+        {% if hasAnyStock %}
+        <li class="menu-section">Stock</li>
+        {% if canSee('stock-dashboard' %})
+        <li><a href="{% url 'admin_stock_dashboard' %}" class="menu-item {{ request()->routeIs('admin.stock.dashboard') ? 'active' : '' }}"><i class="bi bi-box-seam"></i> Stock Dashboard</a></li>
+        {% endif %}
+        {% if canSee('opening-stock' %})
+        <li><a href="{% url 'admin_opening_stock_create' %}" class="menu-item {{ request()->routeIs('admin.stock.opening.*') ? 'active' : '' }}"><i class="bi bi-boxes"></i> Opening Stock</a></li>
+        {% endif %}
+        {% if canSee('assign-stock' %})
+        <li><a href="{% url 'admin_stock_assign' %}" class="menu-item {{ request()->routeIs('admin.stock.assign.*') ? 'active' : '' }}"><i class="bi bi-truck"></i> Assign Stock</a></li>
+        {% endif %}
+        {% endif %}
+    </ul>
+</aside>
+
+<script>
+    (function () {
+        const sidebar = document.querySelector('.sidebar');
+        if (!sidebar) return;
+
+        const savedScroll = sessionStorage.getItem('sidebarScrollPos');
+        if (savedScroll !== null) {
+            sidebar.scrollTop = parseInt(savedScroll, 10);
+        }
+
+        sidebar.querySelectorAll('.menu-item').forEach(function (link) {
+            link.addEventListener('click', function () {
+                sessionStorage.setItem('sidebarScrollPos', sidebar.scrollTop);
+            });
+        });
+
+        sidebar.addEventListener('scroll', function () {
+            sessionStorage.setItem('sidebarScrollPos', sidebar.scrollTop);
+        });
+    })();
+</script>

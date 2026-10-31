@@ -1,0 +1,307 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+    .page-subtitle { color: #9CA3AF; font-size: 0.9rem; margin-top: -0.75rem; margin-bottom: 1.5rem; }
+
+    .form-card { background: #fff; border-radius: 12px; padding: 1.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+    .form-card h5 { font-weight: 700; color: #111827; margin-bottom: 1.5rem; }
+
+    .form-label { font-weight: 600; color: #374151; font-size: 0.85rem; margin-bottom: 0.4rem; }
+
+    .input-icon-wrap { position: relative; }
+    .input-icon-wrap > i {
+        position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%);
+        color: #9CA3AF; font-size: 0.95rem; pointer-events: none;
+    }
+    .input-icon-wrap .form-control,
+    .input-icon-wrap .form-select { padding-left: 2.4rem; }
+    .input-icon-wrap .toggle-eye {
+        position: absolute; right: 0.85rem; top: 50%; transform: translateY(-50%);
+        color: #9CA3AF; cursor: pointer; background: none; border: none; padding: 0;
+    }
+
+    .form-control, .form-select {
+        border: 1px solid #E5E7EB;
+        background-color: #F9FAFB;
+        border-radius: 8px;
+        padding: 0.6rem 0.85rem;
+        font-size: 0.9rem;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--accent-orange, #F59E0B);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+        background-color: #fff;
+    }
+
+    .form-check-label { font-weight: 600; color: #374151; font-size: 0.88rem; }
+    .form-check-input:checked { background-color: var(--accent-orange, #F59E0B); border-color: var(--accent-orange, #F59E0B); }
+
+    .form-actions { border-top: 1px solid #F1F2F4; margin-top: 1.75rem; padding-top: 1.5rem; }
+
+    .list-card {
+        background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.05); padding: 1.5rem 1.75rem;
+    }
+    .list-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+    .list-card-header h5 { font-weight: 700; color: #111827; margin: 0; }
+
+    .total-badge {
+        background: #FEF3E2; color: #B45309; font-size: 0.78rem; font-weight: 700;
+        padding: 0.3rem 0.85rem; border-radius: 999px;
+    }
+
+    .smtp-table { width: 100%; border-collapse: collapse; }
+    .smtp-table thead th {
+        text-align: left; font-size: 0.78rem; font-weight: 700; color: #9CA3AF;
+        letter-spacing: 0.03em; padding: 0.75rem 1rem; border-bottom: 1px solid #F1F2F4;
+    }
+    .smtp-table tbody td {
+        padding: 0.9rem 1rem; border-bottom: 1px solid #F1F2F4; font-size: 0.9rem;
+        color: #374151; vertical-align: middle;
+    }
+    .smtp-table tbody tr:last-child td { border-bottom: none; }
+    .smtp-table tbody tr:hover { background: #FAFAFA; }
+
+    .cfg-name { font-weight: 700; color: #111827; }
+
+    .status-badge {
+        display: inline-block; font-size: 0.78rem; font-weight: 600;
+        padding: 0.25rem 0.75rem; border-radius: 999px;
+    }
+    .status-default    { background: #DCFCE7; color: #16A34A; }
+    .status-notdefault { background: #F3F4F6; color: #6B7280; }
+
+    .smtp-action-btn {
+        width: 34px; height: 34px; border-radius: 8px; border: 1px solid #E5E7EB;
+        background: #fff; display: inline-flex; align-items: center; justify-content: center;
+        transition: border-color 0.15s, background 0.15s;
+    }
+    .smtp-action-btn.edit { color: #374151; }
+    .smtp-action-btn.edit:hover { border-color: var(--accent-orange, #F59E0B); color: var(--accent-orange, #F59E0B); }
+    .smtp-action-btn.delete { color: #DC2626; }
+    .smtp-action-btn.delete:hover { background: #FEE2E2; border-color: #FEE2E2; }
+</style>
+
+<h2 class="page-title mb-1">SMTP Configuration</h2>
+<p class="page-subtitle">Configure mail server credentials for alerts and password resets</p>
+
+<!-- Add SMTP Configuration Form -->
+<div class="form-card">
+    <h5>Add SMTP Configuration</h5>
+    <form action="{% url 'admin_smtp_store' %}" method="POST">
+        {% csrf_token %}
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Configuration Name <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-tag"></i>
+                    <input type="text" name="config_name" class="form-control" placeholder="e.g. Primary SMTP, Sales SMTP" required>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">SMTP Host <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-hdd-network"></i>
+                    <input type="text" name="smtp_host" class="form-control" placeholder="smtp.gmail.com" required>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">SMTP Port <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-ethernet"></i>
+                    <input type="number" name="smtp_port" value="587" class="form-control" required>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">SMTP Username (Email) <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-envelope"></i>
+                    <input type="email" name="smtp_user" class="form-control" placeholder="you@company.com" required>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label">SMTP Password <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-lock"></i>
+                    <input type="password" name="smtp_pass" id="smtpPassword" class="form-control" required>
+                    <button type="button" class="toggle-eye" onclick="togglePassword('smtpPassword','eyeIcon1')"><i class="bi bi-eye" id="eyeIcon1"></i></button>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Encryption <span class="text-danger">*</span></label>
+                <select name="smtp_crypto" class="form-select" required>
+                    <option value="tls" selected>TLS (Recommended for 587)</option>
+                    <option value="ssl">SSL</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">From Email Address <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-envelope-at"></i>
+                    <input type="email" name="from_email" class="form-control" placeholder="noreply@company.com" required>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">From Name (Sender Display) <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-person-badge"></i>
+                    <input type="text" name="from_name" value="SolarPro" class="form-control" placeholder="e.g. SolarPro" required>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions d-flex justify-content-end gap-2">
+            <button type="reset" class="btn btn-outline-secondary">Reset</button>
+            <button type="submit" class="btn hover-lift" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                <i class="bi bi-check-lg"></i> Save Configuration
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Send Test Email -->
+<div class="form-card">
+    <h5>Send Test Email</h5>
+    <form id="testEmailForm">
+        {% csrf_token %}
+        <div class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label">SMTP Configuration <span class="text-danger">*</span></label>
+                <select name="smtp_id" id="testSmtpId" class="form-select" required>
+                    <option value="" disabled selected>Choose configuration...</option>
+                    {% for config in configs %}
+                        <option value="{{ config.id }}">
+                            {{ config.config_name }} ({{ config.smtp_host }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label">Send Test Email To <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-envelope"></i>
+                    <input type="email" name="test_email" id="testEmailRecipient" class="form-control" placeholder="you@example.com" required>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <button type="button" onclick="sendTestMail()" class="btn hover-lift w-100" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                    <i class="bi bi-send"></i> Send Test
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- SMTP Configurations List -->
+<div class="list-card">
+    <div class="list-card-header">
+        <h5>Registered SMTP Configurations</h5>
+        <span class="total-badge">{{ configs|length }} Total</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="smtp-table" id="smtpTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Config Name</th>
+                    <th>Host</th>
+                    <th>From Email</th>
+                    <th>Status</th>
+                    <th>Created Date</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for config in configs %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td class="cfg-name">{{ config.config_name }}</td>
+                        <td>{{ config.smtp_host }}:{{ config.smtp_port }}</td>
+                        <td>{{ config.from_email }}</td>
+                        <td>
+                            <span class="status-badge status-default">Active</span>
+                        </td>
+                        <td>{{ config.created_at|date:"d M Y"|default:"—" }}</td>
+                        <td class="text-end">
+                            <form action="{% url 'admin_smtp_destroy' config.id %}" method="POST" class="d-inline" onsubmit="return confirm('Delete this SMTP configuration?');">
+                                {% csrf_token %}
+                                <button type="submit" class="smtp-action-btn delete" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">No SMTP configurations added yet.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script>
+    function togglePassword(inputId, iconId) {
+        const input = document.getElementById(inputId);
+        const icon = document.getElementById(iconId);
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('bi-eye');
+            icon.classList.add('bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('bi-eye-slash');
+            icon.classList.add('bi-eye');
+        }
+    }
+
+    function sendTestMail() {
+        const smtpId = document.getElementById('testSmtpId').value;
+        const email = document.getElementById('testEmailRecipient').value;
+        if (!email) {
+            Swal.fire({ icon: 'warning', title: 'Email required', text: 'Please enter recipient email.' });
+            return;
+        }
+
+        Swal.fire({
+            title: 'Sending test email...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        const formData = new FormData();
+        formData.append('smtp_id', smtpId);
+        formData.append('test_email', email);
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+        fetch('{% url "admin_smtp_test" %}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            Swal.fire({
+                icon: data.success ? 'success' : 'error',
+                title: data.success ? 'Email Sent!' : 'SMTP Failed',
+                text: data.message
+            });
+        })
+        .catch(err => {
+            Swal.fire({ icon: 'error', title: 'Error', text: err.toString() });
+        });
+    }
+</script>
+{% endblock %}

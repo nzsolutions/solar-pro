@@ -1,0 +1,201 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+
+    .breadcrumb-nav { font-size: 0.9rem; color: #9CA3AF; margin-bottom: 0.75rem; }
+    .breadcrumb-nav a { color: #9CA3AF; text-decoration: none; }
+    .breadcrumb-nav a:hover { color: var(--accent-orange, #F59E0B); }
+    .breadcrumb-nav .current { color: #111827; font-weight: 600; }
+    .breadcrumb-nav i { font-size: 0.8rem; margin: 0 0.4rem; }
+
+    .form-card { background: #fff; border-radius: 12px; padding: 1.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+    .form-card h5 { font-weight: 700; color: #111827; margin-bottom: 1.5rem; }
+
+    .form-label { font-weight: 600; color: #374151; font-size: 0.88rem; margin-bottom: 0.35rem; }
+    .form-control, .form-select {
+        border: 1px solid #E5E7EB;
+        background-color: #F9FAFB;
+        border-radius: 8px;
+        padding: 0.6rem 0.85rem;
+        font-size: 0.92rem;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--accent-orange, #F59E0B);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+        background-color: #fff;
+    }
+
+    .form-divider { border-top: 1px solid #F3F4F6; margin: 1.5rem 0 1.25rem; }
+
+    .list-card {
+        background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.05); padding: 1.5rem 1.75rem;
+    }
+    .list-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+    .list-card-header h5 { font-weight: 700; color: #111827; margin: 0; }
+
+    .total-badge {
+        background: #FEF3E2; color: #B45309; font-size: 0.78rem; font-weight: 700;
+        padding: 0.3rem 0.85rem; border-radius: 999px;
+    }
+
+    .attendance-table { width: 100%; border-collapse: collapse; }
+    .attendance-table thead th {
+        text-align: left; font-size: 0.78rem; font-weight: 700; color: #9CA3AF;
+        letter-spacing: 0.03em; padding: 0.75rem 1rem; border-bottom: 1px solid #F1F2F4;
+    }
+    .attendance-table tbody td {
+        padding: 0.9rem 1rem; border-bottom: 1px solid #F1F2F4; font-size: 0.9rem;
+        color: #374151; vertical-align: middle;
+    }
+    .attendance-table tbody tr:last-child td { border-bottom: none; }
+    .attendance-table tbody tr:hover { background: #FAFAFA; }
+
+    .dt-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    .dt-export-btn {
+        border: 1px solid #E5E7EB !important;
+        background: #fff !important;
+        color: #374151 !important;
+        border-radius: 8px !important;
+        padding: 0.5rem 1rem !important;
+        font-size: 0.85rem !important;
+        font-weight: 500 !important;
+        display: inline-flex !important;
+        align-items: center;
+        gap: 0.35rem;
+    }
+</style>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb-nav">
+    <a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Dashboard</a>
+    <i class="bi bi-chevron-right"></i>
+    <span class="current">Attendance Master</span>
+</div>
+
+<h2 class="page-title mb-4">Attendance Master</h2>
+
+<!-- Add Attendance Master Form -->
+<div class="form-card">
+    <h5>Add Attendance Master</h5>
+    <form action="{% url 'admin_attendance_master_store' %}" method="POST">
+        {% csrf_token %}
+
+        <div class="row g-3">
+            <div class="col-12">
+                <label class="form-label">Working Hours</label>
+                <input type="text" name="working_hours" class="form-control" placeholder="e.g. 9:00 AM - 6:00 PM" required>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Latitude</label>
+                <input type="number" step="0.0000001" name="latitude" class="form-control" placeholder="e.g. 18.5204303" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Longitude</label>
+                <input type="number" step="0.0000001" name="longitude" class="form-control" placeholder="e.g. 73.8567437" required>
+            </div>
+        </div>
+
+        <div class="form-divider"></div>
+
+        <div class="d-flex justify-content-end gap-2">
+            <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn hover-lift" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                <i class="bi bi-check-lg"></i> Save Master
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Registered Attendance Masters List -->
+<div class="list-card">
+    <div class="list-card-header">
+        <h5>Registered Attendance Masters</h5>
+        <span class="total-badge">{{ attendance_masters|length }} Total</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="attendance-table" id="attendanceMasterTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Working Hours</th>
+                    <th>Latitude</th>
+                    <th>Longitude</th>
+                    <th>Date Added</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in attendance_masters %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ row.working_hours }}</td>
+                        <td>{{ row.latitude }}</td>
+                        <td>{{ row.longitude }}</td>
+                        <td>{{ row.created_at|date:"d M Y"|default:"—" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">No attendance master locations registered yet.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script>
+    $(document).ready(function () {
+        $('#attendanceMasterTable').DataTable({
+            order: [[4, 'desc']],
+            pageLength: 10,
+            lengthMenu: [5, 10, 25, 50],
+            dom: 'B lfrtip',
+            buttons: [
+                {
+                    extend: 'excelHtml5',
+                    text: '<i class="bi bi-file-earmark-excel"></i> Excel',
+                    className: 'btn dt-export-btn',
+                    title: 'Attendance Master List'
+                },
+                {
+                    extend: 'pdfHtml5',
+                    text: '<i class="bi bi-file-earmark-pdf"></i> PDF',
+                    className: 'btn dt-export-btn',
+                    title: 'Attendance Master List',
+                    orientation: 'landscape'
+                },
+                {
+                    extend: 'print',
+                    text: '<i class="bi bi-printer"></i> Print',
+                    className: 'btn dt-export-btn',
+                    title: 'Attendance Master List'
+                }
+            ]
+        });
+    });
+</script>
+{% endblock %}

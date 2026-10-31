@@ -1,0 +1,197 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+    .breadcrumb-nav { font-size: 0.9rem; color: #9CA3AF; margin-bottom: 0.75rem; }
+    .breadcrumb-nav a { color: #9CA3AF; text-decoration: none; }
+    .breadcrumb-nav a:hover { color: var(--accent-orange, #F59E0B); }
+    .breadcrumb-nav .current { color: #111827; font-weight: 600; }
+    .breadcrumb-nav i { font-size: 0.8rem; margin: 0 0.4rem; }
+
+    .form-card { background: #fff; border-radius: 12px; padding: 1.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); }
+
+    .badge-count {
+        background: #FEF3E2;
+        color: var(--accent-orange, #F59E0B);
+        font-weight: 700;
+        font-size: 0.8rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+    }
+
+    .modern-table { margin-bottom: 0; }
+    .modern-table thead th {
+        border: none;
+        color: #9CA3AF;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 700;
+        padding-bottom: 0.85rem;
+    }
+    .modern-table tbody tr { border-top: 1px solid #F3F4F6; }
+    .modern-table tbody tr:hover { background-color: #FAFAFA; }
+    .modern-table tbody td { padding: 0.9rem 0.75rem; vertical-align: middle; color: #374151; }
+
+    .status-select {
+        border-radius: 8px;
+        border: 1px solid #E5E7EB;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        min-width: 130px;
+    }
+    .status-select.status-pending  { color: #B45309; background: #FEF3E2; border-color: #FDE9C8; }
+    .status-select.status-approved { color: #16A34A; background: #DCFCE7; border-color: #BBF7D0; }
+    .status-select.status-rejected { color: #DC2626; background: #FEE2E2; border-color: #FECACA; }
+
+    .reason-text { font-size: 0.82rem; color: #6B7280; max-width: 220px; }
+</style>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb-nav">
+    <a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Dashboard</a>
+    <i class="bi bi-chevron-right"></i>
+    <span class="current">Expenses Approval</span>
+</div>
+
+<h2 class="page-title mb-1">Expenses Approval</h2>
+
+<div class="form-card mt-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0" style="font-weight:700;">Submitted Expenses</h5>
+        <span class="badge-count">{{ expenses|length }} Total</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table modern-table table-hover" id="employeeExpensesTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Employee</th>
+                    <th>Category</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Employee Comment</th>
+                    <th>Image</th>
+                    <th>Rejection Reason</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for expense in expenses %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td class="fw-semibold">{{ expense.employee_name }}</td>
+                        <td>{{ expense.category_name }}</td>
+                        <td>&#8377;{{ expense.amount }}</td>
+                        <td>{{ expense.date|date:"d M Y" }}</td>
+                        <td class="reason-text">{{ expense.emp_comment|default:'—' }}</td>
+                        <td>
+                            {% if expense.image %}
+                                <a href="/media/{{ expense.image }}" target="_blank">
+                                    <img src="/media/{{ expense.image }}" alt="Receipt" style="width:40px;height:40px;object-fit:cover;border-radius:6px;">
+                                </a>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td class="reason-text">{{ expense.rejection_reason|default:'—' }}</td>
+                        <td>
+                            <form action="{% url 'admin_employee_expenses_update_status' expense.id %}"
+                                  method="POST" class="status-form d-inline" data-expense-id="{{ expense.id }}">
+                                {% csrf_token %}
+                                <input type="hidden" name="rejection_reason" class="rejection-reason-input" value="{{ expense.rejection_reason|default:'' }}">
+                                <select name="status"
+                                        class="status-select status-{{ expense.status }}"
+                                        onchange="handleStatusChange(this, {{ expense.id }})">
+                                    <option value="pending"  {% if expense.status == 'pending' %}selected{% endif %}>Pending</option>
+                                    <option value="approved" {% if expense.status == 'approved' %}selected{% endif %}>Approved</option>
+                                    <option value="rejected" {% if expense.status == 'rejected' %}selected{% endif %}>Reject</option>
+                                </select>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">No expenses submitted yet.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Rejection Reason Modal -->
+<div class="modal fade" id="rejectReasonModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content" style="border-radius: 12px; border: none;">
+            <div class="modal-header" style="border-bottom: 1px solid #F3F4F6;">
+                <h5 class="modal-title" style="font-weight:700;">Reason for Rejection</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label fw-semibold mb-2">Please provide a reason <span class="text-danger">*</span></label>
+                <textarea id="rejectReasonText" class="form-control" rows="4" placeholder="Enter rejection reason..."></textarea>
+                <small id="rejectReasonError" class="text-danger d-none">Reason is required to reject this expense.</small>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid #F3F4F6;">
+                <button type="button" class="btn btn-light border" onclick="cancelReject()">Cancel</button>
+                <button type="button" class="btn hover-lift" style="background-color: var(--accent-orange); color: white; font-weight: 500;" onclick="confirmReject()">
+                    <i class="bi bi-check-lg"></i> Confirm Rejection
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let activeSelectEl = null;
+    let activeExpenseId = null;
+    let rejectModal = null;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        rejectModal = new bootstrap.Modal(document.getElementById('rejectReasonModal'));
+    });
+
+    function handleStatusChange(selectEl, expenseId) {
+        const value = selectEl.value;
+
+        if (value === 'rejected') {
+            activeSelectEl = selectEl;
+            activeExpenseId = expenseId;
+            document.getElementById('rejectReasonText').value = '';
+            document.getElementById('rejectReasonError').classList.add('d-none');
+            rejectModal.show();
+            return;
+        }
+
+        const form = selectEl.closest('form');
+        form.querySelector('.rejection-reason-input').value = '';
+        form.submit();
+    }
+
+    function confirmReject() {
+        const reason = document.getElementById('rejectReasonText').value.trim();
+        if (!reason) {
+            document.getElementById('rejectReasonError').classList.remove('d-none');
+            return;
+        }
+
+        const form = activeSelectEl.closest('form');
+        form.querySelector('.rejection-reason-input').value = reason;
+        rejectModal.hide();
+        form.submit();
+    }
+
+    function cancelReject() {
+        if (activeSelectEl) {
+            activeSelectEl.value = 'pending';
+        }
+        rejectModal.hide();
+    }
+</script>
+{% endblock %}

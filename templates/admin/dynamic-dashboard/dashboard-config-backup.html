@@ -1,0 +1,239 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold">Dashboard Configuration (Backup)</h2>
+    <button class="btn btn-primary px-4 shadow-sm" onclick="saveConfiguration()">
+        <i class="bi bi-save"></i> Save Layout
+    </button>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+        <h5 class="fw-bold mb-3">Section Master</h5>
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <input type="text" id="sectionName" class="form-control" placeholder="Enter section name" style="max-width: 400px;">
+            <button type="button" class="btn btn-dark px-3" onclick="addSection()" title="Add Section">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+        </div>
+        <div id="sectionError" class="text-danger small mb-2"></div>
+        <div id="sectionList" style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px;"></div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+        <button class="btn btn-outline-dark mb-3" onclick="addGraph()">+ Add New Graph</button>
+        <form id="configForm" method="POST" action="{{ route('admin.dashboard.config.backup.save') }}">
+            {% csrf_token %}
+            <input type="hidden" name="config_json" id="config_json">
+            <div id="graphsContainer" class="row g-4"></div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let graphs = {!! savedConfig !!};
+    const forms = @json(forms);
+
+    function renderGraphs() {
+        const container = document.getElementById('graphsContainer');
+        container.innerHTML = '';
+
+        graphs.forEach((graph, index) => {
+            const formOptions = forms.map(f => `<option value="${f.id}" ${f.id == graph.form_id ? 'selected' : ''}>${f.form_name}</option>`).join('');
+            const sectionOptions = sections.map(s => `<option value="${s.id}" ${s.id == graph.section_id ? 'selected' : ''}>${s.section_name}</option>`).join('');
+            
+            container.innerHTML += `
+                <div class="col-12">
+                    <div class="p-3 border rounded bg-light position-relative">
+                        <button type="button" class="btn-close position-absolute top-0 end-0 m-3" onclick="removeGraph(${index})"></button>
+                        <div class="row g-3">
+                            <div class="col-md-2">
+                                <label class="form-label text-muted small">Select Section</label>
+                                <select class="form-select" onchange="updateGraph(${index}, 'section_id', this.value)">
+                                    <option value="">Select Section...</option>
+                                    ${sectionOptions}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label text-muted small">Graph Title</label>
+                                <input type="text" class="form-control" value="${graph.title || ''}" onchange="updateGraph(${index}, 'title', this.value)">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label text-muted small">Select Form</label>
+                                <select class="form-select" onchange="loadFields(this.value, ${index}); updateGraph(${index}, 'form_id', this.value)">
+                                    <option value="">Choose Form...</option>
+                                    ${formOptions}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label text-muted small">Data Point (Y-Axis)</label>
+                                <select class="form-select" id="fieldSelect_${index}" onchange="updateGraph(${index}, 'field', this.value)">
+                                    <option value="${graph.field || ''}">${graph.field ? 'Loaded...' : 'Select Form First'}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1">
+                                <label class="form-label text-muted small">Color</label>
+                                <input type="color" class="form-control form-control-color w-100" value="${graph.color || '#F59E0B'}" onchange="updateGraph(${index}, 'color', this.value)">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label text-muted small">Chart Type</label>
+                                <select class="form-select" onchange="updateGraph(${index}, 'type', this.value)">
+                                    <option value="line" ${graph.type == 'line' ? 'selected' : ''}>Line Chart (Trend)</option>
+                                    <option value="bar" ${graph.type == 'bar' ? 'selected' : ''}>Bar Chart</option>
+                                    <option value="pie" ${graph.type == 'pie' ? 'selected' : ''}>Pie Chart</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1">
+                                <label class="form-label text-muted small">Width</label>
+                                <select class="form-select" onchange="updateGraph(${index}, 'size', this.value)">
+                                    <option value="4" ${graph.size == '4' ? 'selected' : ''}>33%</option>
+                                    <option value="6" ${graph.size == '6' ? 'selected' : ''}>50%</option>
+                                    <option value="12" ${graph.size == '12' ? 'selected' : ''}>100%</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            // Auto-load fields if form is pre-selected
+            if(graph.form_id) loadFields(graph.form_id, index, graph.field);
+        });
+    }
+
+    function addGraph() {
+        graphs.push({ section_id: '', title: '', form_id: '', field: '', type: 'line', size: '6' });
+        renderGraphs();
+    }
+
+    function removeGraph(index) {
+        graphs.splice(index, 1);
+        renderGraphs();
+    }
+
+    function updateGraph(index, key, value) {
+        graphs[index][key] = value;
+    }
+
+    async function loadFields(formId, index, selectedField = null) {
+        if (!formId) return;
+        
+        // Laravel securely generates the full URL including your subfolder
+        const baseUrl = "{{ url('admin/config-backup/fields') }}"; 
+        
+        const res = await fetch(`${baseUrl}/${formId}`);
+
+        const fields = await res.json();
+        
+        const select = document.getElementById(`fieldSelect_${index}`);
+        select.innerHTML = '<option value="">Select Target Field...</option>' + 
+            fields.map(f => `<option value="${f.id}" ${f.id === selectedField ? 'selected' : ''}>${f.label}</option>`).join('');
+    }
+
+    // ---------- Section Master ----------
+    let sections = @json(sections);
+
+    function renderSections() {
+        const list = document.getElementById('sectionList');
+        list.innerHTML = '';
+        sections.forEach(s => {
+            const box = document.createElement('div');
+            box.className = 'border rounded px-2 py-2 bg-light small d-flex align-items-center justify-content-between gap-1';
+            box.style.minWidth = '0';
+
+            const name = document.createElement('span');
+            name.className = 'text-truncate';
+            name.title = s.section_name;
+            name.textContent = s.section_name;
+
+            const del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'btn-close';
+            del.style.fontSize = '0.6rem';
+            del.title = 'Delete';
+            del.onclick = () => deleteSection(s.id);
+
+            box.appendChild(name);
+            box.appendChild(del);
+            list.appendChild(box);
+        });
+    }
+
+    async function deleteSection(id) {
+        if (!confirm('Delete this section?')) return;
+
+        const errBox = document.getElementById('sectionError');
+        errBox.textContent = '';
+
+        try {
+            const res = await fetch(`{{ url('dashboard-backup/section') }}/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                }
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                errBox.textContent = 'Could not delete section';
+                return;
+            }
+
+            sections = sections.filter(s => s.id != id);
+            renderSections();
+            renderGraphs();
+        } catch (e) {
+            errBox.textContent = 'Something went wrong, try again';
+        }
+    }
+
+    async function addSection() {
+        const input = document.getElementById('sectionName');
+        const errBox = document.getElementById('sectionError');
+        errBox.textContent = '';
+
+        const name = input.value.trim();
+        if (!name) {
+            errBox.textContent = 'Please enter a section name';
+            return;
+        }
+
+        try {
+            const res = await fetch("{{ route('admin.dashboard.config.backup.section.store') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ section_name: name })
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                errBox.textContent = data.message || 'Could not add section';
+                return;
+            }
+
+            sections.push(data.section);
+            input.value = '';
+            renderSections();
+            renderGraphs();
+        } catch (e) {
+            errBox.textContent = 'Something went wrong, try again';
+        }
+    }
+
+    renderSections();
+
+    function saveConfiguration() {
+        document.getElementById('config_json').value = JSON.stringify(graphs);
+        document.getElementById('configForm').submit();
+    }
+
+    renderGraphs();
+</script>
+{% endblock %}

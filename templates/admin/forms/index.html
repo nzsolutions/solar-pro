@@ -1,0 +1,99 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+    .list-card {
+        background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.05); padding: 1.5rem 1.75rem;
+    }
+    .list-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+    .list-card-header h5 { font-weight: 700; color: #111827; margin: 0; }
+    .total-badge {
+        background: #FEF3E2; color: #B45309; font-size: 0.78rem; font-weight: 700;
+        padding: 0.3rem 0.85rem; border-radius: 999px;
+    }
+    .smtp-table { width: 100%; border-collapse: collapse; }
+    .smtp-table thead th {
+        text-align: left; font-size: 0.78rem; font-weight: 700; color: #9CA3AF;
+        letter-spacing: 0.03em; padding: 0.75rem 1rem; border-bottom: 1px solid #F1F2F4;
+    }
+    .smtp-table tbody td {
+        padding: 0.9rem 1rem; border-bottom: 1px solid #F1F2F4; font-size: 0.9rem;
+        color: #374151; vertical-align: middle;
+    }
+    .smtp-table tbody tr:last-child td { border-bottom: none; }
+    .smtp-table tbody tr:hover { background: #FAFAFA; }
+    .form-name { font-weight: 700; color: #111827; }
+    .action-btn {
+        width: 34px; height: 34px; border-radius: 8px; border: 1px solid #E5E7EB;
+        background: #fff; display: inline-flex; align-items: center; justify-content: center;
+        transition: border-color 0.15s, background 0.15s; color: #374151; text-decoration: none;
+    }
+    .action-btn:hover { border-color: var(--accent-orange, #F59E0B); color: var(--accent-orange, #F59E0B); }
+    button.action-btn { cursor: pointer; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-1">Dynamic Forms</h2>
+        <p class="text-muted mb-0">Manage and view Excel-style checklist templates</p>
+    </div>
+    <div>
+        <a href="{% url 'admin_forms_create' %}" class="btn hover-lift" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+            <i class="bi bi-plus-lg"></i> Create New Form
+        </a>
+    </div>
+</div>
+
+<div class="list-card">
+    <div class="list-card-header">
+        <h5>Form Templates</h5>
+        <span class="total-badge">{{ forms|length }} Total</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="smtp-table table table-hover" id="formsTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Project Name</th>
+                    <th>Form Name</th>
+                    <th>Description</th>
+                    <th>Created Date</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for form in forms %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ form.project_names|default:"—" }}</td>
+                        <td class="form-name">{{ form.form_name }}</td>
+                        <td>{{ form.description|default:"—" }}</td>
+                        <td>{{ form.created_at|date:"d M Y, h:i A" }}</td>
+                        <td class="text-end">
+                            <a href="{% url 'admin_forms_show' form.id %}" class="action-btn" title="View Details">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="{% url 'admin_forms_edit' form.id %}" class="action-btn ms-1" title="Edit Form">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form action="{% url 'admin_forms_destroy' form.id %}" method="POST" class="d-inline delete-form ms-1" onsubmit="return confirm('Delete this form template? This cannot be undone.');">
+                                {% csrf_token %}
+                                <button type="submit" class="action-btn" title="Delete Form">
+                                    <i class="bi bi-trash text-danger"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">No dynamic forms created yet.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

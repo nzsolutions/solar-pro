@@ -1,0 +1,174 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+    .breadcrumb-nav { font-size: 0.9rem; color: #9CA3AF; margin-bottom: 0.75rem; }
+    .breadcrumb-nav a { color: #9CA3AF; text-decoration: none; }
+    .breadcrumb-nav a:hover { color: var(--accent-orange, #F59E0B); }
+    .breadcrumb-nav .current { color: #111827; font-weight: 600; }
+    .breadcrumb-nav i { font-size: 0.8rem; margin: 0 0.4rem; }
+
+    .form-card { background: #fff; border-radius: 12px; padding: 1rem 1.25rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); }
+    .form-label { font-weight: 700; color: #111827; margin-bottom: 0.5rem; font-size: 0.85rem; }
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 1px solid #E5E7EB;
+        padding: 0.55rem 0.85rem;
+        background-color: #FAFAFA;
+        font-size: 0.9rem;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--accent-orange, #F59E0B);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+        background-color: #fff;
+    }
+
+    .badge-count {
+        background: #FEF3E2;
+        color: var(--accent-orange, #F59E0B);
+        font-weight: 700;
+        font-size: 0.8rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+    }
+    .badge-amount {
+        background: #ECFDF5;
+        color: #059669;
+        font-weight: 700;
+        font-size: 0.8rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+        margin-left: 0.5rem;
+    }
+
+    .modern-table { margin-bottom: 0; }
+    .modern-table thead th {
+        border: none;
+        color: #9CA3AF;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 700;
+        padding-bottom: 0.5rem;
+    }
+    .modern-table tbody tr { border-top: 1px solid #F3F4F6; }
+    .modern-table tbody tr:hover { background-color: #FAFAFA; }
+    .modern-table tbody td { padding: 0.65rem 0.75rem; vertical-align: middle; color: #374151; }
+
+    .status-badge {
+        font-weight: 600;
+        font-size: 0.78rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .status-pending { background: #FEF3C7; color: #D97706; }
+    .status-approved { background: #ECFDF5; color: #059669; }
+    .status-rejected { background: #FEE2E2; color: #DC2626; }
+</style>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb-nav">
+    <a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Dashboard</a>
+    <i class="bi bi-chevron-right"></i>
+    <span>Expenses</span>
+    <i class="bi bi-chevron-right"></i>
+    <span class="current">Expense Report</span>
+</div>
+
+<h2 class="page-title mb-1">Expense Report</h2>
+
+<!-- Filters -->
+<div class="form-card mb-4 mt-3">
+    <form method="GET" action="{% url 'admin_expense_report_index' %}">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Employee</label>
+                <select name="employee" class="form-select">
+                    <option value="">All Employees</option>
+                    {% for emp in employees %}
+                        <option value="{{ emp.name }}" {% if request.GET.employee == emp.name %}selected{% endif %}>{{ emp.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Project</label>
+                <select name="project_id" class="form-select">
+                    <option value="">All Projects</option>
+                    {% for proj in projects %}
+                        <option value="{{ proj.id }}" {% if request.GET.project_id == proj.id|stringformat:"s" %}selected{% endif %}>{{ proj.client_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All Statuses</option>
+                    {% for st in statusOptions %}
+                        <option value="{{ st }}" {% if request.GET.status == st %}selected{% endif %}>{{ st|capfirst }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn hover-lift" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                    Filter
+                </button>
+                <a href="{% url 'admin_expense_report_index' %}" class="btn btn-light border">Reset</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Table Card -->
+<div class="form-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0" style="font-weight:700;">Expense Records</h5>
+        <div>
+            <span class="badge-count">{{ expenses|length }} Records</span>
+            <span class="badge-amount">&#8377;{{ total_amount }} Total</span>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table modern-table table-hover" id="expenseReportTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Date</th>
+                    <th>Employee</th>
+                    <th>Project</th>
+                    <th>Category</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Comment</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for exp in expenses %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ exp.date|date:"d M Y" }}</td>
+                        <td class="fw-semibold">{{ exp.employee_name }}</td>
+                        <td>{{ exp.project_name|default:'—' }}</td>
+                        <td>{{ exp.category_name }}</td>
+                        <td class="fw-bold">&#8377;{{ exp.amount }}</td>
+                        <td>
+                            <span class="status-badge status-{{ exp.status }}">
+                                {{ exp.status|capfirst }}
+                            </span>
+                        </td>
+                        <td>{{ exp.emp_comment|default:'—' }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">No expense records found.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

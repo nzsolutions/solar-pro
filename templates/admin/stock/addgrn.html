@@ -1,0 +1,189 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+    .breadcrumb-nav { font-size: 0.9rem; color: #9CA3AF; margin-bottom: 0.75rem; }
+    .breadcrumb-nav a { color: #9CA3AF; text-decoration: none; }
+    .breadcrumb-nav a:hover { color: var(--accent-orange, #F59E0B); }
+    .breadcrumb-nav .current { color: #111827; font-weight: 600; }
+    .breadcrumb-nav i { font-size: 0.8rem; margin: 0 0.4rem; }
+
+    .form-card { background: #fff; border-radius: 12px; padding: 1.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+    .form-card h5 { font-weight: 700; color: #111827; margin-bottom: 0; }
+    .form-label { font-weight: 600; color: #374151; font-size: 0.88rem; margin-bottom: 0.35rem; }
+    .form-control, .form-select {
+        border: 1px solid #E5E7EB;
+        background-color: #F9FAFB;
+        border-radius: 8px;
+        padding: 0.6rem 0.85rem;
+        font-size: 0.92rem;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--accent-orange, #F59E0B);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+        background-color: #fff;
+    }
+
+    .add-item-btn {
+        background: #fff; border: 1px solid #E5E7EB; color: #111827;
+        font-weight: 600; font-size: 0.88rem; border-radius: 8px;
+        padding: 0.5rem 1rem; display: inline-flex; align-items: center; gap: 0.4rem;
+        transition: border-color 0.15s, color 0.15s;
+    }
+    .add-item-btn:hover { border-color: var(--accent-orange, #F59E0B); color: var(--accent-orange, #F59E0B); }
+
+    .items-header-row { font-weight: 600; color: #374151; font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .item-row { align-items: center; margin-bottom: 0.75rem; }
+    .remove-item-btn {
+        border: none; background: transparent; color: #DC2626;
+        width: 38px; height: 38px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        transition: background 0.15s;
+    }
+    .remove-item-btn:hover { background: #FEE2E2; }
+    textarea.form-control { min-height: 110px; }
+</style>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb-nav">
+    <a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Dashboard</a>
+    <i class="bi bi-chevron-right"></i>
+    <a href="{% url 'admin_stock_dashboard' %}">Stock</a>
+    <i class="bi bi-chevron-right"></i>
+    <span class="current">Add GRN</span>
+</div>
+
+<h2 class="page-title mb-4">Add Goods Receipt Note (GRN)</h2>
+
+<form action="{% url 'admin_grn_store' %}" method="POST" id="grnForm">
+    {% csrf_token %}
+
+    <!-- GRN Header -->
+    <div class="form-card">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">GRN Number</label>
+                <input type="text" name="grn_number" value="{{ nextGrnNumber }}" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Date</label>
+                <input type="date" name="date" value="{% now 'Y-m-d' %}" class="form-control" required>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Vendor Name</label>
+                <input type="text" name="vendor_name" list="vendorList" class="form-control" placeholder="e.g. Tata Power Solar" required>
+                <datalist id="vendorList">
+                    {% for vendor in vendors %}
+                        <option value="{{ vendor }}">
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Received By</label>
+                <input type="text" name="received_by" class="form-control" placeholder="Manager name">
+            </div>
+        </div>
+    </div>
+
+    <!-- Items -->
+    <div class="form-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5>Items</h5>
+            <button type="button" id="addItemBtn" class="add-item-btn">
+                <i class="bi bi-plus-lg"></i> Add Item
+            </button>
+        </div>
+
+        <div class="row items-header-row d-none d-md-flex">
+            <div class="col-md-6">Item</div>
+            <div class="col-md-2">Qty</div>
+            <div class="col-md-3">Rate (&#8377;)</div>
+            <div class="col-md-1"></div>
+        </div>
+
+        <div id="itemRows"></div>
+    </div>
+
+    <!-- Notes -->
+    <div class="form-card">
+        <h5 class="mb-3">Notes</h5>
+        <textarea name="notes" class="form-control"></textarea>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mb-4">
+        <a href="{% url 'admin_stock_dashboard' %}" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn hover-lift" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+            Save GRN
+        </button>
+    </div>
+</form>
+
+<!-- Row template -->
+<template id="itemRowTemplate">
+    <div class="row item-row">
+        <div class="col-md-6">
+            <select name="items[__INDEX__][item_id]" class="form-select" required>
+                <option value="" selected disabled>Select item</option>
+                {% for item in stockItems %}
+                    <option value="{{ item.id }}">{{ item.item_name }} ({{ item.unit }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <input type="number" step="0.01" min="0" name="items[__INDEX__][qty]" class="form-control" value="0" required>
+        </div>
+        <div class="col-md-3">
+            <input type="number" step="0.01" min="0" name="items[__INDEX__][rate]" class="form-control" value="0" required>
+        </div>
+        <div class="col-md-1 d-flex justify-content-end">
+            <button type="button" class="remove-item-btn removeRowBtn">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    </div>
+</template>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const itemRows = document.getElementById('itemRows');
+        const template = document.getElementById('itemRowTemplate');
+        const addItemBtn = document.getElementById('addItemBtn');
+        let rowIndex = 0;
+
+        function addRow() {
+            const clone = template.content.cloneNode(true);
+            clone.querySelectorAll('[name]').forEach(function (el) {
+                el.name = el.name.replace('__INDEX__', rowIndex);
+            });
+            itemRows.appendChild(clone);
+            rowIndex++;
+            updateRemoveButtons();
+        }
+
+        function updateRemoveButtons() {
+            const rows = itemRows.querySelectorAll('.item-row');
+            rows.forEach(function (row) {
+                const btn = row.querySelector('.removeRowBtn');
+                btn.style.visibility = rows.length > 1 ? 'visible' : 'hidden';
+            });
+        }
+
+        itemRows.addEventListener('click', function (e) {
+            const btn = e.target.closest('.removeRowBtn');
+            if (!btn) return;
+            const row = btn.closest('.item-row');
+            if (itemRows.querySelectorAll('.item-row').length > 1) {
+                row.remove();
+                updateRemoveButtons();
+            }
+        });
+
+        addItemBtn.addEventListener('click', addRow);
+        addRow();
+    });
+</script>
+{% endblock %}

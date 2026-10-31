@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolarPro - Dashboard</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Admin Global Styles (form-card, breadcrumb, tables, etc. — shared by every Master page) -->
+    <link rel="stylesheet" href="{{ asset('css/admin-global.css') }}">
+
+    <style>
+        :root {
+            --sidebar-bg: #171B2B;
+            --sidebar-hover: #23283E;
+            --accent-orange: #FF9F1C;
+            --bg-light: #F4F7FA;
+            --text-dark: #2D3748;
+            --text-muted: #A0AEC0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            overflow-x: hidden;
+        }
+
+        /* Global Layout Grid */
+        .wrapper {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+        }
+
+        /* Sidebar Styling */
+        .sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+            height: 100vh;
+            position: fixed;
+            overflow-y: auto;
+        }
+
+        /* Main Content Area */
+        .main-content {
+            flex: 1;
+            margin-left: 260px; /* Same as sidebar width */
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        /* Global Animations */
+        .hover-lift {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .hover-lift:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important;
+        }
+    </style>
+    @stack('styles')
+</head>
+<body>
+
+    <div class="wrapper">
+        <!-- Import Global Sidebar -->
+        @include('admin.layouts.sidebar')
+
+        <div class="main-content">
+            <!-- Import Global Header -->
+            @include('admin.layouts.header')
+
+            <!-- Main Page Content Injected Here -->
+            <main class="p-4">
+                @yield('content')
+            </main>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Global SweetAlert2 flash message trigger. Reads session('success') / session('error')
+         set by any controller redirect — no per-page markup required. -->
+    {% if session('success' %} || session('error'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                Swal.fire({
+                    icon: '{{ session('success') ? 'success' : 'error' }}',
+                    title: '{{ session('success') ? 'Success' : 'Something went wrong' }}',
+                    text: @json(session('success') ?? session('error')),
+                    confirmButtonColor: '#FF9F1C',
+                    confirmButtonText: 'OK',
+                    timer: 3500,
+                    timerProgressBar: true,
+                    showClass: {
+                        popup: 'swal2-noanimation'
+                    },
+                    customClass: {
+                        popup: 'rounded-4'
+                    }
+                });
+            });
+        </script>
+    {% endif %}
+
+    @stack('scripts')
+</body>
+</html>

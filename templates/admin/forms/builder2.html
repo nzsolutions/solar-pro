@@ -1,0 +1,552 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+    .form-card { background: #fff; border-radius: 12px; padding: 1.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+    .form-card h5 { font-weight: 700; color: #111827; margin-bottom: 1.5rem; }
+    .form-label { font-weight: 600; color: #374151; font-size: 0.85rem; }
+    .form-control, .form-select { border: 1px solid #E5E7EB; background-color: #F9FAFB; border-radius: 8px; padding: 0.6rem 0.85rem; font-size: 0.9rem; }
+    .form-control:focus, .form-select:focus { border-color: var(--accent-orange, #F59E0B); box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12); background-color: #fff; }
+
+    .section-container { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 2px solid #E2E8F0; padding-bottom: 0.5rem; }
+    .row-item { background: #fff; border: 1px dashed #CBD5E1; border-radius: 6px; padding: 1rem; margin-bottom: 0.5rem; display: flex; gap: 1rem; align-items: center; }
+    .remove-btn { color: #DC2626; cursor: pointer; background: #FEE2E2; border: none; border-radius: 6px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+    .badge-col { background: #E0E7FF; color: #4338CA; padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 600; font-size: 0.8rem; display: inline-block; margin-right: 0.5rem; margin-bottom: 0.5rem; }
+
+    .preview-table { border: 2px solid #94A3B8; }
+    .preview-table th { background-color: #E2E8F0; font-size: 0.75rem; font-weight: 700; color: #334155; text-transform: uppercase; border: 1px solid #94A3B8; text-align: center; vertical-align: middle; }
+    .preview-table td { font-size: 0.8rem; color: #0F172A; border: 1px solid #94A3B8; vertical-align: middle; }
+    .preview-section-row { background-color: #CBD5E1 !important; font-weight: 700; }
+    .preview-section-row td { border-bottom: 2px solid #94A3B8; border-top: 2px solid #94A3B8; }
+
+    .excel-upload-zone { border: 2px dashed #9CA3AF; border-radius: 8px; padding: 1.5rem; text-align: center; background: #F3F4F6; cursor: pointer; transition: all 0.2s; }
+    .excel-upload-zone:hover { border-color: var(--accent-orange, #F59E0B); background: #FEF3E2; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-1">{{ isset(form) ? 'Edit Matrix Form' : 'Create Matrix Form' }}</h2>
+        <p class="text-muted mb-0">{{ isset(form) ? 'Update the checklist template' : 'Design Excel-style checklists and audit sheets' }}</p>
+    </div>
+</div>
+
+<form action="{{ isset(form) ? route('admin.forms2.update', form.id) : route('admin.forms2.store') }}" method="POST" id="formBuilder">
+    {% csrf_token %}
+    @isset(form)
+        <input type='hidden' name='_method' value='PUT'>
+    @endisset
+    <input type="hidden" name="form_schema" id="form_schema">
+
+    <!-- Basic Form Info & Excel Upload -->
+    <div class="form-card">
+        <div class="row align-items-start">
+            <div class="col-md-7">
+                <h5 class="mb-3">1. Form Metadata</h5>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Applicable Projects</label>
+                        <div class="border rounded p-3" style="background: #F9FAFB;">
+                            {% if (projects ?? collect( %})->count())
+                                <div class="form-check mb-2 pb-2 border-bottom">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        id="selectAllProjects"
+                                    >
+                                    <label class="form-check-label fw-semibold" for="selectAllProjects">
+                                        Select All
+                                    </label>
+                                </div>
+                            {% endif %}
+                            @forelse(projects ?? [] as project)
+                                <div class="form-check">
+                                    <input
+                                        class="form-check-input project-checkbox"
+                                        type="checkbox"
+                                        name="project_ids[]"
+                                        value="{{ project.id }}"
+                                        id="project_{{ project.id }}"
+                                        {% if isset(selectedProjectIds %} && in_array(project.id, selectedProjectIds)) checked {% endif %}
+                                    >
+                                    <label class="form-check-label" for="project_{{ project.id }}">
+                                        {{ project.client_name }}
+                                    </label>
+                                </div>
+                            {% empty %}
+                                <p class="text-muted mb-0" style="font-size: 0.85rem;">No projects found.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Form Title <span class="text-danger">*</span></label>
+                        <input type="text" name="form_name" id="form_name" class="form-control" placeholder="e.g. Daily Check List - Solar Plant" value="{{ old('form_name', form.form_name ?? '') }}" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Description</label>
+                        <input type="text" name="description" class="form-control" placeholder="Optional instructions for field staff" value="{{ old('description', form.description ?? '') }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- EXCEL UPLOAD SECTION -->
+            <div class="col-md-5 border-start ps-md-4 mt-4 mt-md-0">
+                <h5 class="mb-3 text-success"><i class="bi bi-magic me-2"></i>Auto-Build from Excel</h5>
+                <p class="text-muted" style="font-size: 0.85rem;">Upload your Daily Check Sheet format to instantly generate the form fields.</p>
+
+                <label for="excelUpload" class="excel-upload-zone w-100 d-block">
+                    <i class="bi bi-file-earmark-excel text-success" style="font-size: 2rem;"></i>
+                    <h6 class="mt-2 mb-1 fw-bold text-dark">Click to Upload Excel (.xlsx)</h6>
+                    <small class="text-muted">The builder will read your columns and sections</small>
+                    <input type="file" id="excelUpload" accept=".xlsx, .xls" class="d-none">
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dynamic Columns -->
+    <div class="form-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">2. Grid Columns</h5>
+            <button type="button" class="btn btn-sm btn-light border" id="addColumnBtn"><i class="bi bi-plus"></i> Add Column</button>
+        </div>
+        <p class="text-muted" style="font-size: 0.85rem;">Define the columns that will appear on the right side of the checklist (e.g., Block 01, Block 02, Remarks).</p>
+
+        <div id="columnsWrapper" class="mb-3">
+            <!-- Columns appear here -->
+        </div>
+    </div>
+
+    <!-- Sections & Checkpoints -->
+    <div class="form-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">3. Form Sections & Checkpoints</h5>
+            <button type="button" class="btn btn-sm hover-lift" style="background-color: var(--accent-orange); color: white;" id="addSectionBtn"><i class="bi bi-plus-square"></i> Add Section</button>
+        </div>
+
+        <div id="sectionsWrapper">
+            <!-- Sections inject here -->
+        </div>
+    </div>
+
+    <!-- LIVE PREVIEW CARD -->
+    <div class="form-card" id="previewCard" style="display: none;">
+        <h5 class="mb-3"><i class="bi bi-table text-success me-2"></i>Live Excel Preview</h5>
+        <div class="table-responsive">
+            <table class="table table-bordered preview-table mb-0" id="previewTable">
+                <thead>
+                    <tr id="previewHeader">
+                        <!-- Headers injected via JS -->
+                    </tr>
+                </thead>
+                <tbody id="previewBody">
+                    <!-- Rows injected via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="text-end mb-5">
+        <button type="submit" class="btn hover-lift px-4 py-2" style="background-color: var(--accent-orange); color: white; font-weight: 600;">
+            <i class="bi bi-save"></i> {{ isset(form) ? 'Update Form Template' : 'Save Form Template' }}
+        </button>
+    </div>
+</form>
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<!-- SheetJS Library for Excel Parsing -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        let columns = [];
+        let sectionCount = 0;
+        
+        const defaultLayout = () => ({ check: true, units: true, srLabel: 'Sr.No', nameLabel: 'Check Points', checkLabel: 'Check', unitLabel: 'Units' });
+        let layout = defaultLayout();
+        const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        // ==========================================
+        // SELECT ALL PROJECTS
+        // ==========================================
+        function syncSelectAllProjectsState() {
+            let boxes = $('.project-checkbox');
+            if (boxes.length === 0) return;
+            $('#selectAllProjects').prop('checked', boxes.length === boxes.filter(':checked').length);
+        }
+
+        $('#selectAllProjects').on('change', function() {
+            $('.project-checkbox').prop('checked', $(this).is(':checked'));
+        });
+
+        $(document).on('change', '.project-checkbox', syncSelectAllProjectsState);
+
+        // Set correct initial state on page load (e.g. edit mode with all pre-checked)
+        syncSelectAllProjectsState();
+
+        // ==========================================
+        // UI BUILDER FUNCTIONS (Abstracted for reuse)
+        // ==========================================
+
+        window.appendColumn = function(colName) {
+            if(colName && colName.trim() !== "") {
+                columns.push(colName.trim());
+                renderColumns();
+                renderPreview();
+            }
+        };
+
+        window.appendSection = function(secName) {
+            sectionCount++;
+            let sectionHTML = `
+                <div class="section-container" data-section="${esc(secName)}">
+                    <div class="section-header">
+                        <h6 class="mb-0 fw-bold"><i class="bi bi-folder2-open me-2"></i> <span class="sec-title-txt">${esc(secName)}</span></h6>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-outline-primary add-row-btn"><i class="bi bi-list-task"></i> Add Checkpoint</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger ms-2 remove-section"><i class="bi bi-trash"></i></button>
+                        </div>
+                    </div>
+                    <div class="rows-wrapper"></div>
+                </div>
+            `;
+            $('#sectionsWrapper').append(sectionHTML);
+            renderPreview();
+            return $('#sectionsWrapper .section-container').last();
+        };
+
+        window.appendRow = function(sectionElem, name, excelType, excelUnit, explicitType) {
+            let rowHTML = `
+                <div class="row-item">
+                    <div class="flex-grow-1">
+                        <input type="text" class="form-control form-control-sm checkpoint-name" placeholder="Checkpoint Name" value="${esc(name)}">
+                    </div>
+                    <div style="width: 150px;" class="${layout.check ? '' : 'd-none'}">
+                        <select class="form-select form-select-sm checkpoint-type">
+                            <option value="text">Text Input</option>
+                            <option value="number">Number</option>
+                            <option value="ok_nok">OK / NOK Dropdown</option>
+                            <option value="visual">Visual Check</option>
+                        </select>
+                    </div>
+                    <div style="width: 150px;" class="${layout.units ? '' : 'd-none'}">
+                        <input type="text" class="form-control form-control-sm checkpoint-unit" placeholder="Unit" value="${esc(excelUnit)}">
+                    </div>
+                    <button type="button" class="remove-btn remove-row"><i class="bi bi-x"></i></button>
+                </div>
+            `;
+
+            let row = $(rowHTML);
+
+            // Smart auto-mapping from Excel data to our dropdown types
+            let mappedType = 'text';
+            let tt = (excelType || '').toLowerCase();
+            let uu = (excelUnit || '').toLowerCase();
+
+            if (tt.includes('visual')) mappedType = 'visual';
+            else if (uu.includes('ok / nok') || uu.includes('ok/nok')) mappedType = 'ok_nok';
+            else if (tt.includes('meter') || uu.includes('deg c') || uu.includes('amps') || uu.includes('kv') || uu.includes('volts') || uu.includes('hz')) mappedType = 'number';
+
+            if (explicitType) {
+                mappedType = explicitType;
+            }
+
+            row.find('.checkpoint-type').val(mappedType);
+
+            sectionElem.find('.rows-wrapper').append(row);
+            renderPreview();
+        };
+
+        // ==========================================
+        // EXCEL PARSING LOGIC (no header validation)
+        // ==========================================
+
+        $('#excelUpload').change(function(e) {
+            let file = e.target.files[0];
+            if(!file) return;
+
+            // Change UI to show processing
+            let label = $(this).parent();
+            let originalHtml = label.html();
+            label.html('<div class="spinner-border text-success my-2" role="status"></div><h6 class="mt-2 fw-bold text-dark">Processing Excel...</h6>');
+
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    let data = new Uint8Array(e.target.result);
+                    let workbook = XLSX.read(data, {type: 'array'});
+                    let firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    let rows = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+
+                    parseExcelData(rows);
+
+                    // Reset File Input
+                    $('#excelUpload').val('');
+                    label.html('<i class="bi bi-check-circle-fill text-success" style="font-size: 2rem;"></i><h6 class="mt-2 mb-1 fw-bold text-dark">Upload Complete!</h6><small class="text-muted">You can now edit the form below.</small>');
+
+                } catch (error) {
+                    console.error(error);
+                    alert("Error processing Excel file. Please ensure it is a valid format.");
+                    label.html(originalHtml);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function parseExcelData(rows) {
+            const norm = v => String(v == null ? '' : v).trim().toLowerCase();
+            const cellsOf = r => Array.from(r || [], norm);
+            const isCheck = v => v === 'check' || v === 'checks';
+            const isUnit  = v => v === 'units' || v === 'unit';
+            const isPointsHead = v => v.includes('check point') || v.includes('checkpoint') || v.includes('checklist') || v.includes('particular') || v.includes('description');
+            const isSrHead = v => /^(sr|sl|s)\.?\s*no\.?$/.test(v) || v === 'no' || v === 'sr' || v === 'sl';
+
+            let headerIdx = -1;
+            const filled = c => c.filter(v => v !== '').length;
+            for (let i = 0; i < rows.length; i++) {
+                let c = cellsOf(rows[i]);
+                if (c.some(isCheck) && c.some(isUnit)) { headerIdx = i; break; }
+            }
+            if (headerIdx === -1) {  
+                for (let i = 0; i < rows.length; i++) {
+                    let c = cellsOf(rows[i]);
+                    if (filled(c) >= 2 && c.some(v => v.startsWith('check') || v.startsWith('unit'))) { headerIdx = i; break; }
+                }
+            }
+            if (headerIdx === -1) {
+                for (let i = 0; i < rows.length; i++) {
+                    let c = cellsOf(rows[i]);
+                    if (filled(c) >= 2 && c.some(isPointsHead)) { headerIdx = i; break; }
+                }
+            }
+            if (headerIdx === -1) {
+                for (let i = 0; i < rows.length; i++) {
+                    if (filled(cellsOf(rows[i])) >= 3) { headerIdx = i; break; }
+                }
+            }
+            if (headerIdx === -1) headerIdx = 0;
+
+           
+            let h = cellsOf(rows[headerIdx]);
+            let checkCol = h.findIndex(isCheck);
+            let unitCol  = h.findIndex(isUnit);
+            let nameCol  = h.findIndex(isPointsHead);
+            if (nameCol === -1) nameCol = checkCol > 0 ? checkCol - 1 : 1;
+            let srCol = h.findIndex(isSrHead);
+            if (srCol === -1) srCol = nameCol - 1;              
+            const hasTypeCols = checkCol !== -1 || unitCol !== -1;  
+           
+            const rawHead = Array.from(rows[headerIdx] || [], v => String(v == null ? '' : v).trim());
+            const labelAt = (col, fallback) => (col >= 0 && rawHead[col]) ? rawHead[col] : fallback;
+            layout = {
+                check: checkCol !== -1, units: unitCol !== -1,
+                srLabel: labelAt(srCol, 'Sr.No'), nameLabel: labelAt(nameCol, 'Check Points'),
+                checkLabel: labelAt(checkCol, 'Check'), unitLabel: labelAt(unitCol, 'Units')
+            };
+
+        
+            columns = [];
+            $('#columnsWrapper').empty();
+            $('#sectionsWrapper').empty();
+
+            let headerRow = Array.from(rows[headerIdx] || [], v => String(v == null ? '' : v).trim());
+            for (let c = Math.max(checkCol, unitCol, nameCol) + 1; c < headerRow.length; c++) {
+                if (headerRow[c] !== '') appendColumn(headerRow[c]);
+            }
+
+            // 4. Sections + checkpoints
+            let start = headerIdx + 1;
+            if (hasTypeCols) {   
+                let nxt = cellsOf(rows[start]);
+                let subHead = (srCol >= 0 && /^(sr|sl|s)\.?\s*no/.test(nxt[srCol] || '')) || (nxt[nameCol] || '').includes('check point');
+                if (subHead) {
+                    const sub = Array.from(rows[start] || [], v => String(v == null ? '' : v).trim());
+                    if (!rawHead[srCol] && srCol >= 0 && sub[srCol]) layout.srLabel = sub[srCol];
+                    if (!rawHead[nameCol] && sub[nameCol]) layout.nameLabel = sub[nameCol];
+                    start++;
+                }
+            }
+
+            let currentSection = null;
+            for (let i = start; i < rows.length; i++) {
+                let row = rows[i] || [];
+                let srStr   = (srCol >= 0 && row[srCol] != null) ? String(row[srCol]).trim() : '';
+                let cpName  = row[nameCol] != null ? String(row[nameCol]).trim() : '';
+                if (cpName === '') continue; // Skip empty rows
+
+                let cpCheck = checkCol !== -1 ? (row[checkCol] || '') : '';
+                let cpUnits = unitCol  !== -1 ? (row[unitCol]  || '') : '';
+
+                let isSection;
+                if (hasTypeCols) {
+                    isSection = !cpCheck && !cpUnits;                                  
+                } else {
+                    isSection = /^\d+\.?$/.test(srStr) || /^[A-Za-z]\.?$/.test(srStr);  
+                }
+
+                if (isSection) {
+                    currentSection = appendSection(cpName);
+                } else {
+                    if (!currentSection) currentSection = appendSection("General Checkpoints");
+                    appendRow(currentSection, cpName, cpCheck, cpUnits);
+                }
+            }
+
+            renderPreview();
+        }
+
+        // ==========================================
+        // MANUAL EVENT LISTENERS & PREVIEW LOGIC
+        // ==========================================
+
+        function renderPreview() {
+            if (columns.length === 0 && $('.section-container').length === 0) {
+                $('#previewCard').hide();
+                return;
+            }
+            $('#previewCard').show();
+
+            let headerHTML = `
+                <th width="60px">${esc(layout.srLabel)}</th>
+                <th>${esc(layout.nameLabel)}</th>
+                ${layout.check ? `<th width="120px">${esc(layout.checkLabel)}</th>` : ''}
+                ${layout.units ? `<th width="100px">${esc(layout.unitLabel)}</th>` : ''}
+            `;
+            columns.forEach(col => { headerHTML += `<th width="100px">${esc(col)}</th>`; });
+            $('#previewHeader').html(headerHTML);
+
+            let bodyHTML = '';
+            let secIndex = 1;
+
+            $('.section-container').each(function() {
+                let secName = $(this).find('.sec-title-txt').text();
+                let totalCols = 2 + (layout.check ? 1 : 0) + (layout.units ? 1 : 0) + columns.length;
+
+                bodyHTML += `
+                    <tr class="preview-section-row">
+                        <td class="text-center">${secIndex}</td>
+                        <td colspan="${totalCols - 1}">${esc(secName)}</td>
+                    </tr>
+                `;
+
+                let rowIndex = 1;
+                $(this).find('.row-item').each(function() {
+                    let cpNameRaw = $(this).find('.checkpoint-name').val();
+                    let cpName = cpNameRaw ? esc(cpNameRaw) : '<span class="text-muted fst-italic">Empty Checkpoint...</span>';
+                    let cpType = $(this).find('.checkpoint-type option:selected').text();
+                    if(cpType === "OK / NOK Dropdown") cpType = "OK / NOK";
+                    if(cpType === "Text Input") cpType = "Text";
+                    let cpUnit = esc($(this).find('.checkpoint-unit').val()) || '-';
+
+                    bodyHTML += `<tr>`;
+                    bodyHTML += `<td class="text-center">${secIndex}.${rowIndex}</td>`;
+                    bodyHTML += `<td>${cpName}</td>`;
+                    if (layout.check) bodyHTML += `<td class="text-center">${cpType}</td>`;
+                    if (layout.units) bodyHTML += `<td class="text-center">${cpUnit}</td>`;
+
+                    columns.forEach(() => { bodyHTML += `<td></td>`; });
+
+                    bodyHTML += `</tr>`;
+                    rowIndex++;
+                });
+                secIndex++;
+            });
+
+            $('#previewBody').html(bodyHTML);
+        }
+
+        $(document).on('keyup', '.checkpoint-name, .checkpoint-unit', renderPreview);
+        $(document).on('change', '.checkpoint-type', renderPreview);
+
+        $('#addColumnBtn').click(function() { appendColumn(prompt("Enter Column Name:")); });
+
+        window.removeColumn = function(index) {
+            columns.splice(index, 1);
+            renderColumns();
+            renderPreview();
+        }
+
+        function renderColumns() {
+            $('#columnsWrapper').empty();
+            columns.forEach((col, index) => {
+                $('#columnsWrapper').append(`
+                    <span class="badge-col">
+                        ${esc(col)} <i class="bi bi-x-circle ms-2 text-danger" style="cursor:pointer;" onclick="removeColumn(${index})"></i>
+                    </span>
+                `);
+            });
+        }
+
+        $('#addSectionBtn').click(function() {
+            let secName = prompt("Enter Section Name:");
+            if(secName) appendSection(secName);
+        });
+
+        $(document).on('click', '.remove-section', function() {
+            $(this).closest('.section-container').remove();
+            renderPreview();
+        });
+
+        $(document).on('click', '.add-row-btn', function() {
+            appendRow($(this).closest('.section-container'), '', 'text', '');
+        });
+
+        $(document).on('click', '.remove-row', function() {
+            $(this).closest('.row-item').remove();
+            renderPreview();
+        });
+
+        $('#formBuilder').submit(function(e) {
+            e.preventDefault();
+
+            let schema = { columns: columns, sections: [], layout: layout };
+
+            $('.section-container').each(function() {
+                let secName = $(this).find('.sec-title-txt').text();
+                let rows = [];
+
+                $(this).find('.row-item').each(function() {
+                    rows.push({
+                        name: $(this).find('.checkpoint-name').val(),
+                        type: $(this).find('.checkpoint-type').val(),
+                        unit: $(this).find('.checkpoint-unit').val()
+                    });
+                });
+
+                schema.sections.push({ name: secName, rows: rows });
+            });
+
+            $('#form_schema').val(JSON.stringify(schema));
+            this.submit();
+        });
+
+        // ==========================================
+        // PREFILL FOR EDIT MODE
+        // ==========================================
+        @isset(schema)
+            {% if !empty(schema['columns'] %} || !empty(schema['sections']))
+                (function() {
+                    let existingSchema = @json(schema);
+                    layout = Object.assign(defaultLayout(), existingSchema.layout || {});
+
+                    (existingSchema.columns || []).forEach(function(col) {
+                        appendColumn(col);
+                    });
+
+                    (existingSchema.sections || []).forEach(function(section) {
+                        let section = appendSection(section.name);
+                        (section.rows || []).forEach(function(row) {
+                            appendRow(section, row.name, '', row.unit, row.type);
+                        });
+                    });
+
+                    renderPreview();
+                })();
+            {% endif %}
+        @endisset
+    });
+</script>
+{% endblock %}
+{% endblock %}

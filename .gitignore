@@ -1,0 +1,30 @@
+﻿# Secrets
+.env
+.env.*
+!.env.example
+storage/app/firebase_credentials.json
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Database
+db.sqlite3
+*.sqlite3
+*.sql
+
+# Django
+*.log
+staticfiles/
+media/*
+!media/.gitignore
+
+# OS / editor
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

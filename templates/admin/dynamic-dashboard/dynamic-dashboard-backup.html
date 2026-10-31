@@ -1,0 +1,193 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .glass-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+        border: 1px solid rgba(255,255,255,0.4);
+        height: 100%;
+        transition: transform 0.3s ease;
+    }
+    .glass-card:hover { transform: translateY(-3px); }
+    .chart-title { font-weight: 700; color: #1f2937; letter-spacing: -0.5px; }
+    .nav-pills .nav-link.active { background: linear-gradient(135deg, #F59E0B 0%, #EA580C 100%); color: #fff; box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3); }
+    .nav-pills .nav-link { color: #6b7280; font-weight: 500; border-radius: 8px; margin-right: 5px; }
+</style>
+
+<!-- Header & Filters -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1">Dynamic Intelligence </h2>
+        <p class="text-muted mb-0">Custom metrics mapped directly from form submissions</p>
+    </div>
+    
+    <div class="d-flex gap-3">
+        <!-- Date Filters -->
+        <ul class="nav nav-pills bg-white p-1 rounded border shadow-sm">
+            <li class="nav-item">
+                <a class="nav-link {{ filterMode == 'daily' ? 'active' : '' }}" href="?filter=daily&project_id={{projectId}}">Daily</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ filterMode == 'weekly' ? 'active' : '' }}" href="?filter=weekly&project_id={{projectId}}">Weekly</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ filterMode == 'monthly' ? 'active' : '' }}" href="?filter=monthly&project_id={{projectId}}">Monthly</a>
+            </li>
+        </ul>
+
+        <!-- Project Filter -->
+        <form id="filterForm" method="GET" class="d-flex">
+            <input type="hidden" name="filter" value="{{ filterMode }}">
+            <select name="project_id" class="form-select border shadow-sm" style="min-width: 200px;" onchange="document.getElementById('filterForm').submit()">
+                <option value="">All Projects</option>
+                {% for p in projects %}
+                    <option value="{{ p.id }}" {{ projectId == p.id ? 'selected' : '' }}>{{ p.client_name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+</div>
+
+<!-- Dynamic Charts Grid -->
+@php
+    grouped = [];
+    foreach (chartData as i => d) {
+        sid = d['config']['section_id'] ?? '';
+        grouped[sid][] = ['index' => i, 'data' => d];
+    }
+
+    ordered = [];
+    foreach (sections as s) {
+        if (!empty(grouped[s.id])) {
+            ordered[] = ['name' => s.section_name, 'items' => grouped[s.id]];
+        }
+    }
+
+    // Graphs with no section (or a deleted section)
+    knownIds = sections.pluck('id')->map(function (v) { return (string) v; })->all();
+    others = [];
+    foreach (grouped as sid => items) {
+        if (!in_array((string) sid, knownIds, true)) {
+            others = array_merge(others, items);
+        }
+    }
+    if (!empty(others)) {
+        ordered[] = ['name' => 'Other', 'items' => others];
+    }
+@endphp
+
+{% for group in ordered %}
+<h4 class="fw-bold mb-3">{{ group['name'] }}</h4>
+<div class="row g-4 mb-5">
+    @foreach(group['items'] as item)
+        @php index = item['index']; data = item['data']; @endphp
+        <div class="col-md-{{ data['config']['size'] }}">
+            <div class="glass-card">
+                <div class="mb-4">
+                    <h5 class="chart-title mb-0">{{ data['config']['title'] }}</h5>
+                    <small class="text-muted"><i class="bi bi-graph-up text-warning"></i> Aggregated Average Over Time</small>
+                </div>
+                <div style="height: {{ data['config']['size'] == '12' ? '350px' : '280px' }}; width: 100%;">
+                    <canvas id="chart_{{ index }}"></canvas>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% empty %}
+<div class="row g-4">
+        <div class="col-12 text-center py-5">
+            <div class="p-5 bg-white rounded shadow-sm border border-dashed">
+                <i class="bi bi-display text-muted" style="font-size: 3rem;"></i>
+                <h4 class="mt-3 fw-bold">No Layout Configured</h4>
+                <p class="text-muted">Head over to the Dashboard Configuration to set up your graphs.</p>
+                <a href="{% url 'admin_dashboard_config' %}" class="btn btn-dark mt-2">Configure Now</a>
+            </div>
+        </div>
+</div>
+    {% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const chartData = @json(chartData);
+
+    function hexToRgba(hex, a) {
+        const h = hex.replace('#', '');
+        const r = parseInt(h.substring(0, 2), 16);
+        const g = parseInt(h.substring(2, 4), 16);
+        const b = parseInt(h.substring(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${a})`;
+    }
+
+    // Pie needs one shade per slice, built from the chosen colour
+    function pieColors(hex, n) {
+        const out = [];
+        for (let i = 0; i < n; i++) {
+            out.push(hexToRgba(hex, Math.max(0.25, 1 - (i * 0.7 / Math.max(n, 1)))));
+        }
+        return out;
+    }
+
+    chartData.forEach((data, index) => {
+        const color = data.config.color || '#F59E0B';
+        const isPie = data.config.type === 'pie';
+        const ctx = document.getElementById('chart_' + index).getContext('2d');
+        
+        // Futuristic Gradient Fill
+        let gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, hexToRgba(color, 0.4));
+        gradient.addColorStop(1, hexToRgba(color, 0.0));
+
+        new Chart(ctx, {
+            type: data.config.type,
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: data.config.title,
+                    data: data.values,
+                    borderColor: isPie ? '#ffffff' : color,
+                    backgroundColor: isPie ? pieColors(color, data.values.length) : (data.config.type === 'line' ? gradient : color),
+                    borderWidth: 2,
+                    tension: 0.4, // Smooth futuristic curves for line charts
+                    fill: data.config.type === 'line',
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: color,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    borderRadius: data.config.type === 'bar' ? 6 : 0 // Rounded bars
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: isPie },
+                    tooltip: {
+                        backgroundColor: '#1f2937',
+                        padding: 12,
+                        titleFont: { size: 13, weight: 'bold' },
+                        bodyFont: { size: 14 }
+                    }
+                },
+                scales: isPie ? {} : {
+                    x: {
+                        grid: { display: false, drawBorder: false },
+                        ticks: { color: '#9ca3af', font: { size: 11 } }
+                    },
+                    y: {
+                        min: data.min,
+                        max: data.max,
+                        grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false },
+                        ticks: { color: '#9ca3af', font: { size: 11 }, padding: 10 }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

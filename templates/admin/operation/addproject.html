@@ -1,0 +1,895 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+
+    .breadcrumb-nav { font-size: 0.9rem; color: #9CA3AF; margin-bottom: 0.75rem; }
+    .breadcrumb-nav a { color: #9CA3AF; text-decoration: none; }
+    .breadcrumb-nav a:hover { color: var(--accent-orange, #F59E0B); }
+    .breadcrumb-nav .current { color: #111827; font-weight: 600; }
+    .breadcrumb-nav i { font-size: 0.8rem; margin: 0 0.4rem; }
+
+    /* Form Section Cards */
+    .form-card { background: #fff; border-radius: 12px; padding: 1.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+    .form-card h5 { font-weight: 700; color: #111827; margin-bottom: 1.25rem; }
+
+    .form-label { font-weight: 600; color: #374151; font-size: 0.88rem; margin-bottom: 0.35rem; }
+    .form-control, .form-select {
+        border: 1px solid #E5E7EB;
+        background-color: #F9FAFB;
+        border-radius: 8px;
+        padding: 0.6rem 0.85rem;
+        font-size: 0.92rem;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--accent-orange, #F59E0B);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+        background-color: #fff;
+    }
+    .form-control.is-invalid { border-color: #DC2626; background-color: #FEF2F2; }
+
+    /* Field Staff pill checkboxes */
+    .staff-option {
+        display: flex; align-items: center; gap: 0.6rem;
+        border: 1px solid #E5E7EB; border-radius: 8px;
+        padding: 0.6rem 0.9rem; background: #F9FAFB;
+        cursor: pointer; transition: border-color 0.15s, background 0.15s;
+    }
+    .staff-option:hover { border-color: var(--accent-orange, #F59E0B); }
+    .staff-option input:checked ~ span { color: #111827; font-weight: 600; }
+    .staff-option input { accent-color: var(--accent-orange, #F59E0B); }
+
+    .invalid-feedback-custom { color: #DC2626; font-size: 0.8rem; margin-top: 0.3rem; }
+    textarea.form-control { min-height: 110px; }
+    .custom-checkbox {
+        border-radius: 50% !important;
+        border: 2px solid #ffb03a;
+        width: 1.15em;
+        height: 1.15em;
+        cursor: pointer;
+    }
+    .custom-checkbox:checked {
+        background-color: #ff9800;
+        border-color: #ff9800;
+    }
+
+    /* Step Wizard */
+    .wizard-steps {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+        position: relative;
+    }
+    .wizard-step {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+        text-align: center;
+    }
+    .wizard-step:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        top: 18px;
+        left: 50%;
+        width: 100%;
+        height: 2px;
+        background: #E5E7EB;
+        z-index: 0;
+    }
+    .wizard-step.completed:not(:last-child)::after {
+        background: var(--accent-orange, #F59E0B);
+    }
+    .wizard-step-circle {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: #F9FAFB;
+        border: 2px solid #E5E7EB;
+        color: #9CA3AF;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.9rem;
+        position: relative;
+        z-index: 1;
+        transition: all 0.15s;
+    }
+    .wizard-step.active .wizard-step-circle {
+        border-color: var(--accent-orange, #F59E0B);
+        background: var(--accent-orange, #F59E0B);
+        color: #fff;
+    }
+    .wizard-step.completed .wizard-step-circle {
+        border-color: var(--accent-orange, #F59E0B);
+        background: #fff;
+        color: var(--accent-orange, #F59E0B);
+    }
+    .wizard-step-label {
+        margin-top: 0.5rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #9CA3AF;
+    }
+    .wizard-step.active .wizard-step-label,
+    .wizard-step.completed .wizard-step-label {
+        color: #111827;
+    }
+    .form-step { display: none; }
+    .form-step.active-step { display: block; }
+
+    .wizard-nav-btns {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+    }
+    .wizard-nav-btns .spacer { flex: 1; }
+
+    /* Stock Allocation: dropdown */
+    .search-dropdown-wrap { position: relative; }
+    .search-dropdown-results {
+        display: none;
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        background: #fff;
+        border: 1px solid #E5E7EB;
+        border-radius: 8px;
+        max-height: 240px;
+        overflow-y: auto;
+        box-shadow: 0 10px 24px rgba(0,0,0,0.08);
+        z-index: 30;
+    }
+    .search-dropdown-results.show { display: block; }
+    .search-dropdown-item {
+        padding: 0.6rem 0.9rem;
+        cursor: pointer;
+        font-size: 0.88rem;
+        color: #374151;
+        border-bottom: 1px solid #F3F4F6;
+    }
+    .search-dropdown-item:last-child { border-bottom: none; }
+    .search-dropdown-item:hover { background: #FFF7ED; color: #111827; }
+    .search-dropdown-empty {
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        color: #9CA3AF;
+    }
+
+    .item-search-results { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1.75rem; }
+    .item-search-hint { font-size: 0.85rem; color: #9CA3AF; padding: 0.4rem 0.1rem; }
+    .item-search-dropdown { padding: 0.4rem; }
+    .item-search-dropdown .item-search-row { margin-bottom: 0.5rem; }
+    .item-search-dropdown .item-search-row:last-child { margin-bottom: 0; }
+    .item-search-dropdown .item-search-hint { padding: 0.6rem 0.9rem; }
+    .item-search-row {
+        display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+        border: 1px solid #E5E7EB; border-radius: 8px; padding: 0.7rem 1rem;
+        background: #F9FAFB; transition: border-color 0.15s;
+    }
+    .item-search-row.is-added { border-color: #10B981; background: #ECFDF5; }
+    .item-search-name { font-weight: 600; color: #111827; font-size: 0.92rem; }
+    .item-search-meta { font-size: 0.8rem; color: #6B7280; }
+    .item-search-controls { display: flex; align-items: center; gap: 0.5rem; }
+    .item-search-qty-input { width: 75px; text-align: center; }
+    .item-add-btn {
+        width: 36px; height: 36px; border-radius: 8px;
+        background: var(--accent-orange, #F59E0B); color: #fff;
+        border: none; display: flex; align-items: center; justify-content: center;
+        font-size: 1.1rem; cursor: pointer; transition: background 0.15s;
+    }
+    .item-add-btn:hover { background: #D97706; }
+    .item-add-btn:disabled { background: #10B981; cursor: default; }
+
+    /* Cart */
+    .cart-section-label { font-size: 0.85rem; font-weight: 700; color: #374151; margin-bottom: 0.6rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .cart-items-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.75rem; }
+    .cart-item-card {
+        background: #fff; border: 1px solid #E5E7EB; border-radius: 8px;
+        padding: 0.85rem 1rem; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .cart-item-remove {
+        position: absolute; top: 8px; right: 8px; background: none; border: none;
+        color: #9CA3AF; cursor: pointer; font-size: 0.9rem; padding: 2px 6px;
+    }
+    .cart-item-remove:hover { color: #DC2626; }
+    .cart-item-name { font-weight: 600; color: #111827; font-size: 0.88rem; margin-right: 20px; }
+    .cart-item-qty { font-size: 0.8rem; color: #6B7280; margin-top: 0.25rem; }
+</style>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb-nav">
+    <a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Dashboard</a>
+    <i class="bi bi-chevron-right"></i>
+    <a href="{% url 'admin_projects_index' %}">Projects</a>
+    <i class="bi bi-chevron-right"></i>
+    <span class="current">Add Project</span>
+</div>
+
+<h2 class="page-title mb-4">Add Project</h2>
+
+<!-- Step Wizard Indicators -->
+<div class="wizard-steps" id="wizardSteps">
+    <div class="wizard-step active" data-step-indicator="1">
+        <div class="wizard-step-circle">1</div>
+        <div class="wizard-step-label">Client &amp; Site</div>
+    </div>
+    <div class="wizard-step" data-step-indicator="2">
+        <div class="wizard-step-circle">2</div>
+        <div class="wizard-step-label">Schedule &amp; Reporting</div>
+    </div>
+    <div class="wizard-step" data-step-indicator="3">
+        <div class="wizard-step-circle">3</div>
+        <div class="wizard-step-label">Team Assignment</div>
+    </div>
+    <div class="wizard-step" data-step-indicator="4">
+        <div class="wizard-step-circle">4</div>
+        <div class="wizard-step-label">Stock Allocation</div>
+    </div>
+    <div class="wizard-step" data-step-indicator="5">
+        <div class="wizard-step-circle">5</div>
+        <div class="wizard-step-label">Documents</div>
+    </div>
+    <div class="wizard-step" data-step-indicator="6">
+        <div class="wizard-step-circle">6</div>
+        <div class="wizard-step-label">Notes</div>
+    </div>
+</div>
+
+<form action="{% url 'admin_projects_store' %}" method="POST" id="projectWizardForm" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+
+    <!-- Step 1: Client & Site -->
+    <div class="form-step active-step" data-step="1">
+        <div class="form-card">
+            <h5>Client &amp; Site</h5>
+            <div class="row g-3">
+               <div class="col-md-6">
+                    <label class="form-label">Select Site *</label>
+                    <select name="site_id" class="form-select" id="site_id" required>
+                        <option value="">Select Site</option>
+                        {% for site in sites %}
+                            <option value="{{ site.id }}">{{ site.site_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="invalid-feedback-custom d-none" id="site_id_error">Please select a site.</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Client Name *</label>
+                    <input type="text" name="client_name" class="form-control" id="client_name" required>
+                    <div class="invalid-feedback-custom d-none" id="client_name_error">Client name is required.</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Project Name *</label>
+                    <input type="text" name="project_name" class="form-control" id="project_name" required>
+                    <div class="invalid-feedback-custom d-none" id="project_name_error">Project name is required.</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-control" id="email">
+                    <div class="invalid-feedback-custom d-none" id="email_error">Enter a valid email address.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="wizard-nav-btns">
+            <a href="{% url 'admin_projects_index' %}" class="btn btn-outline-secondary">Cancel</a>
+            <div class="spacer"></div>
+            <button type="button" class="btn hover-lift btn-next" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                Next <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 2: Schedule & Reporting -->
+    <div class="form-step" data-step="2">
+        <div class="form-card">
+            <h5>Schedule &amp; Reporting</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" name="start_date" class="form-control datepicker-click">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Expected End Date</label>
+                    <input type="date" name="end_date" class="form-control datepicker-click">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Reporting Frequency *</label>
+                    <select name="reporting_frequency" class="form-select" id="reporting_frequency" required>
+                        {% for freq in reportingFrequencies %}
+                            <option value="{{ freq }}" {% if freq == 'Weekly' %}selected{% endif %}>{{ freq }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="invalid-feedback-custom d-none" id="reporting_frequency_error">Please select a reporting frequency.</div>
+                </div>
+                <input type="hidden" name="status" value="planning">
+            </div>
+        </div>
+
+        <div class="wizard-nav-btns">
+            <button type="button" class="btn btn-outline-secondary btn-back">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+            <div class="spacer"></div>
+            <button type="button" class="btn hover-lift btn-next" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                Next <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 3: Team Assignment -->
+    <div class="form-step" data-step="3">
+        <div class="form-card">
+            <h5>Team Assignment</h5>
+
+            <!-- Site Manager -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Site Manager <span class="text-danger">*</span></label>
+                    <select name="site_manager" class="form-select" id="site_manager" required>
+                        <option value="">Select Site Manager</option>
+                        {% for manager in siteManagers %}
+                            <option value="{{ manager.id }}">{{ manager.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="invalid-feedback-custom d-none" id="site_manager_error">Please select a site manager.</div>
+                </div>
+            </div>
+
+            <!-- Field Staff Checkbox Grid -->
+            <div class="mb-3">
+                <label class="form-label">Field Staff (multi-select)</label>
+                <div class="p-3 border rounded bg-light">
+                    <div class="row g-3">
+                        {% for staff in fieldStaff %}
+                            <div class="col-md-4 col-sm-6">
+                                <div class="form-check d-flex align-items-center gap-2">
+                                    <input class="form-check-input custom-checkbox"
+                                        type="checkbox"
+                                        name="field_staff[]"
+                                        value="{{ staff.id }}"
+                                        id="staff_{{ staff.id }}">
+                                    <label class="form-check-label mb-0" for="staff_{{ staff.id }}">
+                                        {{ staff.name }}
+                                    </label>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="wizard-nav-btns">
+            <button type="button" class="btn btn-outline-secondary btn-back">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+            <div class="spacer"></div>
+            <button type="button" class="btn hover-lift btn-next" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                Next <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 4: Stock Allocation -->
+    <div class="form-step" data-step="4">
+        <div class="form-card">
+            <h5>Stock Allocation</h5>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-5">
+                    <label class="form-label">Stock Category</label>
+                    <div class="search-dropdown-wrap">
+                        <input type="text" id="categorySearchInput" class="form-control" placeholder="Search category..." autocomplete="off">
+                        <div class="search-dropdown-results" id="categoryResults"></div>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label">Search Items</label>
+                    <div class="search-dropdown-wrap">
+                        <input type="text" id="itemSearchInput" class="form-control" placeholder="Select a category first" autocomplete="off" disabled>
+                        <div id="itemSearchResults" class="search-dropdown-results item-search-dropdown"></div>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="mb-3">
+
+            <div class="cart-section-label">Added Items</div>
+            <div id="cartEmptyState" class="text-muted small mb-2">No items added yet. Search a category and item above, set a quantity, then click the + icon to add.</div>
+            <div id="cartItemsWrap" class="cart-items-grid"></div>
+        </div>
+
+        <div class="wizard-nav-btns">
+            <button type="button" class="btn btn-outline-secondary btn-back">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+            <div class="spacer"></div>
+            <button type="button" class="btn hover-lift btn-next" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                Next <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 5: Project Documents -->
+    <div class="form-step" data-step="5">
+        <div class="form-card">
+            <h5>Project Documents</h5>
+
+            <div class="row g-3 align-items-end mb-3" id="docAddRow">
+                <div class="col-md-5">
+                    <label class="form-label">Select Document Type</label>
+                    <select class="form-select" id="docTypeSelect">
+                        <option value="">Select Document Type</option>
+                        {% for docType in documentTypes %}
+                            <option value="{{ docType.id }}">{{ docType.type_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label">Upload Photo / File </label>
+                    <input type="file" class="form-control" id="docFileInput" accept=".jpg,.jpeg,.png,.pdf" multiple>
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="item-add-btn" id="docAddBtn" title="Add document">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <hr class="mb-3">
+
+            <div class="cart-section-label">Added Documents</div>
+            <div id="docEmptyState" class="text-muted small mb-2">No documents added yet. Select a document type and file above, then click the + icon to add.</div>
+            <div id="docItemsWrap" class="cart-items-grid"></div>
+        </div>
+
+        <div class="wizard-nav-btns">
+            <button type="button" class="btn btn-outline-secondary btn-back">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+            <div class="spacer"></div>
+            <button type="button" class="btn hover-lift btn-next" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                Next <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 6: Notes / Special Instructions -->
+    <div class="form-step" data-step="6">
+        <div class="form-card">
+            <h5>Notes / Special Instructions</h5>
+            <textarea name="notes" class="form-control"></textarea>
+        </div>
+
+        <div class="wizard-nav-btns">
+            <button type="button" class="btn btn-outline-secondary btn-back">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+            <div class="spacer"></div>
+            <button type="submit" class="btn hover-lift" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                Create Project
+            </button>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+    var totalSteps   = 6;
+    var currentStep  = 1;
+    var stepCompleted = [false, false, false, false, false, false];
+    var formSteps    = document.querySelectorAll('.form-step');
+    var stepDots     = document.querySelectorAll('.wizard-step');
+
+    document.querySelectorAll('.datepicker-click').forEach(function (input) {
+        input.addEventListener('click', function () {
+            if (typeof input.showPicker === 'function') {
+                try { input.showPicker(); } catch (e) {}
+            }
+        });
+    });
+
+    function showStep(step) {
+        formSteps.forEach(function (el) {
+            el.classList.toggle('active-step', parseInt(el.dataset.step, 10) === step);
+        });
+
+        stepDots.forEach(function (dot) {
+            var dotStep = parseInt(dot.dataset.stepIndicator, 10);
+            dot.classList.remove('active', 'completed');
+            if (dotStep === step) {
+                dot.classList.add('active');
+            } else if (dotStep < step) {
+                dot.classList.add('completed');
+            }
+        });
+
+        currentStep = step;
+
+        var wizard = document.getElementById('wizardSteps');
+        if (wizard) {
+            wizard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    function markField(field, errorEl, isValid) {
+        if (!field) return;
+        if (isValid) {
+            field.classList.remove('is-invalid');
+            if (errorEl) errorEl.classList.add('d-none');
+        } else {
+            field.classList.add('is-invalid');
+            if (errorEl) errorEl.classList.remove('d-none');
+        }
+    }
+
+    function validateStep(step) {
+        var valid = true;
+        var firstInvalid = null;
+
+        if (step === 1) {
+            var clientName  = document.getElementById('client_name');
+            var projectName = document.getElementById('project_name');
+            var email       = document.getElementById('email');
+            var siteId      = document.getElementById('site_id');
+
+            var clientNameValid = clientName.value.trim().length > 0;
+            markField(clientName, document.getElementById('client_name_error'), clientNameValid);
+            if (!clientNameValid) { valid = false; firstInvalid = firstInvalid || clientName; }
+
+            var projectNameValid = projectName.value.trim().length > 0;
+            markField(projectName, document.getElementById('project_name_error'), projectNameValid);
+            if (!projectNameValid) { valid = false; firstInvalid = firstInvalid || projectName; }
+
+            var emailValue = email.value.trim();
+            var emailValid = emailValue === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue);
+            markField(email, document.getElementById('email_error'), emailValid);
+            if (!emailValid) { valid = false; firstInvalid = firstInvalid || email; }
+
+            var siteIdValid = siteId.value.trim().length > 0;
+            markField(siteId, document.getElementById('site_id_error'), siteIdValid);
+            if (!siteIdValid) { valid = false; firstInvalid = firstInvalid || siteId; }
+        }
+
+        if (step === 3) {
+            var siteManager = document.getElementById('site_manager');
+            var siteManagerValid = siteManager.value.trim().length > 0;
+            markField(siteManager, document.getElementById('site_manager_error'), siteManagerValid);
+            if (!siteManagerValid) { valid = false; firstInvalid = firstInvalid || siteManager; }
+        }
+
+        if (firstInvalid) firstInvalid.focus();
+        return valid;
+    }
+
+    var emailFieldRT = document.getElementById('email');
+    if (emailFieldRT) {
+        var emailErrorRT = document.getElementById('email_error');
+
+        function validateEmailRealtime() {
+            var val = emailFieldRT.value.trim();
+            var isValid = val === '' || /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(val);
+            markField(emailFieldRT, emailErrorRT, isValid);
+            return isValid;
+        }
+
+        emailFieldRT.addEventListener('input', validateEmailRealtime);
+        emailFieldRT.addEventListener('blur', validateEmailRealtime);
+    }
+
+    document.querySelectorAll('.btn-next').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            if (!validateStep(currentStep)) return;
+            stepCompleted[currentStep - 1] = true;
+            if (currentStep < totalSteps) showStep(currentStep + 1);
+        });
+    });
+
+    document.querySelectorAll('.btn-back').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            if (currentStep > 1) showStep(currentStep - 1);
+        });
+    });
+
+    stepDots.forEach(function (dot) {
+        dot.addEventListener('click', function () {
+            var target = parseInt(dot.dataset.stepIndicator, 10);
+            if (target < currentStep) showStep(target);
+        });
+        dot.style.cursor = 'pointer';
+    });
+
+    showStep(1);
+
+    var wizardForm = document.getElementById('projectWizardForm');
+
+    wizardForm.addEventListener('submit', function (e) {
+        if (!validateStep(currentStep)) {
+            e.preventDefault();
+            return;
+        }
+        stepCompleted[currentStep - 1] = true;
+
+        for (var i = 0; i < totalSteps; i++) {
+            if (!stepCompleted[i]) {
+                e.preventDefault();
+                alert('Please complete all steps before saving (Step ' + (i + 1) + ' is incomplete).');
+                showStep(i + 1);
+                return;
+            }
+        }
+    });
+
+    wizardForm.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && currentStep !== totalSteps) {
+            e.preventDefault();
+        }
+    });
+
+    /* Stock Allocation */
+    var cart = {};
+    var selectedCategoryId = null;
+    var lastFetchedItems = [];
+    var categoryFetchTimer = null;
+    var itemFetchTimer = null;
+
+    var categoryInput    = document.getElementById('categorySearchInput');
+    var categoryResults  = document.getElementById('categoryResults');
+    var itemInput         = document.getElementById('itemSearchInput');
+    var itemSearchResults = document.getElementById('itemSearchResults');
+    var cartItemsWrap      = document.getElementById('cartItemsWrap');
+    var cartEmptyState     = document.getElementById('cartEmptyState');
+
+    function renderCategoryResults(query) {
+        var q = (query || '').trim();
+        categoryResults.innerHTML = '<div class="search-dropdown-empty">Loading...</div>';
+        categoryResults.classList.add('show');
+
+        clearTimeout(categoryFetchTimer);
+        categoryFetchTimer = setTimeout(function () {
+            fetch('{% url "admin_projects_stock_categories" %}?search=' + encodeURIComponent(q))
+                .then(function (res) { return res.json(); })
+                .then(function (matches) {
+                    categoryResults.innerHTML = '';
+                    if (!matches.length) {
+                        categoryResults.innerHTML = '<div class="search-dropdown-empty">No categories found</div>';
+                        return;
+                    }
+                    matches.forEach(function (cat) {
+                        var row = document.createElement('div');
+                        row.className = 'search-dropdown-item';
+                        row.textContent = cat.category_name;
+                        row.addEventListener('click', function (e) {
+                            e.stopPropagation();
+                            selectCategory({ id: cat.id, name: cat.category_name });
+                        });
+                        categoryResults.appendChild(row);
+                    });
+                })
+                .catch(function () {
+                    categoryResults.innerHTML = '<div class="search-dropdown-empty">Failed to load categories</div>';
+                });
+        }, 250);
+    }
+
+    function selectCategory(cat) {
+        selectedCategoryId = cat.id;
+        categoryInput.value = cat.name;
+        categoryResults.classList.remove('show');
+
+        itemInput.disabled = false;
+        itemInput.value = '';
+        itemInput.placeholder = 'Search items in ' + cat.name + '...';
+        renderItemSearchResults('');
+        itemInput.focus();
+    }
+
+    function renderItemSearchResults(query) {
+        if (!selectedCategoryId) {
+            itemSearchResults.classList.remove('show');
+            return;
+        }
+
+        var q = (query || '').trim();
+        itemSearchResults.innerHTML = '<div class="item-search-hint">Loading items...</div>';
+        itemSearchResults.classList.add('show');
+
+        clearTimeout(itemFetchTimer);
+        itemFetchTimer = setTimeout(function () {
+            fetch('{% url "admin_projects_stock_items" %}?category=' + encodeURIComponent(selectedCategoryId) + '&search=' + encodeURIComponent(q))
+                .then(function (res) { return res.json(); })
+                .then(function (matches) {
+                    lastFetchedItems = matches;
+                    itemSearchResults.innerHTML = '';
+
+                    if (!matches.length) {
+                        itemSearchResults.innerHTML = '<div class="item-search-hint">No items match that search.</div>';
+                        return;
+                    }
+
+                    matches.forEach(function (item) {
+                        var alreadyAdded = !!cart[item.id];
+                        var row = document.createElement('div');
+                        row.className = 'item-search-row' + (alreadyAdded ? ' is-added' : '');
+                        row.innerHTML =
+                            '<div>' +
+                                '<div class="item-search-name">' + item.item_name + '</div>' +
+                                '<div class="item-search-meta">' + item.quantity + ' ' + item.unit + ' available' + (alreadyAdded ? ' &bull; already added' : '') + '</div>' +
+                            '</div>' +
+                            '<div class="item-search-controls">' +
+                                '<input type="number" min="1" value="1" class="form-control item-search-qty-input" data-item-id="' + item.id + '" ' + (alreadyAdded ? 'disabled' : '') + '>' +
+                                '<button type="button" class="item-add-btn" data-item-id="' + item.id + '" ' + (alreadyAdded ? 'disabled' : '') + '>' +
+                                    '<i class="bi bi-' + (alreadyAdded ? 'check-lg' : 'plus-lg') + '"></i>' +
+                                '</button>' +
+                            '</div>';
+                        itemSearchResults.appendChild(row);
+                    });
+
+                    itemSearchResults.querySelectorAll('.item-add-btn').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            var id = parseInt(btn.dataset.itemId, 10);
+                            var qtyInput = itemSearchResults.querySelector('.item-search-qty-input[data-item-id="' + id + '"]');
+                            var qty = qtyInput ? parseInt(qtyInput.value, 10) : 1;
+                            if (isNaN(qty) || qty < 1) qty = 1;
+
+                            addToCart(id, qty);
+                            renderItemSearchResults(itemInput.value);
+                        });
+                    });
+                })
+                .catch(function () {
+                    itemSearchResults.innerHTML = '<div class="item-search-hint">Failed to load items.</div>';
+                });
+        }, 250);
+    }
+
+    function addToCart(itemId, qty) {
+        var item = lastFetchedItems.find(function (i) { return i.id === itemId; });
+        if (!item || cart[itemId]) return;
+        cart[itemId] = { id: item.id, name: item.item_name, unit: item.unit, qty: qty };
+        renderCart();
+    }
+
+    function removeFromCart(itemId) {
+        delete cart[itemId];
+        renderCart();
+        renderItemSearchResults(itemInput.value);
+    }
+
+    function renderCart() {
+        var ids = Object.keys(cart);
+        cartItemsWrap.innerHTML = '';
+        cartEmptyState.style.display = ids.length ? 'none' : 'block';
+
+        ids.forEach(function (id) {
+            var entry = cart[id];
+            var card = document.createElement('div');
+            card.className = 'cart-item-card';
+            card.innerHTML =
+                '<button type="button" class="cart-item-remove" data-item-id="' + entry.id + '" title="Remove"><i class="bi bi-x-lg"></i></button>' +
+                '<div class="cart-item-name">' + entry.name + '</div>' +
+                '<div class="cart-item-qty">Qty: <strong>' + entry.qty + '</strong> ' + entry.unit + '</div>' +
+                '<input type="hidden" name="stock_selected[]" value="' + entry.id + '">' +
+                '<input type="hidden" name="stock_qty[' + entry.id + ']" value="' + entry.qty + '">';
+            cartItemsWrap.appendChild(card);
+        });
+
+        cartItemsWrap.querySelectorAll('.cart-item-remove').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                removeFromCart(parseInt(btn.dataset.itemId, 10));
+            });
+        });
+    }
+
+    categoryInput.addEventListener('input', function () { renderCategoryResults(this.value); });
+    categoryInput.addEventListener('focus', function () {
+        this.select();
+        renderCategoryResults('');
+    });
+
+    itemInput.addEventListener('input', function () { renderItemSearchResults(this.value); });
+
+    document.addEventListener('click', function (e) {
+        if (!categoryInput.contains(e.target) && !categoryResults.contains(e.target)) {
+            categoryResults.classList.remove('show');
+        }
+        if (!itemInput.contains(e.target) && !itemSearchResults.contains(e.target)) {
+            itemSearchResults.classList.remove('show');
+        }
+    });
+
+    renderCart();
+
+    /* Documents */
+    var docTypeSelect  = document.getElementById('docTypeSelect');
+    var docFileInput   = document.getElementById('docFileInput');
+    var docAddBtn      = document.getElementById('docAddBtn');
+    var docItemsWrap   = document.getElementById('docItemsWrap');
+    var docEmptyState  = document.getElementById('docEmptyState');
+    var docGroupIndex  = 0;
+
+    function updateDocEmptyState() {
+        docEmptyState.style.display = docItemsWrap.children.length ? 'none' : 'block';
+    }
+
+    if (docAddBtn) {
+        docAddBtn.addEventListener('click', function () {
+            var typeId   = docTypeSelect.value;
+            var typeText = docTypeSelect.options[docTypeSelect.selectedIndex] ? docTypeSelect.options[docTypeSelect.selectedIndex].text : '';
+            var files    = docFileInput.files;
+
+            if (!typeId) {
+                docTypeSelect.focus();
+                return;
+            }
+            if (!files || !files.length) {
+                docFileInput.focus();
+                return;
+            }
+
+            var groupIndex = docGroupIndex++;
+            var card = document.createElement('div');
+            card.className = 'cart-item-card';
+
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'cart-item-remove';
+            removeBtn.title = 'Remove';
+            removeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+            removeBtn.addEventListener('click', function () {
+                card.remove();
+                updateDocEmptyState();
+            });
+
+            var nameEl = document.createElement('div');
+            nameEl.className = 'cart-item-name';
+            nameEl.textContent = typeText;
+
+            var fileNames = [];
+            for (var i = 0; i < files.length; i++) { fileNames.push(files[i].name); }
+
+            var metaEl = document.createElement('div');
+            metaEl.className = 'cart-item-qty';
+            metaEl.textContent = files.length + ' file' + (files.length > 1 ? 's' : '') + ': ' + fileNames.join(', ');
+
+            var typeHidden = document.createElement('input');
+            typeHidden.type = 'hidden';
+            typeHidden.name = 'document_type_id[]';
+            typeHidden.value = typeId;
+
+            docFileInput.name = 'document[' + groupIndex + '][]';
+            docFileInput.removeAttribute('id');
+            docFileInput.style.display = 'none';
+
+            card.appendChild(removeBtn);
+            card.appendChild(nameEl);
+            card.appendChild(metaEl);
+            card.appendChild(typeHidden);
+            card.appendChild(docFileInput);
+            docItemsWrap.appendChild(card);
+
+            var freshInput = document.createElement('input');
+            freshInput.type = 'file';
+            freshInput.className = 'form-control';
+            freshInput.id = 'docFileInput';
+            freshInput.accept = '.jpg,.jpeg,.png,.pdf';
+            freshInput.multiple = true;
+            document.getElementById('docAddRow').querySelector('.col-md-5:nth-child(2)').appendChild(freshInput);
+            docFileInput = freshInput;
+
+            docTypeSelect.value = '';
+            updateDocEmptyState();
+        });
+    }
+})();
+</script>
+{% endblock %}

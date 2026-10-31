@@ -1,0 +1,301 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+    
+    /* Stat Cards */
+    .stat-card { background: #fff; border-radius: 12px; padding: 1.5rem; border-top: 4px solid; height: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.02); }
+    .stat-card.energy { border-color: #F59E0B; background: linear-gradient(180deg, rgba(245, 158, 11, 0.05) 0%, #fff 100%); }
+    .stat-card.projects { border-color: #3B82F6; background: linear-gradient(180deg, rgba(59, 130, 246, 0.05) 0%, #fff 100%); }
+    .stat-card.staff { border-color: #10B981; background: linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, #fff 100%); }
+    .stat-card.maintenance { border-color: #8B5CF6; background: linear-gradient(180deg, rgba(139, 92, 246, 0.05) 0%, #fff 100%); }
+    
+    .stat-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+    .energy .stat-icon { background: rgba(245, 158, 11, 0.1); color: #F59E0B; }
+    .projects .stat-icon { background: rgba(59, 130, 246, 0.1); color: #3B82F6; }
+    .staff .stat-icon { background: rgba(16, 185, 129, 0.1); color: #10B981; }
+    .maintenance .stat-icon { background: rgba(139, 92, 246, 0.1); color: #8B5CF6; }
+
+    /* Chart Containers */
+    .chart-card { background: #fff; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); }
+</style>
+
+<!-- Top Section -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-1">Dashboard</h2>
+        <p class="text-muted mb-0">Overview of your solar operations</p>
+    </div>
+    <div>
+        <button class="btn btn-light me-2 border hover-lift"><i class="bi bi-bell"></i> Alerts</button>
+        <button class="btn hover-lift me-2" style="background-color: var(--accent-orange); color: white; font-weight: 500;" data-bs-toggle="modal" data-bs-target="#selectProjectModal"><i class="bi bi-folder"></i> Select Project</button>
+        <a href="{% url 'admin_projects_create' %}" class="btn hover-lift" style="background-color: var(--accent-orange); color: white; font-weight: 500; text-decoration: none; display: inline-block;">+ New Project</a>
+    </div>
+</div>
+
+<!-- Selected Project Info -->
+{% if project_id and selected_project %}
+<div class="alert alert-info d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <strong>Project Filter Active:</strong> {{ selected_project.client_name }}
+    </div>
+    <a href="{% url 'admin_dashboard' %}" class="btn btn-sm btn-outline-info">Clear Filter</a>
+</div>
+{% endif %}
+
+<!-- 4 Stat Cards Row -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card energy hover-lift">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="text-muted mb-1" style="font-size: 0.85rem;">Total Stock Value</p>
+                    <h3 class="fw-bold mb-0">₹{{ data.stock_total_value|floatformat:2 }}</h3>
+                    <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">All opening stock items</small>
+                </div>
+                <div class="stat-icon"><i class="bi bi-box-seam"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card projects hover-lift">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="text-muted mb-1" style="font-size: 0.85rem;">Active Projects</p>
+                    <h3 class="fw-bold mb-0">{{ data.active_projects }} <span class="fs-6 text-muted fw-normal">/ {{ data.total_projects }}</span></h3>
+                    <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">
+                        Planning: {{ data.planning_projects }} | On Hold: {{ data.on_hold_projects }}
+                    </small>
+                </div>
+                <div class="stat-icon"><i class="bi bi-briefcase"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card staff hover-lift">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="text-muted mb-1" style="font-size: 0.85rem;">Field Staff On Duty</p>
+                    <h3 class="fw-bold mb-0">{{ data.field_staff_on_duty }} <span class="fs-5 text-muted fw-normal">/ {{ data.field_staff_total }}</span></h3>
+                </div>
+                <div class="stat-icon"><i class="bi bi-people"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card maintenance hover-lift">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <p class="text-muted mb-1" style="font-size: 0.85rem;">Expenses</p>
+                    <h3 class="fw-bold mb-0">₹{{ data.expenses_approved|floatformat:0 }}</h3>
+                    <small class="text-success fw-bold d-block mt-1" style="font-size: 0.75rem;">Approved</small>
+                    <small class="text-warning fw-bold d-block mt-1" style="font-size: 0.75rem;">Pending: ₹{{ data.expenses_pending|floatformat:0 }}</small>
+                </div>
+                <div class="stat-icon"><i class="bi bi-wrench"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance Log Table -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="chart-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h6 class="fw-bold mb-0"><i class="bi bi-calendar-check"></i> Today's Log</h6>
+                    <small class="text-muted">Employee attendance & project assignment</small>
+                </div>
+                <span class="badge bg-light text-dark border px-3 py-2 rounded-pill">{{ today_date }}</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr class="text-muted" style="font-size: 0.8rem;">
+                            <th>EMPLOYEE</th>
+                            <th>PROJECT</th>
+                            <th>DATE</th>
+                            <th>PUNCH IN</th>
+                            <th>PUNCH OUT</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in attendance_log %}
+                        <tr>
+                            <td class="fw-semibold">{{ log.employee_name }}</td>
+                            <td>{{ log.project_name|default:"—" }}</td>
+                            <td>{{ log.punch_in|date:"D, d M" }}</td>
+                            <td class="text-success fw-semibold">{{ log.punch_in|date:"h:i A" }}</td>
+                            <td>
+                                {% if log.punch_out %}
+                                    <span class="text-danger fw-semibold">{{ log.punch_out|date:"h:i A" }}</span>
+                                {% else %}
+                                    <span class="badge bg-warning-subtle text-warning"><i class="bi bi-clock"></i> In Progress</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-3">No attendance records found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4">
+    <div class="col-md-8">
+        <div class="chart-card">
+            <div class="d-flex justify-content-between mb-3">
+                <div>
+                    <h6 class="fw-bold mb-0">Energy Generation Trend</h6>
+                    <small class="text-muted">MWh generated vs installed capacity (last 12 months)</small>
+                </div>
+                <span class="badge bg-light text-success border border-success-subtle px-3 py-2 rounded-pill"><i class="bi bi-record-circle-fill"></i> Live</span>
+            </div>
+            <canvas id="energyTrendChart" height="120"></canvas>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="chart-card" style="height: 100%;">
+            <div class="mb-3">
+                <h6 class="fw-bold mb-0">Lead Funnel</h6>
+                <small class="text-muted">Conversion this quarter</small>
+            </div>
+            <canvas id="leadFunnelChart" height="240"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Select Project Modal -->
+<div class="modal fade" id="selectProjectModal" tabindex="-1" aria-labelledby="selectProjectLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="selectProjectLabel">Select Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="projectSearch" placeholder="Search projects...">
+                </div>
+                <div id="projectsList" style="max-height: 400px; overflow-y: auto;">
+                    <div class="text-center text-muted">Loading projects...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 1. Energy Trend Line Chart
+    const ctxTrend = document.getElementById('energyTrendChart').getContext('2d');
+    new Chart(ctxTrend, {
+        type: 'line',
+        data: {
+            labels: ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'],
+            datasets: [
+                {
+                    label: 'Generated (MWh)',
+                    data: [13, 15, 18.5, 19.5, 20.2, 18.4, 18.8, 17.5, 16.5, 16, 18, 18.9],
+                    borderColor: '#F59E0B',
+                    backgroundColor: '#F59E0B',
+                    tension: 0.4,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#F59E0B',
+                    pointBorderWidth: 2
+                },
+                {
+                    label: 'Capacity',
+                    data: [16, 16.5, 17.5, 18, 19, 19.2, 20, 20.5, 21, 22, 23, 24],
+                    borderColor: '#3B82F6',
+                    borderDash: [5, 5],
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 6 } }
+            },
+            scales: {
+                y: { min: 0, max: 24, ticks: { stepSize: 6 } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+
+    // 2. Lead Funnel Horizontal Bar Chart
+    const ctxFunnel = document.getElementById('leadFunnelChart').getContext('2d');
+    new Chart(ctxFunnel, {
+        type: 'bar',
+        data: {
+            labels: ['New', 'Contacted', 'Visit', 'Proposal', 'Won'],
+            datasets: [{
+                data: [100, 85, 60, 40, 25],
+                backgroundColor: '#F59E0B',
+                borderRadius: 4,
+                barThickness: 20
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: { display: false, grid: { display: false } },
+                y: { border: {display: false}, grid: { display: false } }
+            }
+        }
+    });
+
+    // 3. Select Project Modal Fetch
+    document.getElementById('selectProjectModal').addEventListener('show.bs.modal', function () {
+        fetch('{% url "admin_projects_json" %}')
+            .then(response => response.json())
+            .then(projects => {
+                const projectsList = document.getElementById('projectsList');
+                if (projects.length === 0) {
+                    projectsList.innerHTML = '<div class="text-center text-muted p-4">No projects found</div>';
+                    return;
+                }
+                
+                projectsList.innerHTML = projects.map(project => `
+                    <div class="d-flex justify-content-between align-items-center p-3 border-bottom cursor-pointer" style="cursor: pointer;" onclick="selectProject(${project.id}, '${project.client_name}')">
+                        <div>
+                            <strong>${project.client_name}</strong>
+                            <small class="d-block text-muted">${project.address || '—'}</small>
+                        </div>
+                        <span class="badge bg-info">${project.status}</span>
+                    </div>
+                `).join('');
+            })
+            .catch(error => {
+                console.error('Error loading projects:', error);
+                document.getElementById('projectsList').innerHTML = '<div class="text-center text-danger p-4">Failed to load projects</div>';
+            });
+    });
+
+    function selectProject(id, name) {
+        sessionStorage.setItem('selectedProjectId', id);
+        sessionStorage.setItem('selectedProjectName', name);
+        bootstrap.Modal.getInstance(document.getElementById('selectProjectModal')).hide();
+        window.location.href = '{% url "admin_dashboard" %}?project=' + id;
+    }
+</script>
+{% endblock %}

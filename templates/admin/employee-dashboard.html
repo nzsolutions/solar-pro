@@ -1,0 +1,31 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+    .card-box { background: #fff; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-1">My Dashboard</h2>
+        <p class="text-muted mb-0">Welcome back, here's your overview</p>
+    </div>
+</div>
+
+<div class="card-box">
+    <h4 class="fw-bold mb-1">Welcome, {{ employee.name|default:"Employee" }}</h4>
+    <p class="text-muted mb-0">Role: {{ employee.role|default:"—" }} &bull; Status: {{ employee.status|title }}</p>
+</div>
+
+<div class="card-box">
+    <h5 class="fw-bold mb-3">Your Assigned Projects</h5>
+    {% for project in projects %}
+        <div class="border-bottom py-2">
+            <strong>{{ project.client_name }}</strong> — {{ project.status|title }}
+        </div>
+    {% empty %}
+        <p class="text-muted mb-0">No projects assigned yet.</p>
+    {% endfor %}
+</div>
+{% endblock %}

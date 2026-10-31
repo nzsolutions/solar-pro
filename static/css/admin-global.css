@@ -1,0 +1,46 @@
+:root {
+    --sidebar-bg: #171B2B;
+    --sidebar-hover: #23283E;
+    --accent-orange: #FF9F1C;
+    --bg-light: #F4F7FA;
+    --text-dark: #2D3748;
+    --text-muted: #A0AEC0;
+    --primary-color: #FF9F1C;
+}
+
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-light);
+    color: var(--text-dark);
+}
+
+.btn-solar {
+    background-color: var(--accent-orange);
+    color: #fff;
+    border: none;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 0.6rem 1.25rem;
+    transition: all 0.2s ease;
+}
+
+.btn-solar:hover {
+    background-color: #e68a0a;
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.card-custom {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+
+.badge-solar {
+    background-color: #FEF3E2;
+    color: var(--accent-orange);
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 0.35rem 0.65rem;
+}

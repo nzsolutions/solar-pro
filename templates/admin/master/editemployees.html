@@ -1,0 +1,260 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+
+    .breadcrumb-nav { font-size: 0.9rem; color: #9CA3AF; margin-bottom: 0.75rem; }
+    .breadcrumb-nav a { color: #9CA3AF; text-decoration: none; }
+    .breadcrumb-nav a:hover { color: var(--accent-orange, #F59E0B); }
+    .breadcrumb-nav .current { color: #111827; font-weight: 600; }
+    .breadcrumb-nav i { font-size: 0.8rem; margin: 0 0.4rem; }
+
+    .form-card { background: #fff; border-radius: 12px; padding: 1.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); }
+    .form-card h5 { font-weight: 700; color: #111827; margin-bottom: 1.5rem; }
+
+    .form-label { font-weight: 600; color: #374151; font-size: 0.85rem; margin-bottom: 0.4rem; }
+    .form-label .text-danger { font-size: 0.85rem; }
+
+    .input-icon-wrap { position: relative; }
+    .input-icon-wrap > i {
+        position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%);
+        color: #9CA3AF; font-size: 0.95rem; pointer-events: none;
+    }
+    .input-icon-wrap .form-control,
+    .input-icon-wrap .form-select { padding-left: 2.4rem; }
+    .input-icon-wrap .toggle-eye {
+        position: absolute; right: 0.85rem; top: 50%; transform: translateY(-50%);
+        color: #9CA3AF; cursor: pointer; background: none; border: none; padding: 0;
+    }
+
+    .form-control, .form-select {
+        border: 1px solid #E5E7EB;
+        background-color: #F9FAFB;
+        border-radius: 8px;
+        padding: 0.6rem 0.85rem;
+        font-size: 0.9rem;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--accent-orange, #F59E0B);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+        background-color: #fff;
+    }
+
+    .avatar-upload-wrap { position: relative; width: 90px; }
+    .avatar-circle {
+        width: 90px; height: 90px; border-radius: 14px; background: #F3F4F6;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 1.7rem; color: #9CA3AF; overflow: hidden;
+    }
+    .avatar-camera-btn {
+        position: absolute; bottom: -6px; right: -6px; width: 30px; height: 30px;
+        border-radius: 50%; background: #6B7280; color: #fff; border: 3px solid #fff;
+        display: flex; align-items: center; justify-content: center; font-size: 0.8rem; cursor: pointer;
+    }
+    .avatar-input { display: none; }
+
+    .form-actions { border-top: 1px solid #F1F2F4; margin-top: 1.75rem; padding-top: 1.5rem; }
+    .doc-hint { font-size: 0.78rem; color: #9CA3AF; margin-top: 0.4rem; }
+
+    .existing-doc-chip {
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 999px;
+        padding: 0.3rem 0.8rem; font-size: 0.8rem; color: #374151; margin: 0.2rem 0.3rem 0.2rem 0;
+    }
+</style>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb-nav">
+    <a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Dashboard</a>
+    <i class="bi bi-chevron-right"></i>
+    <a href="{% url 'admin_employees_index' %}">Employees</a>
+    <i class="bi bi-chevron-right"></i>
+    <span class="current">Edit</span>
+</div>
+
+<h2 class="page-title mb-4">Edit Employee: {{ employee.name }}</h2>
+
+<div class="form-card">
+    <form action="{% url 'admin_employees_update' employee.id %}" method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="row g-3 align-items-start mb-2">
+            <div class="col-auto">
+                <label class="form-label d-block">&nbsp;</label>
+                <div class="avatar-upload-wrap">
+                    <div class="avatar-circle" id="avatarPreview">{{ employee.name|slice:":2"|upper }}</div>
+                    <label class="avatar-camera-btn">
+                        <i class="bi bi-camera-fill"></i>
+                        <input type="file" name="photo" class="avatar-input" accept="image/*" onchange="previewAvatar(event)">
+                    </label>
+                </div>
+            </div>
+
+            <div class="col">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-person"></i>
+                            <input type="text" name="name" value="{{ employee.name }}" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Assign Role <span class="text-danger">*</span></label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-briefcase"></i>
+                            <select name="role" class="form-select" required>
+                                {% for desig in designations %}
+                                    <option value="{{ desig.id }}" {% if desig.id == employee.role %}selected{% endif %}>
+                                        {{ desig.designation_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Portal Username <span class="text-danger">*</span></label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-person-badge"></i>
+                            <input type="text" name="app_username" value="{{ employee.app_username }}" class="form-control" required>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Change Password (leave blank to keep current)</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-lock"></i>
+                    <input type="password" name="app_password" id="appPassword" class="form-control" placeholder="••••••">
+                    <button type="button" class="toggle-eye" onclick="togglePassword()"><i class="bi bi-eye" id="eyeIcon"></i></button>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Joining Date <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-calendar3"></i>
+                    <input type="date" name="joining_date" value="{{ employee.joining_date|date:'Y-m-d' }}" class="form-control" required>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Relieving Date</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-calendar3"></i>
+                    <input type="date" name="relieving_date" value="{{ employee.relieving_date|date:'Y-m-d' }}" class="form-control">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    {% for status in statusOptions %}
+                        <option value="{{ status }}" {% if status == employee.status %}selected{% endif %}>{{ status|title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Gender</label>
+                <select name="gender" class="form-select">
+                    <option value="" disabled>Select gender</option>
+                    <option value="male" {% if employee.gender == 'male' %}selected{% endif %}>Male</option>
+                    <option value="female" {% if employee.gender == 'female' %}selected{% endif %}>Female</option>
+                    <option value="other" {% if employee.gender == 'other' %}selected{% endif %}>Other</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Date of Birth</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-calendar3"></i>
+                    <input type="date" name="dob" value="{{ employee.dob|date:'Y-m-d' }}" class="form-control">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Email</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-envelope"></i>
+                    <input type="email" name="email" value="{{ employee.email|default:'' }}" class="form-control">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Phone</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-telephone"></i>
+                    <input type="text" name="phone" value="{{ employee.phone|default:'' }}" class="form-control">
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Address</label>
+                <textarea name="address" class="form-control" rows="2">{{ employee.address|default:'' }}</textarea>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">City</label>
+                <input type="text" name="city" value="{{ employee.city|default:'' }}" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">State</label>
+                <input type="text" name="state" value="{{ employee.state|default:'' }}" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Pincode</label>
+                <input type="text" name="pincode" value="{{ employee.pincode|default:'' }}" class="form-control">
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">Upload Additional Documents</label>
+                <input type="file" name="documents" class="form-control" multiple accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx">
+                <div class="doc-hint">Add more documents to the employee profile.</div>
+
+                {% if employee.documents %}
+                    <div class="mt-2">
+                        <small class="text-muted d-block mb-1">Existing Documents:</small>
+                        {% for doc in employee.documents %}
+                            <span class="existing-doc-chip"><i class="bi bi-file-earmark"></i> {{ doc.name }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="form-actions d-flex justify-content-end gap-2">
+            <a href="{% url 'admin_employees_index' %}" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn hover-lift" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                <i class="bi bi-check-lg"></i> Update Employee
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function togglePassword() {
+        const input = document.getElementById('appPassword');
+        const icon = document.getElementById('eyeIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('bi-eye');
+            icon.classList.add('bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('bi-eye-slash');
+            icon.classList.add('bi-eye');
+        }
+    }
+
+    function previewAvatar(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const preview = document.getElementById('avatarPreview');
+            preview.innerHTML = '<img src="' + e.target.result + '" style="width:100%;height:100%;object-fit:cover;">';
+        };
+        reader.readAsDataURL(file);
+    }
+</script>
+{% endblock %}

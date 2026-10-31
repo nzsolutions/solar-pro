@@ -1,0 +1,190 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+
+    .breadcrumb-nav { font-size: 0.9rem; color: #9CA3AF; margin-bottom: 0.75rem; }
+    .breadcrumb-nav a { color: #9CA3AF; text-decoration: none; }
+    .breadcrumb-nav a:hover { color: var(--accent-orange, #F59E0B); }
+    .breadcrumb-nav .current { color: #111827; font-weight: 600; }
+    .breadcrumb-nav i { font-size: 0.8rem; margin: 0 0.4rem; }
+
+    .form-card { background: #fff; border-radius: 12px; padding: 1.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+    .form-card h5 { font-weight: 700; color: #111827; margin-bottom: 0; }
+
+    .form-label { font-weight: 600; color: #374151; font-size: 0.88rem; margin-bottom: 0.35rem; }
+    .form-control, .form-select {
+        border: 1px solid #E5E7EB;
+        background-color: #F9FAFB;
+        border-radius: 8px;
+        padding: 0.6rem 0.85rem;
+        font-size: 0.92rem;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--accent-orange, #F59E0B);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+        background-color: #fff;
+    }
+
+    .tree-actions-btn {
+        background: #fff; border: 1px solid #E5E7EB; color: #111827;
+        font-weight: 600; font-size: 0.85rem; border-radius: 8px;
+        padding: 0.4rem 0.9rem; transition: border-color 0.15s, color 0.15s;
+    }
+    .tree-actions-btn:hover { border-color: var(--accent-orange, #F59E0B); color: var(--accent-orange, #F59E0B); }
+
+    .module-group-title {
+        font-weight: 700; font-size: 0.78rem; letter-spacing: 0.04em;
+        color: var(--accent-orange, #F59E0B); text-transform: uppercase;
+        margin-bottom: 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid #F3F4F6;
+    }
+    .form-check.form-switch { margin-bottom: 0.85rem; }
+    .form-check-input { cursor: pointer; }
+    .form-check-input:checked { background-color: var(--accent-orange, #F59E0B); border-color: var(--accent-orange, #F59E0B); }
+    .form-check-label { font-size: 0.9rem; color: #374151; cursor: pointer; }
+
+    #permissionsSection { opacity: 0.4; pointer-events: none; transition: opacity 0.15s; }
+    #permissionsSection.active { opacity: 1; pointer-events: auto; }
+</style>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb-nav">
+    <a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Dashboard</a>
+    <i class="bi bi-chevron-right"></i>
+    <span class="current">Access Control</span>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-1">Access Control</h2>
+        <div class="text-muted" style="font-size:0.92rem;">Establish the organizational hierarchy by defining module permissions for each role.</div>
+    </div>
+</div>
+
+<!-- Role Selector -->
+<div class="form-card">
+    <label class="form-label">Select Designation (Role)</label>
+    <select id="roleSelect" class="form-select" style="max-width: 420px;">
+        <option value="" selected disabled>Choose a designation...</option>
+        {% for role in roles %}
+            <option value="{{ role.id }}">{{ role.name }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<!-- Permissions Tree -->
+<div id="permissionsSection">
+    <div class="form-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5>Module Permissions Tree</h5>
+            <div class="d-flex gap-2">
+                <button type="button" id="selectAllBtn" class="tree-actions-btn">Select All</button>
+                <button type="button" id="deselectAllBtn" class="tree-actions-btn">Deselect All</button>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            {% for groupName, items in modules.items %}
+                <div class="col-md-3">
+                    <div class="module-group-title">{{ groupName }}</div>
+                    {% for key, label in items.items %}
+                        <div class="form-check form-switch">
+                            <input class="form-check-input perm-toggle" type="checkbox" role="switch"
+                                   data-key="{{ key }}" id="chk_{{ key }}">
+                            <label class="form-check-label" for="chk_{{ key }}">{{ label }}</label>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end align-items-center mb-4">
+        <button type="button" id="savePermissionsBtn" class="btn hover-lift ms-2"
+                style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+            <i class="bi bi-check-lg"></i> Save Permissions
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const roleSelect       = document.getElementById('roleSelect');
+        const permissionsBlock = document.getElementById('permissionsSection');
+        const selectAllBtn     = document.getElementById('selectAllBtn');
+        const deselectAllBtn   = document.getElementById('deselectAllBtn');
+        const saveBtn          = document.getElementById('savePermissionsBtn');
+        const csrfToken        = '{{ csrf_token }}';
+
+        function allToggles() {
+            return document.querySelectorAll('.perm-toggle');
+        }
+
+        roleSelect.addEventListener('change', function () {
+            const roleId = this.value;
+            if (!roleId) return;
+
+            allToggles().forEach(t => t.checked = false);
+            permissionsBlock.classList.remove('active');
+
+            fetch(`/admin/access-control/permissions/${roleId}`)
+                .then(res => res.json())
+                .then(data => {
+                    const keys = data.permissions || [];
+                    allToggles().forEach(t => {
+                        t.checked = keys.includes(t.dataset.key);
+                    });
+                    permissionsBlock.classList.add('active');
+                })
+                .catch(() => {
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Could not load permissions.' });
+                    permissionsBlock.classList.add('active');
+                });
+        });
+
+        selectAllBtn.addEventListener('click', () => allToggles().forEach(t => t.checked = true));
+        deselectAllBtn.addEventListener('click', () => allToggles().forEach(t => t.checked = false));
+
+        saveBtn.addEventListener('click', function () {
+            const roleId = roleSelect.value;
+            if (!roleId) {
+                Swal.fire({ icon: 'warning', title: 'Select Role', text: 'Choose a designation before saving.' });
+                return;
+            }
+
+            const permissions = Array.from(allToggles())
+                .filter(t => t.checked)
+                .map(t => t.dataset.key);
+
+            saveBtn.disabled = true;
+
+            fetch('{% url "admin_access_control_save" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({ role_id: roleId, permissions: permissions }),
+            })
+            .then(res => res.json())
+            .then(data => {
+                Swal.fire({
+                    icon: data.success ? 'success' : 'error',
+                    title: data.success ? 'Saved!' : 'Failed',
+                    text: data.message || 'Permissions updated successfully.',
+                    confirmButtonColor: '#FF9F1C'
+                });
+            })
+            .catch(() => {
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Save failed. Please try again.' });
+            })
+            .finally(() => {
+                saveBtn.disabled = false;
+            });
+        });
+    });
+</script>
+{% endblock %}

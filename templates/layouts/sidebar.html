@@ -1,0 +1,136 @@
+<style>
+    .sidebar-brand { padding: 1.5rem; display: flex; align-items: center; gap: 12px; }
+    .brand-icon { width: 32px; height: 32px; background: var(--accent-orange); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .brand-icon i { color: #fff; font-size: 1.2rem; }
+    .sidebar-menu { list-style: none; padding: 0; margin: 0; }
+    .menu-section { color: #6B7280; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; padding: 1.5rem 1.5rem 0.5rem; letter-spacing: 0.05em; }
+    .menu-item { display: block; color: #9CA3AF; padding: 0.75rem 1.5rem; text-decoration: none; display: flex; align-items: center; gap: 12px; transition: all 0.2s; border-left: 3px solid transparent; }
+    .menu-item:hover, .menu-item.active { background-color: var(--sidebar-hover); color: #fff; border-radius: 0 20px 20px 0; margin-right: 1rem; }
+    .menu-item.active { background-color: rgba(255, 255, 255, 0.1); }
+    .submenu .menu-item { padding-left: 2.75rem; font-size: 0.85rem; }
+</style>
+
+<aside class="sidebar">
+    <div class="sidebar-brand">
+        <div class="brand-icon"><i class="bi bi-brightness-high-fill"></i></div>
+        <div>
+            <h5 class="mb-0 fw-bold" style="font-size: 1.1rem; color: #fff;">SolarPro</h5>
+            <small style="font-size: 0.65rem; color: #9CA3AF;">ENERGY MANAGEMENT</small>
+        </div>
+    </div>
+
+    <ul class="sidebar-menu mt-2">
+        {% if allowedModules is None or 'common-dashboard' in allowedModules %}
+        <li class="menu-section">Overview</li>
+        <li><a href="{% url 'admin_dashboard' %}" class="menu-item {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}"><i class="bi bi-grid-1x2"></i> Dashboard</a></li>
+        {% endif %}
+
+        <!-- Master Section -->
+        <li class="menu-item-has-children">
+            <a href="#masterSubmenu" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="masterSubmenu" class="menu-item dropdown-toggle">
+                <i class="bi bi-layers"></i> Master
+            </a>
+            <ul class="collapse list-unstyled submenu" id="masterSubmenu">
+                {% if allowedModules is None or 'department-master' in allowedModules %}
+                <li><a href="{% url 'admin_departments_index' %}" class="menu-item"><i class="bi bi-people"></i> Department Master</a></li>
+                {% endif %}
+                {% if allowedModules is None or 'designation-master' in allowedModules %}
+                <li><a href="{% url 'admin_designations_index' %}" class="menu-item"><i class="bi bi-person-badge"></i> Designation Master</a></li>
+                {% endif %}
+                {% if allowedModules is None or 'employee-master' in allowedModules %}
+                <li><a href="{% url 'admin_employees_index' %}" class="menu-item"><i class="bi bi-people-fill"></i> Employee Master</a></li>
+                {% endif %}
+                {% if allowedModules is None or 'access-control' in allowedModules %}
+                <li><a href="{% url 'admin_access_control_index' %}" class="menu-item"><i class="bi bi-shield-lock"></i> Access Control</a></li>
+                {% endif %}
+                {% if allowedModules is None or 'smtp-config' in allowedModules %}
+                <li><a href="{% url 'admin_smtp_index' %}" class="menu-item"><i class="bi bi-envelope"></i> SMTP Config</a></li>
+                {% endif %}
+                {% if allowedModules is None or 'expense-category-master' in allowedModules %}
+                <li><a href="{% url 'admin_expense_categories_index' %}" class="menu-item"><i class="bi bi-wallet"></i> Expense Category Master</a></li>
+                {% endif %}
+                {% if allowedModules is None or 'stock-category-master' in allowedModules %}
+                <li><a href="{% url 'admin_stock_categories_index' %}" class="menu-item"><i class="bi bi-file-earmark-plus"></i> Stock Category Master</a></li>
+                {% endif %}
+                {% if allowedModules is None or 'site-master' in allowedModules %}
+                <li><a href="{% url 'admin_sites_index' %}" class="menu-item"><i class="bi bi-geo-alt"></i> Site Master</a></li>
+                {% endif %}
+                {% if allowedModules is None or 'document-type-master' in allowedModules %}
+                <li><a href="{% url 'admin_document_types_index' %}" class="menu-item"><i class="bi bi-file-earmark-text"></i> Document Type Master</a></li>
+                {% endif %}
+                {% if allowedModules is None or 'attendance-master' in allowedModules %}
+                <li><a href="{% url 'admin_attendance_master_create' %}" class="menu-item"><i class="bi bi-clock-history"></i> Attendance Master</a></li>
+                {% endif %}
+            </ul>
+        </li>
+
+        <!-- Reports Section -->
+        <li class="menu-item-has-children">
+            <a href="#reportsSubmenu" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="reportsSubmenu" class="menu-item dropdown-toggle">
+                <i class="bi bi-bar-chart"></i> Reports
+            </a>
+            <ul class="collapse list-unstyled submenu" id="reportsSubmenu">
+                {% if allowedModules is None or 'project-reports' in allowedModules %}
+                <li><a href="{% url 'admin_projects_report' %}" class="menu-item"><i class="bi bi-box-seam"></i> Project Reports</a></li>
+                {% endif %}
+                {% if allowedModules is None or 'maintenance-reports' in allowedModules %}
+                <li><a href="{% url 'admin_maintenance_report' %}" class="menu-item"><i class="bi bi-wrench"></i> Maintenance Reports</a></li>
+                {% endif %}
+                {% if allowedModules is None or 'attendance-report' in allowedModules %}
+                <li><a href="{% url 'admin_attendance_report' %}" class="menu-item"><i class="bi bi-person-check"></i> Attendance Report</a></li>
+                {% endif %}
+                {% if allowedModules is None or 'stock-report' in allowedModules %}
+                <li><a href="{% url 'admin_stock_report' %}" class="menu-item"><i class="bi bi-clipboard-data"></i> Stock Report</a></li>
+                {% endif %}
+                {% if allowedModules is None or 'expense-report' in allowedModules %}
+                <li><a href="{% url 'admin_expense_report_index' %}" class="menu-item"><i class="bi bi-file-earmark-bar-graph"></i> Expense Report</a></li>
+                {% endif %}
+            </ul>
+        </li>
+
+        <!-- Operations Section -->
+        <li class="menu-section">Operations</li>
+        {% if allowedModules is None or 'all-projects' in allowedModules %}
+        <li><a href="{% url 'admin_projects_index' %}" class="menu-item"><i class="bi bi-briefcase"></i> All Projects</a></li>
+        {% endif %}
+        {% if allowedModules is None or 'add-project' in allowedModules %}
+        <li><a href="{% url 'admin_projects_create' %}" class="menu-item"><i class="bi bi-plus-lg"></i> Add Project</a></li>
+        {% endif %}
+
+        <!-- Expenses Section -->
+        {% if allowedModules is None or 'employee-expenses' in allowedModules %}
+        <li class="menu-section">Expenses</li>
+        <li><a href="{% url 'admin_employee_expenses_index' %}" class="menu-item"><i class="bi bi-wallet2"></i> Expenses Approval</a></li>
+        {% endif %}
+
+        <!-- Forms Section -->
+        <li class="menu-section">Forms</li>
+        {% if allowedModules is None or 'add-form' in allowedModules %}
+        <li><a href="{% url 'admin_forms_create' %}" class="menu-item"><i class="bi bi-file-earmark-plus"></i> Add Form</a></li>
+        {% endif %}
+        {% if allowedModules is None or 'all-forms' in allowedModules %}
+        <li><a href="{% url 'admin_forms_index' %}" class="menu-item"><i class="bi bi-file-earmark"></i> All Forms</a></li>
+        {% endif %}
+        {% if allowedModules is None or 'form-submissions' in allowedModules %}
+        <li><a href="{% url 'admin_form_submissions_index' %}" class="menu-item"><i class="bi bi-clipboard-check"></i> Form Submissions</a></li>
+        {% endif %}
+        {% if allowedModules is None or 'dashboard-config' in allowedModules %}
+        <li><a href="{% url 'admin_dashboard_config' %}" class="menu-item"><i class="bi bi-sliders"></i> Dashboard Config</a></li>
+        {% endif %}
+        {% if allowedModules is None or 'dynamic-dashboard' in allowedModules %}
+        <li><a href="{% url 'admin_dynamic_dashboard' %}" class="menu-item"><i class="bi bi-speedometer2"></i> Dynamic Dashboard</a></li>
+        {% endif %}
+
+        <!-- Stock Section -->
+        <li class="menu-section">Stock</li>
+        {% if allowedModules is None or 'stock-dashboard' in allowedModules %}
+        <li><a href="{% url 'admin_stock_dashboard' %}" class="menu-item"><i class="bi bi-box-seam"></i> Stock Dashboard</a></li>
+        {% endif %}
+        {% if allowedModules is None or 'opening-stock' in allowedModules %}
+        <li><a href="{% url 'admin_stock_opening_create' %}" class="menu-item"><i class="bi bi-boxes"></i> Opening Stock</a></li>
+        {% endif %}
+        {% if allowedModules is None or 'assign-stock' in allowedModules %}
+        <li><a href="{% url 'admin_stock_assign_index' %}" class="menu-item"><i class="bi bi-truck"></i> Assign Stock</a></li>
+        {% endif %}
+    </ul>
+</aside>

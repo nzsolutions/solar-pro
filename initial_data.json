@@ -1,0 +1,848 @@
+[
+{
+  "model": "sessions.session",
+  "pk": "3o4vz6jmjd7yant7tmvzul4fniup7t82",
+  "fields": {
+    "session_data": ".eJyrVsosjk9Myc3MU7Iy1FEqLU4tis9MAbNTcxMzc5SslMCyDsX5OYlFBUX5esn5uUo6Ssn5uQWJeZUQtbUAQqoXzg:1xMiTa:CzOvqfJKpToxOIFgDI0WUQpHfAmT0PCQ6UCf-_LoeUg",
+    "expire_date": "2026-11-13T09:00:42.404Z"
+  }
+},
+{
+  "model": "sessions.session",
+  "pk": "nuf86nxw3sg2byhnz3l7rnz3dfnohc5j",
+  "fields": {
+    "session_data": ".eJyrVsosjk9Myc3MU7Iy1FEqLU4tis9MAbNTcxMzc5SslMCyDsX5OYlFBUX5esn5uUo6Ssn5uQWJeZUQtbUAQqoXzg:1xMiZT:Dt6PylkxwWLsq_PcGXorIhXVOh5RvXcAL0bkf6_2_CM",
+    "expire_date": "2026-11-13T09:06:47.471Z"
+  }
+},
+{
+  "model": "sessions.session",
+  "pk": "pv5ht6exsee63hj5dkmk6bscyeoay5n8",
+  "fields": {
+    "session_data": ".eJyrVsosjk9Myc3MU7Iy1FEqLU4tis9MAbNTcxMzc5SslMCyDsX5OYlFBUX5esn5uUo6Ssn5uQWJeZUQtbUAQqoXzg:1xMiSP:y1Sp8vv_UB4MKEBJhmondcjxD28GBIq9xA7YkeEj55U",
+    "expire_date": "2026-11-13T08:59:29.345Z"
+  }
+},
+{
+  "model": "sessions.session",
+  "pk": "rdf9qxb4k6oy767ju6owqd3allo7i53n",
+  "fields": {
+    "session_data": ".eJyrVsosjk9Myc3MU7Iy1FEqLU4tis9MAbNTcxMzc5SslMCyDsX5OYlFBUX5esn5uUo6Ssn5uQWJeZUQtbUAQqoXzg:1xMiUU:OZPTjJGOCHuhr6yKk21vMSk4xPpBeg1_LWSterC10DQ",
+    "expire_date": "2026-11-13T09:01:38.379Z"
+  }
+},
+{
+  "model": "authentication.adminuser",
+  "pk": 1,
+  "fields": {
+    "email": "admin@solarpro.com",
+    "password": "$2b$12$j7O4qn/VRh0bOxJywIiv3uRDqJKK2sWKlgRWJQM2f1madJWHuoray",
+    "company_id": 1,
+    "is_admin": 1,
+    "created_at": "2026-10-30T08:58:25.361Z",
+    "updated_at": "2026-10-30T09:01:50.314Z"
+  }
+},
+{
+  "model": "authentication.adminuser",
+  "pk": 2,
+  "fields": {
+    "email": "shimpikumudini2@gmail.com",
+    "password": "$2b$12$a9c8Z0416Cabewe7y5Uyn.SUh5fop3TK8y9Fzbv9DG7IvgqYyPeiu",
+    "company_id": 1,
+    "is_admin": 1,
+    "created_at": "2026-10-30T08:58:25.671Z",
+    "updated_at": "2026-10-30T09:01:50.752Z"
+  }
+},
+{
+  "model": "masters.departmentmaster",
+  "pk": 1,
+  "fields": {
+    "department_name": "Operations",
+    "company_id": 1,
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:25.763Z",
+    "updated_at": "2026-10-30T08:58:25.763Z"
+  }
+},
+{
+  "model": "masters.departmentmaster",
+  "pk": 2,
+  "fields": {
+    "department_name": "Maintenance",
+    "company_id": 1,
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:25.773Z",
+    "updated_at": "2026-10-30T08:58:25.774Z"
+  }
+},
+{
+  "model": "masters.departmentmaster",
+  "pk": 3,
+  "fields": {
+    "department_name": "Engineering",
+    "company_id": 1,
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:25.781Z",
+    "updated_at": "2026-10-30T08:58:25.781Z"
+  }
+},
+{
+  "model": "masters.departmentmaster",
+  "pk": 4,
+  "fields": {
+    "department_name": "Inventory",
+    "company_id": 1,
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:25.789Z",
+    "updated_at": "2026-10-30T08:58:25.789Z"
+  }
+},
+{
+  "model": "masters.departmentmaster",
+  "pk": 5,
+  "fields": {
+    "department_name": "Finance",
+    "company_id": 1,
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:25.797Z",
+    "updated_at": "2026-10-30T08:58:25.797Z"
+  }
+},
+{
+  "model": "masters.designationmaster",
+  "pk": 1,
+  "fields": {
+    "designation_name": "Project Manager",
+    "department_id": 1,
+    "company_id": 1,
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:25.805Z",
+    "updated_at": "2026-10-30T08:58:25.805Z"
+  }
+},
+{
+  "model": "masters.designationmaster",
+  "pk": 2,
+  "fields": {
+    "designation_name": "Site Engineer",
+    "department_id": 3,
+    "company_id": 1,
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:25.813Z",
+    "updated_at": "2026-10-30T08:58:25.813Z"
+  }
+},
+{
+  "model": "masters.designationmaster",
+  "pk": 3,
+  "fields": {
+    "designation_name": "Technician",
+    "department_id": 2,
+    "company_id": 1,
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:25.821Z",
+    "updated_at": "2026-10-30T08:58:25.821Z"
+  }
+},
+{
+  "model": "masters.designationmaster",
+  "pk": 4,
+  "fields": {
+    "designation_name": "Field Staff",
+    "department_id": 1,
+    "company_id": 1,
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:25.830Z",
+    "updated_at": "2026-10-30T08:58:25.830Z"
+  }
+},
+{
+  "model": "masters.designationmaster",
+  "pk": 5,
+  "fields": {
+    "designation_name": "Inventory Manager",
+    "department_id": 4,
+    "company_id": 1,
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:25.837Z",
+    "updated_at": "2026-10-30T08:58:25.837Z"
+  }
+},
+{
+  "model": "masters.documenttypemaster",
+  "pk": 1,
+  "fields": {
+    "type_name": "Site Survey Report",
+    "status": "active",
+    "company_id": 1,
+    "created_at": "2026-10-30T08:58:25.874Z",
+    "updated_at": "2026-10-30T08:58:25.874Z"
+  }
+},
+{
+  "model": "masters.documenttypemaster",
+  "pk": 2,
+  "fields": {
+    "type_name": "Single Line Diagram (SLD)",
+    "status": "active",
+    "company_id": 1,
+    "created_at": "2026-10-30T08:58:25.883Z",
+    "updated_at": "2026-10-30T08:58:25.883Z"
+  }
+},
+{
+  "model": "masters.documenttypemaster",
+  "pk": 3,
+  "fields": {
+    "type_name": "Commissioning Report",
+    "status": "active",
+    "company_id": 1,
+    "created_at": "2026-10-30T08:58:25.890Z",
+    "updated_at": "2026-10-30T08:58:25.890Z"
+  }
+},
+{
+  "model": "masters.documenttypemaster",
+  "pk": 4,
+  "fields": {
+    "type_name": "Safety Clearance Certificate",
+    "status": "active",
+    "company_id": 1,
+    "created_at": "2026-10-30T08:58:25.900Z",
+    "updated_at": "2026-10-30T08:58:25.900Z"
+  }
+},
+{
+  "model": "masters.documenttypemaster",
+  "pk": 5,
+  "fields": {
+    "type_name": "Vendor Invoice",
+    "status": "active",
+    "company_id": 1,
+    "created_at": "2026-10-30T08:58:25.907Z",
+    "updated_at": "2026-10-30T08:58:25.907Z"
+  }
+},
+{
+  "model": "masters.sitemaster",
+  "pk": 1,
+  "fields": {
+    "site_name": "Solar Plant Alpha - Mumbai HQ",
+    "site_address": "Bandra Kurla Complex, Mumbai, Maharashtra",
+    "contact_number": "+91 9876543210",
+    "latitude": "19.06570000",
+    "longitude": "72.86870000",
+    "radius": "500.00",
+    "company_id": 1,
+    "created_at": "2026-10-30T08:58:25.849Z",
+    "updated_at": "2026-10-30T08:58:25.849Z"
+  }
+},
+{
+  "model": "masters.sitemaster",
+  "pk": 2,
+  "fields": {
+    "site_name": "Solar Plant Beta - Pune Hub",
+    "site_address": "Hinjawadi Phase 2, Pune, Maharashtra",
+    "contact_number": "+91 9876543211",
+    "latitude": "18.59130000",
+    "longitude": "73.73890000",
+    "radius": "500.00",
+    "company_id": 1,
+    "created_at": "2026-10-30T08:58:25.856Z",
+    "updated_at": "2026-10-30T08:58:25.856Z"
+  }
+},
+{
+  "model": "masters.attendancemaster",
+  "pk": 1,
+  "fields": {
+    "working_hours": "9 hours",
+    "required_working_hours": "9",
+    "latitude": "19.06570000",
+    "longitude": "72.86870000",
+    "company_id": 1,
+    "created_at": "2026-10-30T08:58:25.865Z",
+    "updated_at": "2026-10-30T08:58:25.865Z"
+  }
+},
+{
+  "model": "masters.smtpconfiguration",
+  "pk": 6,
+  "fields": {
+    "config_name": "Default Gmail Gateway",
+    "smtp_host": "smtp.gmail.com",
+    "smtp_port": 587,
+    "smtp_user": "notifications@solarpro.com",
+    "smtp_pass": "sampleapppassword",
+    "smtp_crypto": "tls",
+    "from_email": "notifications@solarpro.com",
+    "from_name": "SolarPro Alerts",
+    "is_default": 1,
+    "company_id": 1,
+    "created_at": "2026-10-30T08:58:56.174Z",
+    "updated_at": "2026-10-30T08:58:56.174Z"
+  }
+},
+{
+  "model": "employees.employee",
+  "pk": 1,
+  "fields": {
+    "company_id": 1,
+    "name": "Rahul Sharma",
+    "role": 2,
+    "app_username": "rahul.sharma",
+    "app_password": "$2b$12$cK8POi7DiPEdjdgvGYN.QurHZDfnmx5FC5IzhbXIk6L.aVHUXBpoG",
+    "email": "rahul.sharma@solarpro.com",
+    "phone": "9811122233",
+    "gender": null,
+    "dob": null,
+    "address": null,
+    "city": null,
+    "state": null,
+    "pincode": null,
+    "joining_date": null,
+    "relieving_date": null,
+    "documents": [],
+    "fcm_token": "test_fcm_token_123",
+    "status": "active",
+    "created_at": "2026-10-30T08:58:26.132Z",
+    "updated_at": "2026-10-30T09:06:51.570Z"
+  }
+},
+{
+  "model": "employees.employee",
+  "pk": 2,
+  "fields": {
+    "company_id": 1,
+    "name": "Amit Patel",
+    "role": 3,
+    "app_username": "amit.patel",
+    "app_password": "$2b$12$XRpCK0Zh6yI4QCHHpuIiL.xHzG3F53TzB7Q1H.4IV4Y4eEnYnrpPi",
+    "email": "amit.patel@solarpro.com",
+    "phone": "9822233344",
+    "gender": null,
+    "dob": null,
+    "address": null,
+    "city": null,
+    "state": null,
+    "pincode": null,
+    "joining_date": null,
+    "relieving_date": null,
+    "documents": [],
+    "fcm_token": null,
+    "status": "active",
+    "created_at": "2026-10-30T08:58:26.179Z",
+    "updated_at": "2026-10-30T08:58:26.179Z"
+  }
+},
+{
+  "model": "employees.employeeattendance",
+  "pk": 1,
+  "fields": {
+    "employee_id": 1,
+    "punch_in": "2026-10-30T08:59:31.729Z",
+    "punch_out": "2026-10-30T08:59:31.740Z",
+    "latitude": "19.06570000",
+    "longitude": "72.86870000",
+    "actual_worked": "0 hours and 0 minutes",
+    "created_at": "2026-10-30T08:59:31.729Z",
+    "updated_at": "2026-10-30T08:59:31.741Z"
+  }
+},
+{
+  "model": "employees.employeeattendance",
+  "pk": 2,
+  "fields": {
+    "employee_id": 1,
+    "punch_in": "2026-10-30T09:00:44.960Z",
+    "punch_out": "2026-10-30T09:00:44.973Z",
+    "latitude": "19.06570000",
+    "longitude": "72.86870000",
+    "actual_worked": "0 hours and 0 minutes",
+    "created_at": "2026-10-30T09:00:44.960Z",
+    "updated_at": "2026-10-30T09:00:44.973Z"
+  }
+},
+{
+  "model": "employees.employeeattendance",
+  "pk": 3,
+  "fields": {
+    "employee_id": 1,
+    "punch_in": "2026-10-30T09:01:40.591Z",
+    "punch_out": "2026-10-30T09:01:40.603Z",
+    "latitude": "19.06570000",
+    "longitude": "72.86870000",
+    "actual_worked": "0 hours and 0 minutes",
+    "created_at": "2026-10-30T09:01:40.591Z",
+    "updated_at": "2026-10-30T09:01:40.603Z"
+  }
+},
+{
+  "model": "employees.employeeattendance",
+  "pk": 4,
+  "fields": {
+    "employee_id": 1,
+    "punch_in": "2026-10-30T09:06:49.982Z",
+    "punch_out": "2026-10-30T09:06:49.993Z",
+    "latitude": "19.06570000",
+    "longitude": "72.86870000",
+    "actual_worked": "0 hours and 0 minutes",
+    "created_at": "2026-10-30T09:06:49.982Z",
+    "updated_at": "2026-10-30T09:06:49.993Z"
+  }
+},
+{
+  "model": "operations.project",
+  "pk": 1,
+  "fields": {
+    "company_id": 1,
+    "client_name": "SunPower 1.5MW Solar Park",
+    "site_id": 1,
+    "site_manager": 1,
+    "field_staff": [
+      1,
+      2
+    ],
+    "status": "in_progress",
+    "start_date": null,
+    "end_date": null,
+    "reporting_frequency": "daily",
+    "notes": "1.5MW Ground Mount solar project in Bandra Kurla site.",
+    "created_at": "2026-10-30T08:58:56.107Z",
+    "updated_at": "2026-10-30T08:58:56.107Z"
+  }
+},
+{
+  "model": "inventory.stockcategory",
+  "pk": 1,
+  "fields": {
+    "company_id": 1,
+    "category_name": "Solar PV Modules",
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:26.186Z",
+    "updated_at": "2026-10-30T08:58:26.186Z"
+  }
+},
+{
+  "model": "inventory.stockcategory",
+  "pk": 2,
+  "fields": {
+    "company_id": 1,
+    "category_name": "Inverters",
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:26.193Z",
+    "updated_at": "2026-10-30T08:58:26.193Z"
+  }
+},
+{
+  "model": "inventory.stockcategory",
+  "pk": 3,
+  "fields": {
+    "company_id": 1,
+    "category_name": "Mounting Structures",
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:26.200Z",
+    "updated_at": "2026-10-30T08:58:26.200Z"
+  }
+},
+{
+  "model": "inventory.stockcategory",
+  "pk": 4,
+  "fields": {
+    "company_id": 1,
+    "category_name": "DC Cables",
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:26.207Z",
+    "updated_at": "2026-10-30T08:58:26.207Z"
+  }
+},
+{
+  "model": "inventory.stockcategory",
+  "pk": 5,
+  "fields": {
+    "company_id": 1,
+    "category_name": "AC Distribution Boxes",
+    "added_by": "Admin",
+    "created_at": "2026-10-30T08:58:26.214Z",
+    "updated_at": "2026-10-30T08:58:26.214Z"
+  }
+},
+{
+  "model": "inventory.openingstock",
+  "pk": 1,
+  "fields": {
+    "company_id": 1,
+    "item_name": "540W Mono PERC Solar Panels",
+    "category": 1,
+    "quantity": "300.00",
+    "unit": "nos",
+    "rate": "8500.00",
+    "low_stock_threshold": "20.00",
+    "created_at": "2026-10-30T08:58:56.045Z",
+    "updated_at": "2026-10-30T08:58:56.045Z"
+  }
+},
+{
+  "model": "inventory.openingstock",
+  "pk": 2,
+  "fields": {
+    "company_id": 1,
+    "item_name": "50kW String Grid-Tie Inverter",
+    "category": 2,
+    "quantity": "12.00",
+    "unit": "nos",
+    "rate": "120000.00",
+    "low_stock_threshold": "3.00",
+    "created_at": "2026-10-30T08:58:56.089Z",
+    "updated_at": "2026-10-30T08:58:56.089Z"
+  }
+},
+{
+  "model": "inventory.openingstock",
+  "pk": 3,
+  "fields": {
+    "company_id": 1,
+    "item_name": "4 sqmm DC Solar Cable Red/Black",
+    "category": 4,
+    "quantity": "2500.00",
+    "unit": "meters",
+    "rate": "50.00",
+    "low_stock_threshold": "200.00",
+    "created_at": "2026-10-30T08:58:56.099Z",
+    "updated_at": "2026-10-30T08:58:56.099Z"
+  }
+},
+{
+  "model": "inventory.assignedstock",
+  "pk": 1,
+  "fields": {
+    "project_id": 1,
+    "item_id": 1,
+    "qty": "50.00",
+    "used_qty": "10.00",
+    "grn_number": null,
+    "received_by": null,
+    "date": null,
+    "notes": null,
+    "created_at": "2026-10-30T08:58:56.116Z",
+    "updated_at": "2026-10-30T08:58:56.116Z"
+  }
+},
+{
+  "model": "dynamic_forms.dynamicform",
+  "pk": 1,
+  "fields": {
+    "company_id": 1,
+    "form_name": "Daily Solar Plant Health & Maintenance Checklist",
+    "description": "Daily preventive maintenance inspection form for field engineers.",
+    "project_ids": [
+      1
+    ],
+    "form_schema": {
+      "columns": [
+        "Block 01",
+        "Block 02",
+        "Inverter Station 01"
+      ],
+      "sections": [
+        {
+          "name": "PV Module & String Checks",
+          "rows": [
+            {
+              "name": "String Open Circuit Voltage (Voc)",
+              "type": "number",
+              "unit": "V"
+            },
+            {
+              "name": "Visual Soiling / Dust Level",
+              "type": "text",
+              "unit": ""
+            },
+            {
+              "name": "MC4 Connector Condition",
+              "type": "text",
+              "unit": ""
+            }
+          ]
+        },
+        {
+          "name": "Inverter Status",
+          "rows": [
+            {
+              "name": "AC Active Power Output",
+              "type": "number",
+              "unit": "kW"
+            },
+            {
+              "name": "Internal Heatsink Temperature",
+              "type": "number",
+              "unit": "°C"
+            },
+            {
+              "name": "Daily Yield Generation",
+              "type": "number",
+              "unit": "kWh"
+            }
+          ]
+        }
+      ]
+    },
+    "is_active": 1,
+    "created_at": "2026-10-30T08:58:56.165Z",
+    "updated_at": "2026-10-30T08:58:56.165Z"
+  }
+},
+{
+  "model": "dynamic_forms.formsubmission",
+  "pk": 1,
+  "fields": {
+    "company_id": 1,
+    "form_id": 1,
+    "project_id": 1,
+    "emp_id": 1,
+    "submission_data": {
+      "columns": [
+        "Block 01",
+        "Block 02"
+      ],
+      "sections": [
+        {
+          "name": "PV Module & String Checks",
+          "rows": [
+            {
+              "name": "String Open Circuit Voltage (Voc)",
+              "answers": {
+                "Block 01": "650",
+                "Block 02": "648"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "created_at": "2026-10-30T08:59:31.698Z",
+    "updated_at": "2026-10-30T08:59:31.698Z"
+  }
+},
+{
+  "model": "dynamic_forms.formsubmission",
+  "pk": 2,
+  "fields": {
+    "company_id": 1,
+    "form_id": 1,
+    "project_id": 1,
+    "emp_id": 1,
+    "submission_data": {
+      "columns": [
+        "Block 01",
+        "Block 02"
+      ],
+      "sections": [
+        {
+          "name": "PV Module & String Checks",
+          "rows": [
+            {
+              "name": "String Open Circuit Voltage (Voc)",
+              "answers": {
+                "Block 01": "650",
+                "Block 02": "648"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "created_at": "2026-10-30T09:00:44.944Z",
+    "updated_at": "2026-10-30T09:00:44.944Z"
+  }
+},
+{
+  "model": "dynamic_forms.formsubmission",
+  "pk": 3,
+  "fields": {
+    "company_id": 1,
+    "form_id": 1,
+    "project_id": 1,
+    "emp_id": 1,
+    "submission_data": {
+      "columns": [
+        "Block 01",
+        "Block 02"
+      ],
+      "sections": [
+        {
+          "name": "PV Module & String Checks",
+          "rows": [
+            {
+              "name": "String Open Circuit Voltage (Voc)",
+              "answers": {
+                "Block 01": "650",
+                "Block 02": "648"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "created_at": "2026-10-30T09:01:40.540Z",
+    "updated_at": "2026-10-30T09:01:40.540Z"
+  }
+},
+{
+  "model": "dynamic_forms.formsubmission",
+  "pk": 4,
+  "fields": {
+    "company_id": 1,
+    "form_id": 1,
+    "project_id": 1,
+    "emp_id": 1,
+    "submission_data": {
+      "columns": [
+        "Block 01",
+        "Block 02"
+      ],
+      "sections": [
+        {
+          "name": "PV Module & String Checks",
+          "rows": [
+            {
+              "name": "String Open Circuit Voltage (Voc)",
+              "answers": {
+                "Block 01": "650",
+                "Block 02": "648"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "created_at": "2026-10-30T09:06:49.967Z",
+    "updated_at": "2026-10-30T09:06:49.967Z"
+  }
+},
+{
+  "model": "expenses.expensecategory",
+  "pk": 1,
+  "fields": {
+    "company_id": 1,
+    "category_name": "Travel & Fuel",
+    "created_at": "2026-10-30T08:58:56.124Z",
+    "updated_at": "2026-10-30T08:58:56.124Z"
+  }
+},
+{
+  "model": "expenses.expensecategory",
+  "pk": 2,
+  "fields": {
+    "company_id": 1,
+    "category_name": "Food & Meals",
+    "created_at": "2026-10-30T08:58:56.132Z",
+    "updated_at": "2026-10-30T08:58:56.132Z"
+  }
+},
+{
+  "model": "expenses.expensecategory",
+  "pk": 3,
+  "fields": {
+    "company_id": 1,
+    "category_name": "Site Consumables",
+    "created_at": "2026-10-30T08:58:56.140Z",
+    "updated_at": "2026-10-30T08:58:56.140Z"
+  }
+},
+{
+  "model": "expenses.expensecategory",
+  "pk": 4,
+  "fields": {
+    "company_id": 1,
+    "category_name": "Tools & Safety",
+    "created_at": "2026-10-30T08:58:56.149Z",
+    "updated_at": "2026-10-30T08:58:56.149Z"
+  }
+},
+{
+  "model": "expenses.expensecategory",
+  "pk": 5,
+  "fields": {
+    "company_id": 1,
+    "category_name": "Emergency Spares",
+    "created_at": "2026-10-30T08:58:56.156Z",
+    "updated_at": "2026-10-30T08:58:56.156Z"
+  }
+},
+{
+  "model": "expenses.expense",
+  "pk": 1,
+  "fields": {
+    "company_id": 1,
+    "employee_id": 1,
+    "project_id": 1,
+    "category_id": 1,
+    "amount": "1450.00",
+    "date": "2026-10-30",
+    "emp_comment": "Site visit taxi fare & lunch",
+    "image": null,
+    "status": "pending",
+    "rejection_reason": null,
+    "created_at": "2026-10-30T08:59:29.933Z",
+    "updated_at": "2026-10-30T08:59:29.933Z"
+  }
+},
+{
+  "model": "expenses.expense",
+  "pk": 2,
+  "fields": {
+    "company_id": 1,
+    "employee_id": 1,
+    "project_id": 1,
+    "category_id": 1,
+    "amount": "1450.00",
+    "date": "2026-10-30",
+    "emp_comment": "Site visit taxi fare & lunch",
+    "image": null,
+    "status": "pending",
+    "rejection_reason": null,
+    "created_at": "2026-10-30T09:00:43.412Z",
+    "updated_at": "2026-10-30T09:00:43.412Z"
+  }
+},
+{
+  "model": "expenses.expense",
+  "pk": 3,
+  "fields": {
+    "company_id": 1,
+    "employee_id": 1,
+    "project_id": 1,
+    "category_id": 1,
+    "amount": "1450.00",
+    "date": "2026-10-30",
+    "emp_comment": "Site visit taxi fare & lunch",
+    "image": null,
+    "status": "pending",
+    "rejection_reason": null,
+    "created_at": "2026-10-30T09:01:39.187Z",
+    "updated_at": "2026-10-30T09:01:39.187Z"
+  }
+},
+{
+  "model": "expenses.expense",
+  "pk": 4,
+  "fields": {
+    "company_id": 1,
+    "employee_id": 1,
+    "project_id": 1,
+    "category_id": 1,
+    "amount": "1450.00",
+    "date": "2026-10-30",
+    "emp_comment": "Site visit taxi fare & lunch",
+    "image": null,
+    "status": "pending",
+    "rejection_reason": null,
+    "created_at": "2026-10-30T09:06:48.272Z",
+    "updated_at": "2026-10-30T09:06:48.272Z"
+  }
+}
+]

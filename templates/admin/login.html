@@ -1,0 +1,221 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolarPro CRM - Admin Login</title>
+    <!-- Bootstrap 5 CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <style>
+        :root {
+            --sidebar-dark: #171B2B; 
+            --accent-orange: #FF9F1C;
+            --accent-hover: #E38A12;
+            --bg-light: #F4F7FA;
+        }
+
+        body, html {
+            height: 100%;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-light);
+        }
+
+        .login-layout {
+            min-height: 100vh;
+            display: flex;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in {
+            animation: fadeInUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .left-panel {
+            background-color: var(--sidebar-dark);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 3rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .left-panel::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,159,28,0.05) 0%, rgba(23,27,43,0) 60%);
+            z-index: 0;
+        }
+
+        .left-panel-content {
+            z-index: 1;
+        }
+
+        .right-panel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 440px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 16px;
+            padding: 3rem 2.5rem;
+            box-shadow: 0 15px 35px rgba(23, 27, 43, 0.05);
+        }
+
+        .form-control:focus {
+            border-color: var(--accent-orange);
+            box-shadow: 0 0 0 0.25rem rgba(255, 159, 28, 0.2);
+        }
+
+        .btn-primary {
+            background-color: var(--accent-orange);
+            border-color: var(--accent-orange);
+            color: white;
+            font-weight: 600;
+            padding: 0.8rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--accent-hover);
+            border-color: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(255, 159, 28, 0.3);
+        }
+
+        .brand-icon {
+            width: 70px;
+            height: 70px;
+            background-color: var(--accent-orange);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 8px 20px rgba(255, 159, 28, 0.25);
+        }
+
+        .brand-icon svg {
+            width: 36px;
+            height: 36px;
+            fill: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid p-0">
+        <div class="row g-0 login-layout">
+            
+            <!-- Left Branding Panel -->
+            <div class="col-lg-5 d-none d-lg-flex left-panel">
+                <div class="left-panel-content animate-fade-in">
+                    <div class="brand-icon mx-auto">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                            <path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z"></path>
+                        </svg>
+                    </div>
+                    <h1 class="fw-bold mb-2">SolarPro</h1>
+                    <p class="text-white-50 fs-5 mb-0">ENERGY MANAGEMENT</p>
+                </div>
+            </div>
+            
+            <!-- Right Login Form Panel -->
+            <div class="col-lg-7 right-panel">
+                <div class="login-card animate-fade-in" style="animation-delay: 0.15s; opacity: 0;">
+                    
+                    <div class="text-center mb-4 d-lg-none">
+                        <div class="brand-icon mx-auto" style="width: 50px; height: 50px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 24px; height: 24px;">
+                                <path d="M12 18C8.68629 18 6 15.3137 6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18ZM11 1H13V4H11V1ZM11 20H13V23H11V20ZM3.51472 4.92893L4.92893 3.51472L7.05025 5.63604L5.63604 7.05025L3.51472 4.92893ZM16.9497 18.364L18.364 16.9497L20.4853 19.0711L19.0711 20.4853L16.9497 18.364ZM19.0711 3.51472L20.4853 4.92893L18.364 7.05025L16.9497 5.63604L19.0711 3.51472ZM5.63604 16.9497L7.05025 18.364L4.92893 20.4853L3.51472 19.0711L5.63604 16.9497ZM23 11V13H20V11H23ZM4 11V13H1V11H4Z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="fw-bold" style="color: var(--sidebar-dark);">SolarPro</h3>
+                    </div>
+                    
+                    <h3 class="fw-bold mb-1" style="color: var(--sidebar-dark);">Welcome back</h3>
+                    <p class="text-muted mb-4">Please enter your details to sign in to the portal.</p>
+                    
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <form action="{% url 'admin_login_submit' %}" method="POST">
+                        {% csrf_token %}
+                        <div class="form-floating mb-3">
+                            <input type="text" class="form-control" id="email" name="email" placeholder="name@example.com or username" value="{{ request.POST.email|default:'admin@solarpro.com' }}" required>
+                            <label for="email">Email or Username</label>
+                        </div>
+                        <div class="form-floating mb-4 position-relative">
+                            <input type="password" class="form-control" id="password" name="password" placeholder="Password" value="password123" required style="padding-right: 2.75rem;">
+                            <label for="password">Password</label>
+                            <button type="button" onclick="togglePassword()"
+                                    style="position: absolute; right: 0.9rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6c757d; z-index: 5; padding: 0;">
+                                <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8M1.173 8a13 13 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13 13 0 0 1 14.828 8q-.086.13-.195.288c-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13 13 0 0 1 1.172 8z"/>
+                                    <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0"/>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="rememberMe">
+                                <label class="form-check-label text-muted" for="rememberMe">
+                                    Remember me
+                                </label>
+                            </div>
+                            <a href="#" class="text-decoration-none fw-semibold" style="color: var(--accent-orange);">Forgot password?</a>
+                        </div>
+                        
+                        <button class="btn btn-primary w-100 mb-3" type="submit">Sign In</button>
+                    </form>
+                    
+                </div>
+            </div>
+            
+        </div>
+    </div>
+    
+    <script>
+        function togglePassword() {
+            const input = document.getElementById('password');
+            const icon = document.getElementById('eyeIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.innerHTML = '<path d="M13.359 11.238C15.06 9.72 16 8 16 8s-3-5.5-8-5.5a7 7 0 0 0-2.79.588l.77.771A6 6 0 0 1 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13 13 0 0 1 14.828 8q-.086.13-.195.288c-.335.48-.83 1.12-1.465 1.755q-.247.246-.517.482zm-2.943 1.299.815.816q-.386.204-.8.38C9.878 13.878 8.29 14.5 8 14.5c-2.12 0-3.879-1.168-5.168-2.457A13 13 0 0 1 1.172 8a13 13 0 0 1 1.66-2.043C3.12 5.668 4.879 4.5 6 4.5l.762-.148zM2.646 2.646a.5.5 0 0 1 .708 0l10 10a.5.5 0 0 1-.708.708l-10-10a.5.5 0 0 1 0-.708"/><path d="M5.21 3.088A6.5 6.5 0 0 1 8 2.5c5 0 8 5.5 8 5.5s-.939 1.721-2.641 3.238l-1.462-1.462a3.5 3.5 0 0 0-4.474-4.474z"/>';
+            } else {
+                input.type = 'password';
+                icon.innerHTML = '<path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8M1.173 8a13 13 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13 13 0 0 1 14.828 8q-.086.13-.195.288c-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13 13 0 0 1 1.172 8z"/><path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0"/>';
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

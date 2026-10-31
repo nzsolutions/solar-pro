@@ -1,0 +1,123 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SolarPro - Dashboard{% endblock %}</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Admin Global Styles -->
+    <link rel="stylesheet" href="{% static 'css/admin-global.css' %}">
+
+    <style>
+        :root {
+            --sidebar-bg: #171B2B;
+            --sidebar-hover: #23283E;
+            --accent-orange: #FF9F1C;
+            --bg-light: #F4F7FA;
+            --text-dark: #2D3748;
+            --text-muted: #A0AEC0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            overflow-x: hidden;
+        }
+
+        /* Global Layout Grid */
+        .wrapper {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+        }
+
+        /* Sidebar Styling */
+        .sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+            height: 100vh;
+            position: fixed;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        /* Main Content Area */
+        .main-content {
+            flex: 1;
+            margin-left: 260px; /* Same as sidebar width */
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        /* Global Animations */
+        .hover-lift {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .hover-lift:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important;
+        }
+    </style>
+    {% block styles %}{% endblock %}
+</head>
+<body>
+
+    <div class="wrapper">
+        <!-- Import Global Sidebar -->
+        {% include 'layouts/sidebar.html' %}
+
+        <div class="main-content">
+            <!-- Import Global Header -->
+            {% include 'layouts/header.html' %}
+
+            <!-- Main Page Content Injected Here -->
+            <main class="p-4">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Global SweetAlert2 flash message trigger for Django messages -->
+    {% if messages %}
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                {% for message in messages %}
+                    Swal.fire({
+                        icon: '{% if message.tags == "error" %}error{% else %}success{% endif %}',
+                        title: '{% if message.tags == "error" %}Something went wrong{% else %}Success{% endif %}',
+                        text: '{{ message|escapejs }}',
+                        confirmButtonColor: '#FF9F1C',
+                        confirmButtonText: 'OK',
+                        timer: 3500,
+                        timerProgressBar: true,
+                        customClass: {
+                            popup: 'rounded-4'
+                        }
+                    });
+                {% endfor %}
+            });
+        </script>
+    {% endif %}
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

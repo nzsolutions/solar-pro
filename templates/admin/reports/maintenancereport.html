@@ -1,0 +1,155 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+    .breadcrumb-nav { font-size: 0.9rem; color: #9CA3AF; margin-bottom: 0.75rem; }
+    .breadcrumb-nav a { color: #9CA3AF; text-decoration: none; }
+    .breadcrumb-nav a:hover { color: var(--accent-orange, #F59E0B); }
+    .breadcrumb-nav .current { color: #111827; font-weight: 600; }
+    .breadcrumb-nav i { font-size: 0.8rem; margin: 0 0.4rem; }
+
+    .header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; }
+
+    .export-btn {
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        font-weight: 600; font-size: 0.9rem; border-radius: 8px;
+        padding: 0.55rem 1.1rem; text-decoration: none;
+    }
+    .export-btn-excel { background: #fff; border: 1px solid #E5E7EB; color: #111827; }
+    .export-btn-excel:hover { border-color: var(--accent-orange, #F59E0B); color: var(--accent-orange, #F59E0B); }
+    .export-btn-pdf { background: var(--accent-orange, #F59E0B); border: 1px solid var(--accent-orange, #F59E0B); color: #fff; }
+    .export-btn-pdf:hover { opacity: 0.92; color: #fff; }
+
+    .filter-card {
+        background: #fff; border-radius: 12px; padding: 1.25rem 1.75rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05);
+        margin-bottom: 1rem;
+    }
+    .filter-card .form-label { font-weight: 600; color: #374151; font-size: 0.85rem; margin-bottom: 0.35rem; }
+    .filter-card .form-control, .filter-card .form-select {
+        border: 1px solid #E5E7EB; background-color: #F9FAFB; border-radius: 8px;
+        padding: 0.55rem 0.85rem; font-size: 0.9rem;
+    }
+
+    .report-card {
+        padding: 20px; background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.05); overflow: hidden;
+    }
+    .report-table { width: 100%; border-collapse: collapse; }
+    .report-table thead th {
+        text-align: left; font-size: 0.82rem; font-weight: 600; color: #9CA3AF;
+        padding: 0.6rem 0.75rem; border-bottom: 1px solid #F1F2F4; background: #fff;
+    }
+    .report-table tbody td {
+        padding: 0.65rem 0.75rem; border-bottom: 1px solid #F1F2F4; font-size: 0.9rem;
+        color: #374151; vertical-align: middle;
+    }
+    .report-table tbody tr:last-child td { border-bottom: none; }
+    .report-table tbody tr:hover { background: #FAFAFA; }
+</style>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb-nav">
+    <a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Dashboard</a>
+    <i class="bi bi-chevron-right"></i>
+    <span>Reports</span>
+    <i class="bi bi-chevron-right"></i>
+    <span class="current">Maintenance Reports</span>
+</div>
+
+<div class="header-row">
+    <div>
+        <h2 class="page-title mb-1">Maintenance Reports</h2>
+        <p class="text-muted mb-0">Checklist submissions and maintenance activity logs</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'admin_maintenance_report_excel' %}" class="export-btn export-btn-excel hover-lift">
+            <i class="bi bi-file-earmark-excel"></i> Export Excel
+        </a>
+        <a href="{% url 'admin_maintenance_report_pdf' %}" target="_blank" class="export-btn export-btn-pdf hover-lift">
+            <i class="bi bi-file-earmark-pdf"></i> Export PDF
+        </a>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-card">
+    <form method="GET" action="{% url 'admin_maintenance_report' %}">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Site</label>
+                <select name="site_id" class="form-select">
+                    <option value="">All Sites</option>
+                    {% for site in sites %}
+                        <option value="{{ site.id }}" {% if request.GET.site_id == site.id|stringformat:"s" %}selected{% endif %}>{{ site.site_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Project</label>
+                <select name="project_id" class="form-select">
+                    <option value="">All Projects</option>
+                    {% for proj in projects %}
+                        <option value="{{ proj.id }}" {% if request.GET.project_id == proj.id|stringformat:"s" %}selected{% endif %}>{{ proj.client_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Date From</label>
+                <input type="date" name="date_from" value="{{ request.GET.date_from }}" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Date To</label>
+                <input type="date" name="date_to" value="{{ request.GET.date_to }}" class="form-control">
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn hover-lift" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                    Filter
+                </button>
+                <a href="{% url 'admin_maintenance_report' %}" class="btn btn-light border">Reset</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Table Card -->
+<div class="report-card">
+    <div class="table-responsive">
+        <table class="report-table table table-hover" id="maintenanceReportTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Form Name</th>
+                    <th>Employee</th>
+                    <th>Project</th>
+                    <th>Site</th>
+                    <th>Date</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sub in submissions %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td class="fw-bold">{{ sub.form_name }}</td>
+                        <td>{{ sub.employee_name }}</td>
+                        <td>{{ sub.project_name }}</td>
+                        <td>{{ sub.site_name }}</td>
+                        <td>{{ sub.created_at|date:"d M Y, h:i A" }}</td>
+                        <td class="text-end">
+                            <a href="{% url 'admin_form_submissions_edit' sub.id %}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">No maintenance submissions found.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

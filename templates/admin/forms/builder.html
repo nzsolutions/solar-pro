@@ -1,0 +1,421 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+    .form-card { background: #fff; border-radius: 12px; padding: 1.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+    .form-card h5 { font-weight: 700; color: #111827; margin-bottom: 1.5rem; }
+    .form-label { font-weight: 600; color: #374151; font-size: 0.85rem; }
+    .form-control, .form-select { border: 1px solid #E5E7EB; background-color: #F9FAFB; border-radius: 8px; padding: 0.6rem 0.85rem; font-size: 0.9rem; }
+    .form-control:focus, .form-select:focus { border-color: var(--accent-orange, #F59E0B); box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12); background-color: #fff; }
+    
+    .section-container { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 2px solid #E2E8F0; padding-bottom: 0.5rem; }
+    .row-item { background: #fff; border: 1px dashed #CBD5E1; border-radius: 6px; padding: 1rem; margin-bottom: 0.5rem; display: flex; gap: 1rem; align-items: center; }
+    .remove-btn { color: #DC2626; cursor: pointer; background: #FEE2E2; border: none; border-radius: 6px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+    .badge-col { background: #E0E7FF; color: #4338CA; padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 600; font-size: 0.8rem; display: inline-block; margin-right: 0.5rem; margin-bottom: 0.5rem; }
+
+    .preview-table { border: 2px solid #94A3B8; }
+    .preview-table th { background-color: #E2E8F0; font-size: 0.75rem; font-weight: 700; color: #334155; text-transform: uppercase; border: 1px solid #94A3B8; text-align: center; vertical-align: middle; }
+    .preview-table td { font-size: 0.8rem; color: #0F172A; border: 1px solid #94A3B8; vertical-align: middle; }
+    .preview-section-row { background-color: #CBD5E1 !important; font-weight: 700; }
+    .preview-section-row td { border-bottom: 2px solid #94A3B8; border-top: 2px solid #94A3B8; }
+    
+    .excel-upload-zone { border: 2px dashed #9CA3AF; border-radius: 8px; padding: 1.5rem; text-align: center; background: #F3F4F6; cursor: pointer; transition: all 0.2s; }
+    .excel-upload-zone:hover { border-color: var(--accent-orange, #F59E0B); background: #FEF3E2; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-1">{% if form %}Edit Matrix Form{% else %}Create Matrix Form{% endif %}</h2>
+        <p class="text-muted mb-0">{% if form %}Update the checklist template{% else %}Design Excel-style checklists and audit sheets{% endif %}</p>
+    </div>
+</div>
+
+<form action="{% if form %}{% url 'admin_forms_update' form.id %}{% else %}{% url 'admin_forms_store' %}{% endif %}" method="POST" id="formBuilder">
+    {% csrf_token %}
+    <input type="hidden" name="form_schema" id="form_schema">
+
+    <!-- Basic Form Info & Excel Upload -->
+    <div class="form-card">
+        <div class="row align-items-start">
+            <div class="col-md-7">
+                <h5 class="mb-3">1. Form Metadata</h5>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Applicable Projects</label>
+                        <div class="border rounded p-3" style="background: #F9FAFB; max-height: 180px; overflow-y: auto;">
+                            <div class="form-check mb-2 pb-2 border-bottom">
+                                <input class="form-check-input" type="checkbox" id="selectAllProjects">
+                                <label class="form-check-label fw-semibold" for="selectAllProjects">Select All</label>
+                            </div>
+                            {% for project in projects %}
+                                <div class="form-check">
+                                    <input class="form-check-input project-checkbox" type="checkbox" name="project_ids[]"
+                                        value="{{ project.id }}" id="project_{{ project.id }}"
+                                        {% if project.id in selectedProjectIds %}checked{% endif %}>
+                                    <label class="form-check-label" for="project_{{ project.id }}">{{ project.client_name }}</label>
+                                </div>
+                            {% empty %}
+                                <p class="text-muted mb-0" style="font-size: 0.85rem;">No projects found.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Form Title <span class="text-danger">*</span></label>
+                        <input type="text" name="form_name" id="form_name" class="form-control"
+                               placeholder="e.g. Daily Check List - Solar Plant"
+                               value="{% if form %}{{ form.form_name }}{% endif %}" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Description</label>
+                        <input type="text" name="description" class="form-control"
+                               placeholder="Optional instructions for field staff"
+                               value="{% if form %}{{ form.description|default:'' }}{% endif %}">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- EXCEL UPLOAD SECTION -->
+            <div class="col-md-5 border-start ps-md-4 mt-4 mt-md-0">
+                <h5 class="mb-3 text-success"><i class="bi bi-magic me-2"></i>Auto-Build from Excel</h5>
+                <p class="text-muted" style="font-size: 0.85rem;">Upload your Daily Check Sheet format to instantly generate the form fields.</p>
+                
+                <label for="excelUpload" class="excel-upload-zone w-100 d-block">
+                    <i class="bi bi-file-earmark-excel text-success" style="font-size: 2rem;"></i>
+                    <h6 class="mt-2 mb-1 fw-bold text-dark">Click to Upload Excel (.xlsx)</h6>
+                    <small class="text-muted">The builder will read your columns and sections</small>
+                    <input type="file" id="excelUpload" accept=".xlsx, .xls" class="d-none">
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dynamic Columns -->
+    <div class="form-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">2. Grid Columns</h5>
+            <button type="button" class="btn btn-sm btn-light border" id="addColumnBtn"><i class="bi bi-plus"></i> Add Column</button>
+        </div>
+        <p class="text-muted" style="font-size: 0.85rem;">Define the columns that will appear on the right side of the checklist (e.g., Block 01, Block 02, Remarks).</p>
+        
+        <div id="columnsWrapper" class="mb-3"></div>
+    </div>
+
+    <!-- Sections & Checkpoints -->
+    <div class="form-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">3. Form Sections & Checkpoints</h5>
+            <button type="button" class="btn btn-sm hover-lift" style="background-color: var(--accent-orange); color: white;" id="addSectionBtn"><i class="bi bi-plus-square"></i> Add Section</button>
+        </div>
+        
+        <div id="sectionsWrapper"></div>
+    </div>
+
+    <!-- LIVE PREVIEW CARD -->
+    <div class="form-card" id="previewCard" style="display: none;">
+        <h5 class="mb-3"><i class="bi bi-table text-success me-2"></i>Live Excel Preview</h5>
+        <div class="table-responsive">
+            <table class="table table-bordered preview-table mb-0" id="previewTable">
+                <thead>
+                    <tr id="previewHeader"></tr>
+                </thead>
+                <tbody id="previewBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="text-end mb-5">
+        <button type="submit" class="btn hover-lift px-4 py-2" style="background-color: var(--accent-orange); color: white; font-weight: 600;">
+            <i class="bi bi-save"></i> {% if form %}Update Form Template{% else %}Save Form Template{% endif %}
+        </button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+    $(document).ready(function() {
+        let columns = [];
+        let sectionCount = 0;
+
+        function syncSelectAllProjectsState() {
+            let $boxes = $('.project-checkbox');
+            if ($boxes.length === 0) return;
+            $('#selectAllProjects').prop('checked', $boxes.length === $boxes.filter(':checked').length);
+        }
+
+        $('#selectAllProjects').on('change', function() {
+            $('.project-checkbox').prop('checked', $(this).is(':checked'));
+        });
+
+        $(document).on('change', '.project-checkbox', syncSelectAllProjectsState);
+        syncSelectAllProjectsState();
+
+        window.appendColumn = function(colName) {
+            if(colName && colName.trim() !== "") {
+                columns.push(colName.trim());
+                renderColumns();
+                renderPreview();
+            }
+        };
+
+        window.appendSection = function(secName) {
+            sectionCount++;
+            let sectionHTML = `
+                <div class="section-container" data-section="${secName}">
+                    <div class="section-header">
+                        <h6 class="mb-0 fw-bold"><i class="bi bi-folder2-open me-2"></i> <span class="sec-title-txt">${secName}</span></h6>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-outline-primary add-row-btn"><i class="bi bi-list-task"></i> Add Checkpoint</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger ms-2 remove-section"><i class="bi bi-trash"></i></button>
+                        </div>
+                    </div>
+                    <div class="rows-wrapper"></div>
+                </div>
+            `;
+            $('#sectionsWrapper').append(sectionHTML);
+            renderPreview();
+            return $('#sectionsWrapper .section-container').last();
+        };
+
+        window.appendRow = function(sectionElem, name, excelType, excelUnit, explicitType) {
+            let rowHTML = `
+                <div class="row-item">
+                    <div class="flex-grow-1">
+                        <input type="text" class="form-control form-control-sm checkpoint-name" placeholder="Checkpoint Name" value="${name || ''}">
+                    </div>
+                    <div style="width: 150px;">
+                        <select class="form-select form-select-sm checkpoint-type">
+                            <option value="text">Text Input</option>
+                            <option value="number">Number</option>
+                            <option value="ok_nok">OK / NOK Dropdown</option>
+                            <option value="visual">Visual Check</option>
+                        </select>
+                    </div>
+                    <div style="width: 150px;">
+                        <input type="text" class="form-control form-control-sm checkpoint-unit" placeholder="Unit" value="${excelUnit || ''}">
+                    </div>
+                    <button type="button" class="remove-btn remove-row"><i class="bi bi-x"></i></button>
+                </div>
+            `;
+            
+            let $row = $(rowHTML);
+            let mappedType = explicitType || 'text';
+            if (!explicitType) {
+                let tt = (excelType || '').toLowerCase();
+                let uu = (excelUnit || '').toLowerCase();
+                if (tt.includes('visual')) mappedType = 'visual';
+                else if (uu.includes('ok / nok') || uu.includes('ok/nok')) mappedType = 'ok_nok';
+                else if (tt.includes('meter') || uu.includes('deg c') || uu.includes('amps') || uu.includes('kv') || uu.includes('volts') || uu.includes('hz')) mappedType = 'number';
+            }
+            $row.find('.checkpoint-type').val(mappedType);
+            sectionElem.find('.rows-wrapper').append($row);
+            renderPreview();
+        };
+
+        // EXCEL PARSING
+        $('#excelUpload').change(function(e) {
+            let file = e.target.files[0];
+            if(!file) return;
+
+            let $label = $(this).parent();
+            let originalHtml = $label.html();
+            $label.html('<div class="spinner-border text-success my-2" role="status"></div><h6 class="mt-2 fw-bold text-dark">Processing Excel...</h6>');
+
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    let data = new Uint8Array(e.target.result);
+                    let workbook = XLSX.read(data, {type: 'array'});
+                    let firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    let rows = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+
+                    parseExcelData(rows);
+                    $('#excelUpload').val('');
+                    $label.html('<i class="bi bi-check-circle-fill text-success" style="font-size: 2rem;"></i><h6 class="mt-2 mb-1 fw-bold text-dark">Upload Complete!</h6><small class="text-muted">You can now edit the form below.</small>');
+                } catch (error) {
+                    alert("Error processing Excel file. Please ensure it is a valid format.");
+                    $label.html(originalHtml);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function parseExcelData(rows) {
+            columns = [];
+            $('#columnsWrapper').empty();
+            $('#sectionsWrapper').empty();
+
+            let startRowIndex = -1;
+            let unitColIndex = -1;
+
+            for(let i=0; i<rows.length; i++) {
+                let row = rows[i];
+                if(row.includes('Check') && row.includes('Units')) {
+                    startRowIndex = i;
+                    unitColIndex = row.indexOf('Units');
+                    for(let c = unitColIndex + 1; c < row.length; c++) {
+                        if(row[c] && row[c].trim() !== '') {
+                            appendColumn(row[c].trim());
+                        }
+                    }
+                    break;
+                }
+            }
+
+            if(startRowIndex === -1) {
+                alert("Could not detect standard formatting. Ensure row headers contain 'Check' and 'Units'.");
+                return;
+            }
+
+            let currentSection = null;
+            for(let i = startRowIndex + 2; i < rows.length; i++) {
+                let row = rows[i];
+                let srNo = row[0] || '';
+                let cpName = row[1] || '';
+                let cpCheck = row[2] || '';
+                let cpUnits = row[3] || '';
+
+                if(!cpName || cpName.toString().trim() === '') continue;
+
+                if(!cpCheck && !cpUnits) {
+                    let secTitle = srNo ? `${srNo}. ${cpName}` : cpName;
+                    currentSection = appendSection(secTitle);
+                } else {
+                    if(!currentSection) currentSection = appendSection("General Checkpoints");
+                    appendRow(currentSection, cpName, cpCheck, cpUnits);
+                }
+            }
+        }
+
+        function renderPreview() {
+            if (columns.length === 0 && $('.section-container').length === 0) {
+                $('#previewCard').hide();
+                return;
+            }
+            $('#previewCard').show();
+
+            let headerHTML = `<th width="60px">Sr.No</th><th>Check Points</th><th width="120px">Check</th><th width="100px">Units</th>`;
+            columns.forEach(col => { headerHTML += `<th width="100px">${col}</th>`; });
+            $('#previewHeader').html(headerHTML);
+
+            let bodyHTML = '';
+            let secIndex = 1;
+
+            $('.section-container').each(function() {
+                let secName = $(this).find('.sec-title-txt').text();
+                let totalCols = 4 + columns.length; 
+
+                bodyHTML += `
+                    <tr class="preview-section-row">
+                        <td class="text-center">${secIndex}</td>
+                        <td colspan="${totalCols - 1}">${secName}</td>
+                    </tr>
+                `;
+
+                let rowIndex = 1;
+                $(this).find('.row-item').each(function() {
+                    let cpName = $(this).find('.checkpoint-name').val() || '<span class="text-muted fst-italic">Empty Checkpoint...</span>';
+                    let cpType = $(this).find('.checkpoint-type option:selected').text(); 
+                    if(cpType === "OK / NOK Dropdown") cpType = "OK / NOK"; 
+                    if(cpType === "Text Input") cpType = "Text";
+                    let cpUnit = $(this).find('.checkpoint-unit').val() || '-';
+
+                    bodyHTML += `<tr>`;
+                    bodyHTML += `<td class="text-center">${secIndex}.${rowIndex}</td>`;
+                    bodyHTML += `<td>${cpName}</td>`;
+                    bodyHTML += `<td class="text-center">${cpType}</td>`;
+                    bodyHTML += `<td class="text-center">${cpUnit}</td>`;
+                    columns.forEach(() => { bodyHTML += `<td></td>`; });
+                    bodyHTML += `</tr>`;
+                    rowIndex++;
+                });
+                secIndex++;
+            });
+
+            $('#previewBody').html(bodyHTML);
+        }
+
+        $(document).on('keyup', '.checkpoint-name, .checkpoint-unit', renderPreview);
+        $(document).on('change', '.checkpoint-type', renderPreview);
+        $('#addColumnBtn').click(function() { appendColumn(prompt("Enter Column Name:")); });
+        
+        window.removeColumn = function(index) {
+            columns.splice(index, 1);
+            renderColumns();
+            renderPreview();
+        }
+
+        function renderColumns() {
+            $('#columnsWrapper').empty();
+            columns.forEach((col, index) => {
+                $('#columnsWrapper').append(`
+                    <span class="badge-col">
+                        ${col} <i class="bi bi-x-circle ms-2 text-danger" style="cursor:pointer;" onclick="removeColumn(${index})"></i>
+                    </span>
+                `);
+            });
+        }
+
+        $('#addSectionBtn').click(function() {
+            let secName = prompt("Enter Section Name:");
+            if(secName) appendSection(secName);
+        });
+
+        $(document).on('click', '.remove-section', function() {
+            $(this).closest('.section-container').remove();
+            renderPreview();
+        });
+
+        $(document).on('click', '.add-row-btn', function() {
+            appendRow($(this).closest('.section-container'), '', 'text', '');
+        });
+
+        $(document).on('click', '.remove-row', function() {
+            $(this).closest('.row-item').remove();
+            renderPreview(); 
+        });
+
+        $('#formBuilder').submit(function(e) {
+            e.preventDefault(); 
+            if(columns.length === 0) {
+                alert("Please add at least one column (e.g., Block 01).");
+                return;
+            }
+
+            let schema = { columns: columns, sections: [] };
+            $('.section-container').each(function() {
+                let secName = $(this).find('.sec-title-txt').text();
+                let rows = [];
+                $(this).find('.row-item').each(function() {
+                    rows.push({
+                        name: $(this).find('.checkpoint-name').val(),
+                        type: $(this).find('.checkpoint-type').val(),
+                        unit: $(this).find('.checkpoint-unit').val()
+                    });
+                });
+                schema.sections.push({ name: secName, rows: rows });
+            });
+
+            $('#form_schema').val(JSON.stringify(schema));
+            this.submit();
+        });
+
+        // Prefill existing schema
+        let existingSchema = {{ schema|safe }};
+        if (existingSchema && (existingSchema.columns || existingSchema.sections)) {
+            (existingSchema.columns || []).forEach(function(col) { appendColumn(col); });
+            (existingSchema.sections || []).forEach(function(section) {
+                let $section = appendSection(section.name);
+                (section.rows || []).forEach(function(row) {
+                    appendRow($section, row.name, '', row.unit, row.type);
+                });
+            });
+            renderPreview();
+        }
+    });
+</script>
+{% endblock %}
