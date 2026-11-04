@@ -1,5 +1,5 @@
 import csv
-from datetime import datetime
+from datetime import datetime, time
 from django.shortcuts import render
 from django.http import HttpResponse, StreamingHttpResponse
 from django.utils import timezone
@@ -9,6 +9,29 @@ from apps.employees.models import Employee, EmployeeAttendance
 from apps.masters.models import SiteMaster
 from apps.inventory.models import OpeningStock, StockCategory, AssignedStock
 from apps.dynamic_forms.models import DynamicForm, FormSubmission
+
+
+def _parse_date_bounds(from_date, to_date):
+    """
+    Parses date strings (YYYY-MM-DD) into timezone-aware datetime boundaries.
+    Avoids MySQL CONVERT_TZ failure on systems without mysql.time_zone_name.
+    """
+    tz = timezone.get_current_timezone()
+    dt_from = None
+    dt_to = None
+    if from_date:
+        try:
+            d_from = datetime.strptime(str(from_date).strip(), '%Y-%m-%d')
+            dt_from = timezone.make_aware(d_from, tz)
+        except Exception:
+            pass
+    if to_date:
+        try:
+            d_to = datetime.strptime(str(to_date).strip(), '%Y-%m-%d')
+            dt_to = timezone.make_aware(datetime.combine(d_to, time.max), tz)
+        except Exception:
+            pass
+    return dt_from, dt_to
 
 
 class Echo:
@@ -21,7 +44,13 @@ class Echo:
 # 1. PROJECT REPORT
 # ==========================================
 def get_filtered_projects(request, from_date, to_date):
-    qs = Project.objects.filter(created_at__date__gte=from_date, created_at__date__lte=to_date)
+    qs = Project.objects.all()
+
+    dt_from, dt_to = _parse_date_bounds(from_date, to_date)
+    if dt_from:
+        qs = qs.filter(created_at__gte=dt_from)
+    if dt_to:
+        qs = qs.filter(created_at__lte=dt_to)
 
     client = request.GET.get('client')
     code = request.GET.get('code')
@@ -136,10 +165,11 @@ def maintenance_report(request):
         subs_qs = subs_qs.filter(project_id=int(project_id))
     if form_id and form_id.isdigit():
         subs_qs = subs_qs.filter(form_id=int(form_id))
-    if date_from:
-        subs_qs = subs_qs.filter(created_at__date__gte=date_from)
-    if date_to:
-        subs_qs = subs_qs.filter(created_at__date__lte=date_to)
+    dt_from, dt_to = _parse_date_bounds(date_from, date_to)
+    if dt_from:
+        subs_qs = subs_qs.filter(created_at__gte=dt_from)
+    if dt_to:
+        subs_qs = subs_qs.filter(created_at__lte=dt_to)
 
     forms_map = {f.id: f.form_name for f in DynamicForm.objects.all()}
     emps_map = {e.id: e.name for e in Employee.objects.all()}
@@ -235,7 +265,12 @@ def maintenance_report_export_pdf(request):
 # 3. ATTENDANCE REPORT
 # ==========================================
 def get_attendance_logs(request, from_date, to_date):
-    qs = EmployeeAttendance.objects.filter(punch_in__date__gte=from_date, punch_in__date__lte=to_date)
+    qs = EmployeeAttendance.objects.all()
+    dt_from, dt_to = _parse_date_bounds(from_date, to_date)
+    if dt_from:
+        qs = qs.filter(punch_in__gte=dt_from)
+    if dt_to:
+        qs = qs.filter(punch_in__lte=dt_to)
 
     emp_filter = request.GET.get('employee')
     proj_filter = request.GET.get('project')
@@ -368,7 +403,12 @@ def stock_report(request):
     cats_map = {c.id: c.category_name for c in StockCategory.objects.all()}
 
     # Calculate consumed stock within date range from AssignedStock
-    assigned_qs = AssignedStock.objects.filter(created_at__date__gte=from_date, created_at__date__lte=to_date)
+    assigned_qs = AssignedStock.objects.all()
+    dt_from, dt_to = _parse_date_bounds(from_date, to_date)
+    if dt_from:
+        assigned_qs = assigned_qs.filter(created_at__gte=dt_from)
+    if dt_to:
+        assigned_qs = assigned_qs.filter(created_at__lte=dt_to)
     consumed_map = {}
     for ast in assigned_qs:
         consumed_map[ast.item_id] = consumed_map.get(ast.item_id, 0.0) + float(ast.qty)
@@ -410,7 +450,12 @@ def stock_report_export_excel(request):
 
     items = OpeningStock.objects.order_by('item_name')
     cats_map = {c.id: c.category_name for c in StockCategory.objects.all()}
-    assigned_qs = AssignedStock.objects.filter(created_at__date__gte=from_date, created_at__date__lte=to_date)
+    assigned_qs = AssignedStock.objects.all()
+    dt_from, dt_to = _parse_date_bounds(from_date, to_date)
+    if dt_from:
+        assigned_qs = assigned_qs.filter(created_at__gte=dt_from)
+    if dt_to:
+        assigned_qs = assigned_qs.filter(created_at__lte=dt_to)
     consumed_map = {}
     for ast in assigned_qs:
         consumed_map[ast.item_id] = consumed_map.get(ast.item_id, 0.0) + float(ast.qty)
@@ -437,7 +482,12 @@ def stock_report_export_pdf(request):
 
     items = OpeningStock.objects.order_by('item_name')
     cats_map = {c.id: c.category_name for c in StockCategory.objects.all()}
-    assigned_qs = AssignedStock.objects.filter(created_at__date__gte=from_date, created_at__date__lte=to_date)
+    assigned_qs = AssignedStock.objects.all()
+    dt_from, dt_to = _parse_date_bounds(from_date, to_date)
+    if dt_from:
+        assigned_qs = assigned_qs.filter(created_at__gte=dt_from)
+    if dt_to:
+        assigned_qs = assigned_qs.filter(created_at__lte=dt_to)
     consumed_map = {}
     for ast in assigned_qs:
         consumed_map[ast.item_id] = consumed_map.get(ast.item_id, 0.0) + float(ast.qty)
