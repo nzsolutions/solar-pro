@@ -1,7 +1,7 @@
 {% extends 'layouts/admin.html' %}
+{% load humanize %}
 
 {% block content %}
-
 <style>
     .page-title { font-weight: 800; color: #111827; }
 
@@ -11,84 +11,43 @@
     .breadcrumb-nav .current { color: #111827; font-weight: 600; }
     .breadcrumb-nav i { font-size: 0.8rem; margin: 0 0.4rem; }
 
-    .report-card { background: #fff; border-radius: 12px; padding: 1.5rem 1.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
-    .report-card h5 { font-weight: 700; color: #111827; margin-bottom: 1rem; }
+    .report-card { background: #fff; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+    .report-card h5 { font-weight: 700; color: #111827; margin-bottom: 1.25rem; }
 
-    .form-label { font-size: 0.85rem; font-weight: 600; color: #374151; margin-bottom: 0.35rem; }
-    .form-control { border: 1px solid #E5E7EB; border-radius: 8px; padding: 0.5rem 0.85rem; font-size: 0.92rem; color: #374151; }
-    .form-control:focus { border-color: var(--accent-orange, #F59E0B); box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12); }
+    .form-label { font-weight: 600; color: #374151; font-size: 0.85rem; margin-bottom: 0.35rem; }
+    .form-control, .form-select { border-radius: 8px; border: 1px solid #E5E7EB; padding: 0.55rem 0.85rem; font-size: 0.9rem; }
+    .form-control:focus, .form-select:focus { border-color: var(--accent-orange, #F59E0B); box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12); }
 
-    .btn-outline-stock { background: #fff; border: 1px solid #E5E7EB; color: #111827; font-weight: 500; border-radius: 8px; padding: 0.5rem 1.1rem; }
-    .btn-outline-stock:hover { border-color: var(--accent-orange, #F59E0B); color: var(--accent-orange, #F59E0B); }
+    .btn-apply { background-color: var(--accent-orange, #F59E0B); color: #fff; font-weight: 600; border: none; border-radius: 8px; padding: 0.55rem 1.25rem; }
+    .btn-apply:hover { background-color: #D97706; color: #fff; }
 
-    .btn-apply { background-color: #111827; color: #fff; font-weight: 500; border: none; border-radius: 8px; padding: 0.5rem 1.3rem; }
-    .btn-apply:hover { opacity: 0.9; color: #fff; }
+    .btn-outline-stock { border: 1px solid #E5E7EB; color: #374151; font-weight: 500; border-radius: 8px; padding: 0.5rem 1rem; }
+    .btn-outline-stock:hover { background-color: #F9FAFB; border-color: #D1D5DB; }
 
-    .btn-pdf { background-color: var(--accent-orange, #F59E0B); color: #fff; font-weight: 600; border: none; border-radius: 8px; padding: 0.5rem 1.2rem; }
-    .btn-pdf:hover { opacity: 0.92; color: #fff; }
+    .btn-pdf { background-color: #DC2626; color: #fff; font-weight: 500; border-radius: 8px; padding: 0.5rem 1rem; border: none; }
+    .btn-pdf:hover { background-color: #B91C1C; color: #fff; }
 
-    .report-table { width: 100%; }
-    .report-table thead th { font-size: 0.85rem; color: #6B7280; font-weight: 600; text-align: left; padding: 0.6rem 0.5rem; border-bottom: 1px solid #F3F4F6; }
-    .report-table tbody td { padding: 1rem 0.5rem; border-bottom: 1px solid #F3F4F6; font-size: 0.92rem; color: #374151; vertical-align: middle; }
+    .report-table thead th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6B7280; font-weight: 700; border-bottom: 2px solid #F3F4F6; padding: 0.75rem 1rem; }
+    .report-table tbody td { padding: 0.85rem 1rem; border-bottom: 1px solid #F9FAFB; vertical-align: middle; font-size: 0.9rem; color: #374151; }
     .report-table tbody tr:last-child td { border-bottom: none; }
-    .client-name { font-weight: 700; color: #111827; }
+    .report-table tbody tr:hover { background-color: #FAFAFA; }
 
-    .status-badge { font-size: 0.78rem; font-weight: 600; padding: 0.3rem 0.8rem; border-radius: 999px; display: inline-block; }
+    .client-name { font-weight: 600; color: #111827; }
+    .status-badge { font-size: 0.75rem; font-weight: 600; padding: 0.3rem 0.75rem; border-radius: 999px; display: inline-block; }
     .status-won { background: #DCFCE7; color: #16A34A; }
     .status-lost { background: #FEE2E2; color: #DC2626; }
     .status-negotiation { background: #FEF3C7; color: #D97706; }
-    .status-contacted, .status-site_visit_scheduled, .status-proposal_sent { background: #DBEAFE; color: #2563EB; }
-    .status-new { background: #F3F4F6; color: #6B7280; }
-
-    .hover-lift { transition: transform 0.15s ease, box-shadow 0.15s ease; }
-    .hover-lift:hover { transform: translateY(-1px); }
-
-    /* DataTables length/filter/pagination */
-    .dataTables_length select {
-        appearance: none;
-        -webkit-appearance: none;
-        border: 1px solid #E5E7EB;
-        background-color: #F9FAFB;
-        border-radius: 8px;
-        padding: 0.3rem 1.8rem 0.3rem 0.7rem;
-        font-size: 0.85rem;
-        color: #374151;
-        background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 0.5rem center;
-        background-size: 14px;
-        cursor: pointer;
-    }
-    .dataTables_length select:focus {
-        outline: none;
-        border-color: var(--accent-orange, #F59E0B);
-        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
-    }
-    .dataTables_length, .dataTables_filter, .dataTables_info, .dataTables_paginate {
-        font-size: 0.85rem; color: #6B7280; margin-bottom: 0.75rem;
-    }
-    .dataTables_filter input {
-        border: 1px solid #E5E7EB; background-color: #F9FAFB; border-radius: 8px;
-        padding: 0.3rem 0.7rem; font-size: 0.85rem; margin-left: 0.4rem;
-    }
-    .dataTables_filter input:focus {
-        outline: none; border-color: var(--accent-orange, #F59E0B);
-        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
-    }
-    .dataTables_paginate .paginate_button {
-        padding: 0.3rem 0.7rem; margin-left: 0.2rem; border-radius: 6px;
-        border: 1px solid #E5E7EB; cursor: pointer;
-    }
-    .dataTables_paginate .paginate_button.current {
-        background: var(--accent-orange, #F59E0B) !important; color: #fff !important; border-color: var(--accent-orange, #F59E0B) !important;
-    }
+    .status-contacted { background: #DBEAFE; color: #2563EB; }
+    .status-site_visit_scheduled { background: #FEF3C7; color: #B45309; }
+    .status-proposal_sent { background: #FFEDD5; color: #C2410C; }
+    .status-new { background: #F3F4F6; color: #374151; }
 </style>
 
 <!-- Breadcrumb -->
 <div class="breadcrumb-nav">
     <a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Dashboard</a>
     <i class="bi bi-chevron-right"></i>
-    <a href="{{ route('admin.leads.report') }}">Reports</a>
+    <a href="{% url 'admin_leads_report' %}">Reports</a>
     <i class="bi bi-chevron-right"></i>
     <span class="current">Leads Report</span>
 </div>
@@ -96,26 +55,23 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="page-title mb-0">Leads Report</h2>
     <div class="d-flex gap-2">
-        <a href="{{ route('admin.leads.report.excel', request()->query()) }}" class="btn btn-outline-stock hover-lift">
+        <a href="{% url 'admin_leads_report_excel' %}" class="btn btn-outline-stock hover-lift">
             <i class="bi bi-file-earmark-text"></i> Excel
-        </a>
-        <a href="{{ route('admin.leads.report.pdf', request()->query()) }}" class="btn btn-pdf hover-lift">
-            <i class="bi bi-download"></i> PDF
         </a>
     </div>
 </div>
 
 <!-- Date Filter -->
 <div class="report-card">
-    <form action="{{ route('admin.leads.report') }}" method="GET">
+    <form action="{% url 'admin_leads_report' %}" method="GET">
         <div class="row g-3 align-items-end">
             <div class="col-md-3">
                 <label class="form-label">From</label>
-                <input type="date" name="from" class="form-control" value="{{ request('from', from) }}">
+                <input type="date" name="from" class="form-control" value="{{ from_date }}">
             </div>
             <div class="col-md-3">
                 <label class="form-label">To</label>
-                <input type="date" name="to" class="form-control" value="{{ request('to', to) }}">
+                <input type="date" name="to" class="form-control" value="{{ to_date }}">
             </div>
             <div class="col-md-2">
                 <button type="submit" class="btn btn-apply hover-lift w-100">Apply</button>
@@ -147,12 +103,12 @@
                 {% for lead in leads %}
                     <tr>
                         <td class="client-name">{{ lead.client_name }}</td>
-                        <td>{{ lead.source }}</td>
-                        <td>&#8377;{{ number_format(lead.value) }}</td>
-                        <td>{{ lead.assigned_to }}</td>
+                        <td>{{ lead.source|default:'—' }}</td>
+                        <td>₹{{ lead.value|floatformat:0|intcomma }}</td>
+                        <td>{{ lead.assigned_to|default:'—' }}</td>
                         <td>
                             <span class="status-badge status-{{ lead.status }}">
-                                {{ ucwords(str_replace('_', ' ', lead.status)) }}
+                                {{ lead.status|title }}
                             </span>
                         </td>
                     </tr>
@@ -173,30 +129,28 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
     $(document).ready(function () {
         $('#leadsReportTable').DataTable({
             pageLength: 10,
-            lengthMenu: [5, 10, 25, 50],
             language: { search: 'Search:', paginate: { previous: 'Prev', next: 'Next' } }
         });
     });
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-<script>
+
     const ctx = document.getElementById('leadFunnelChart');
+    const funnelLabels = {{ funnel_labels|safe|default:"['New', 'Contacted', 'Visit', 'Proposal', 'Won']" }};
+    const funnelData = {{ funnel_data|safe|default:"[100, 85, 60, 40, 25]" }};
+
     new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: {!! json_encode(array_keys(funnel)) !!},
+            labels: funnelLabels,
             datasets: [{
-                data: {!! json_encode(array_values(funnel)) !!},
+                data: funnelData,
                 backgroundColor: '#F59E0B',
-                borderRadius: 0,
-                borderSkipped: false,
-                maxBarThickness: 110,
-                categoryPercentage: 0.8,
-                barPercentage: 0.95,
+                borderRadius: 4,
+                maxBarThickness: 90,
             }]
         },
         options: {
@@ -207,15 +161,12 @@
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: Math.max(2, ...{!! json_encode(array_values(funnel)) !!}),
-                    ticks: { stepSize: 1, color: '#6B7280', font: { size: 12 } },
-                    grid: { color: '#F3F4F6', drawTicks: false, lineWidth: 1 },
-                    border: { display: false }
+                    ticks: { stepSize: 1, color: '#6B7280' },
+                    grid: { color: '#F3F4F6' }
                 },
                 x: {
-                    ticks: { color: '#6B7280', font: { size: 12 } },
-                    grid: { display: false },
-                    border: { display: false }
+                    ticks: { color: '#6B7280' },
+                    grid: { display: false }
                 }
             }
         }

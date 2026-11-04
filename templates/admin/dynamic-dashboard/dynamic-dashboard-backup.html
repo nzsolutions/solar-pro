@@ -28,13 +28,13 @@
         <!-- Date Filters -->
         <ul class="nav nav-pills bg-white p-1 rounded border shadow-sm">
             <li class="nav-item">
-                <a class="nav-link {{ filterMode == 'daily' ? 'active' : '' }}" href="?filter=daily&project_id={{projectId}}">Daily</a>
+                <a class="nav-link {% if filterMode == 'daily' %}active{% endif %}" href="?filter=daily{% if projectId %}&project_id={{ projectId }}{% endif %}">Daily</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {{ filterMode == 'weekly' ? 'active' : '' }}" href="?filter=weekly&project_id={{projectId}}">Weekly</a>
+                <a class="nav-link {% if filterMode == 'weekly' %}active{% endif %}" href="?filter=weekly{% if projectId %}&project_id={{ projectId }}{% endif %}">Weekly</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {{ filterMode == 'monthly' ? 'active' : '' }}" href="?filter=monthly&project_id={{projectId}}">Monthly</a>
+                <a class="nav-link {% if filterMode == 'monthly' %}active{% endif %}" href="?filter=monthly{% if projectId %}&project_id={{ projectId }}{% endif %}">Monthly</a>
             </li>
         </ul>
 
@@ -44,7 +44,7 @@
             <select name="project_id" class="form-select border shadow-sm" style="min-width: 200px;" onchange="document.getElementById('filterForm').submit()">
                 <option value="">All Projects</option>
                 {% for p in projects %}
-                    <option value="{{ p.id }}" {{ projectId == p.id ? 'selected' : '' }}>{{ p.client_name }}</option>
+                    <option value="{{ p.id }}" {% if projectId == p.id|stringformat:"s" %}selected{% endif %}>{{ p.client_name }}</option>
                 {% endfor %}
             </select>
         </form>
@@ -52,46 +52,31 @@
 </div>
 
 <!-- Dynamic Charts Grid -->
-@php
-    grouped = [];
-    foreach (chartData as i => d) {
-        sid = d['config']['section_id'] ?? '';
-        grouped[sid][] = ['index' => i, 'data' => d];
-    }
-
-    ordered = [];
-    foreach (sections as s) {
-        if (!empty(grouped[s.id])) {
-            ordered[] = ['name' => s.section_name, 'items' => grouped[s.id]];
-        }
-    }
-
-    // Graphs with no section (or a deleted section)
-    knownIds = sections.pluck('id')->map(function (v) { return (string) v; })->all();
-    others = [];
-    foreach (grouped as sid => items) {
-        if (!in_array((string) sid, knownIds, true)) {
-            others = array_merge(others, items);
-        }
-    }
-    if (!empty(others)) {
-        ordered[] = ['name' => 'Other', 'items' => others];
-    }
-@endphp
-
 {% for group in ordered %}
-<h4 class="fw-bold mb-3">{{ group['name'] }}</h4>
+<h4 class="fw-bold mb-3">{{ group.name }}</h4>
 <div class="row g-4 mb-5">
-    @foreach(group['items'] as item)
-        @php index = item['index']; data = item['data']; @endphp
-        <div class="col-md-{{ data['config']['size'] }}">
+    {% for item in group.items %}
+        <div class="col-md-{{ item.data.config.size|default:'6' }}">
             <div class="glass-card">
-                <div class="mb-4">
-                    <h5 class="chart-title mb-0">{{ data['config']['title'] }}</h5>
-                    <small class="text-muted"><i class="bi bi-graph-up text-warning"></i> Aggregated Average Over Time</small>
+                <div class="mb-4 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="chart-title mb-0">{{ item.data.config.title }}</h5>
+                        <small class="text-muted"><i class="bi bi-graph-up text-warning"></i> Aggregated Average Over Time</small>
+                    </div>
+                    <span class="badge rounded-pill border" style="background-color: {{ item.data.config.color|default:'#00a2ff' }}; color: #fff; font-size: 0.72rem; padding: 4px 10px;">
+                        {{ item.data.config.color|default:'#00a2ff'|upper }}
+                    </span>
                 </div>
-                <div style="height: {{ data['config']['size'] == '12' ? '350px' : '280px' }}; width: 100%;">
-                    <canvas id="chart_{{ index }}"></canvas>
+                <div class="position-relative" style="height: {% if item.data.config.size == '12' %}350px{% else %}280px{% endif %}; width: 100%;">
+                    <canvas id="chart_{{ item.index }}"></canvas>
+                    {% if not item.data.values %}
+                    <div class="empty-chart-overlay d-flex flex-column align-items-center justify-content-center position-absolute top-0 start-0 w-100 h-100" style="pointer-events: none; background: rgba(255,255,255,0.7); border-radius: 8px;">
+                        <span class="badge px-3 py-2 shadow-sm" style="background-color: {{ item.data.config.color|default:'#00a2ff' }}; color: #fff; font-size: 0.85rem; font-weight: 600;">
+                            <i class="bi bi-palette me-1"></i> Configured Color: {{ item.data.config.color|default:'#00a2ff'|upper }}
+                        </span>
+                        <small class="text-muted mt-2">Awaiting form submissions for this metric</small>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -99,28 +84,39 @@
 </div>
 {% empty %}
 <div class="row g-4">
-        <div class="col-12 text-center py-5">
-            <div class="p-5 bg-white rounded shadow-sm border border-dashed">
-                <i class="bi bi-display text-muted" style="font-size: 3rem;"></i>
-                <h4 class="mt-3 fw-bold">No Layout Configured</h4>
-                <p class="text-muted">Head over to the Dashboard Configuration to set up your graphs.</p>
-                <a href="{% url 'admin_dashboard_config' %}" class="btn btn-dark mt-2">Configure Now</a>
-            </div>
+    <div class="col-12 text-center py-5">
+        <div class="p-5 bg-white rounded shadow-sm border border-dashed">
+            <i class="bi bi-display text-muted" style="font-size: 3rem;"></i>
+            <h4 class="mt-3 fw-bold">No Layout Configured</h4>
+            <p class="text-muted">Head over to the Dashboard Configuration to set up your graphs.</p>
+            <a href="{% url 'admin_dashboard_config_backup' %}" class="btn btn-dark mt-2">Configure Now</a>
         </div>
+    </div>
 </div>
-    {% endfor %}
+{% endfor %}
 {% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    const chartData = @json(chartData);
+    const chartData = {{ chartData_json|safe }};
 
     function hexToRgba(hex, a) {
-        const h = hex.replace('#', '');
-        const r = parseInt(h.substring(0, 2), 16);
-        const g = parseInt(h.substring(2, 4), 16);
-        const b = parseInt(h.substring(4, 6), 16);
+        if (!hex) hex = '#00a2ff';
+        hex = String(hex).trim();
+        if (hex.startsWith('rgb')) {
+            return hex;
+        }
+        let h = hex.replace('#', '');
+        if (h.length === 3) {
+            h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        }
+        if (h.length !== 6) {
+            return `rgba(0, 162, 255, ${a})`;
+        }
+        const r = parseInt(h.substring(0, 2), 16) || 0;
+        const g = parseInt(h.substring(2, 4), 16) || 0;
+        const b = parseInt(h.substring(4, 6), 16) || 0;
         return `rgba(${r}, ${g}, ${b}, ${a})`;
     }
 
@@ -134,32 +130,49 @@
     }
 
     chartData.forEach((data, index) => {
-        const color = data.config.color || '#F59E0B';
-        const isPie = data.config.type === 'pie';
-        const ctx = document.getElementById('chart_' + index).getContext('2d');
+        const canvas = document.getElementById('chart_' + index);
+        if (!canvas) return;
+        const color = (data.config && data.config.color) ? data.config.color : '#00a2ff';
+        const chartType = (data.config && data.config.type) ? data.config.type : 'line';
+        const isPie = chartType === 'pie';
+        const isLine = chartType === 'line';
+        const isBar = chartType === 'bar';
+        const ctx = canvas.getContext('2d');
         
-        // Futuristic Gradient Fill
-        let gradient = ctx.createLinearGradient(0, 0, 0, 400);
-        gradient.addColorStop(0, hexToRgba(color, 0.4));
+        // Futuristic Gradient Fill for Line charts
+        let gradient = ctx.createLinearGradient(0, 0, 0, 350);
+        gradient.addColorStop(0, hexToRgba(color, 0.45));
+        gradient.addColorStop(0.7, hexToRgba(color, 0.15));
         gradient.addColorStop(1, hexToRgba(color, 0.0));
 
+        let bgStyle;
+        if (isPie) {
+            bgStyle = pieColors(color, Math.max(data.values.length, 1));
+        } else if (isLine) {
+            bgStyle = gradient;
+        } else {
+            bgStyle = color;
+        }
+
         new Chart(ctx, {
-            type: data.config.type,
+            type: isPie ? 'pie' : (isBar ? 'bar' : 'line'),
             data: {
                 labels: data.labels,
                 datasets: [{
-                    label: data.config.title,
+                    label: data.config.title || 'Metric',
                     data: data.values,
                     borderColor: isPie ? '#ffffff' : color,
-                    backgroundColor: isPie ? pieColors(color, data.values.length) : (data.config.type === 'line' ? gradient : color),
+                    backgroundColor: bgStyle,
                     borderWidth: 2,
-                    tension: 0.4, // Smooth futuristic curves for line charts
-                    fill: data.config.type === 'line',
+                    tension: 0.35, // Smooth futuristic curves for line charts
+                    fill: isLine,
                     pointBackgroundColor: '#ffffff',
                     pointBorderColor: color,
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
-                    borderRadius: data.config.type === 'bar' ? 6 : 0 // Rounded bars
+                    pointHoverBackgroundColor: color,
+                    pointHoverBorderColor: '#ffffff',
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    borderRadius: isBar ? 6 : 0 // Rounded bars
                 }]
             },
             options: {

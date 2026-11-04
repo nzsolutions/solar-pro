@@ -57,67 +57,11 @@
     .modern-table tbody tr:hover { background-color: #FAFAFA; }
     .modern-table tbody td { padding: 0.9rem 0.75rem; vertical-align: middle; color: #374151; }
 
-    .staff-avatar {
-        width: 34px; height: 34px; border-radius: 50%;
-        background: #FEF3E2; color: var(--accent-orange, #F59E0B);
-        display: inline-flex; align-items: center; justify-content: center;
-        font-weight: 700; font-size: 0.85rem; margin-right: 0.6rem;
-    }
-
-    .badge-role {
-        background: #111827; color: #fff;
-        font-weight: 600; font-size: 0.78rem;
-        padding: 0.3rem 0.85rem; border-radius: 999px;
-        text-transform: capitalize;
-    }
-
-    .badge-status-active {
-        background: #ECFDF5; color: #10B981;
-        font-weight: 700; font-size: 0.78rem;
-        padding: 0.3rem 0.85rem; border-radius: 999px;
-    }
-    .badge-status-inactive {
-        background: #FEF2F2; color: #EF4444;
-        font-weight: 700; font-size: 0.78rem;
-        padding: 0.3rem 0.85rem; border-radius: 999px;
-    }
-
-    .btn-icon {
-        border: 1px solid #E5E7EB;
-        background: #fff;
-        border-radius: 8px;
-        width: 34px;
-        height: 34px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        color: #6B7280;
-        margin-left: 0.35rem;
-        transition: all 0.15s ease;
-    }
-    .btn-icon:hover { border-color: var(--accent-orange, #F59E0B); color: var(--accent-orange, #F59E0B); }
-    .btn-icon.text-danger:hover { border-color: #EF4444; color: #EF4444; }
-
-    /* DataTables overrides */
-    .dataTables_length select {
-        appearance: none; -webkit-appearance: none;
-        border: 1px solid #E5E7EB; background-color: #F9FAFB;
-        border-radius: 8px; padding: 0.3rem 1.8rem 0.3rem 0.7rem;
-        font-size: 0.85rem; color: #374151;
-        background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-        background-repeat: no-repeat; background-position: right 0.5rem center;
-        background-size: 14px; cursor: pointer;
-    }
-    .dataTables_length, .dataTables_filter, .dataTables_info, .dataTables_paginate {
-        font-size: 0.85rem; color: #6B7280; margin-bottom: 0.75rem;
-    }
-    .dataTables_paginate .paginate_button {
-        padding: 0.3rem 0.7rem; margin-left: 0.2rem; border-radius: 6px;
-        border: 1px solid #E5E7EB; cursor: pointer;
-    }
-    .dataTables_paginate .paginate_button.current {
-        background: var(--accent-orange, #F59E0B) !important; color: #fff !important; border-color: var(--accent-orange, #F59E0B) !important;
-    }
+    .badge-role { background: #EEF2FF; color: #4F46E5; font-size: 0.75rem; font-weight: 600; padding: 0.35rem 0.75rem; border-radius: 6px; }
+    .badge-status-active { background: #DCFCE7; color: #16A34A; font-size: 0.75rem; font-weight: 600; padding: 0.3rem 0.65rem; border-radius: 6px; }
+    .badge-status-inactive { background: #F3F4F6; color: #6B7280; font-size: 0.75rem; font-weight: 600; padding: 0.3rem 0.65rem; border-radius: 6px; }
+    .btn-icon { background: none; border: none; padding: 0.35rem 0.5rem; border-radius: 6px; color: #6B7280; }
+    .btn-icon:hover { background: #F3F4F6; color: #111827; }
 </style>
 
 <!-- Breadcrumb -->
@@ -127,14 +71,14 @@
     <span class="current">Staff Management</span>
 </div>
 
-<div class="d-flex justify-content-between align-items-start mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h2 class="page-title mb-1">Staff Management</h2>
-        <p class="page-subtitle mb-0">Manage admins, managers and field staff</p>
+        <p class="page-subtitle mb-0">Manage employees, credentials, and organizational roles</p>
     </div>
     <button type="button" class="btn hover-lift" data-bs-toggle="modal" data-bs-target="#addStaffModal"
-            style="background-color: var(--accent-orange); color: white; font-weight: 500; padding: 0.6rem 1.2rem; border-radius: 10px;">
-        <i class="bi bi-plus-lg"></i> Add Staff Member
+            style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+        <i class="bi bi-person-plus"></i> Add Staff Member
     </button>
 </div>
 
@@ -143,25 +87,25 @@
     <div class="col-md-3">
         <div class="stat-card hover-lift">
             <div class="stat-label">Total Staff</div>
-            <div class="stat-value">{{ staffMembers.count() }}</div>
+            <div class="stat-value">{{ total_staff }}</div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card hover-lift">
-            <div class="stat-label">Admins</div>
-            <div class="stat-value">{{ staffMembers.where('role', 'admin')->count() }}</div>
+            <div class="stat-label">Active Staff</div>
+            <div class="stat-value">{{ active_staff }}</div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card hover-lift">
-            <div class="stat-label">Managers</div>
-            <div class="stat-value">{{ staffMembers.where('role', 'manager')->count() }}</div>
+            <div class="stat-label">Inactive Staff</div>
+            <div class="stat-value">{{ inactive_staff }}</div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card hover-lift">
-            <div class="stat-label">Field Staff</div>
-            <div class="stat-value">{{ staffMembers.where('role', 'field_staff')->count() }}</div>
+            <div class="stat-label">Designations</div>
+            <div class="stat-value">{{ total_designations }}</div>
         </div>
     </div>
 </div>
@@ -177,9 +121,9 @@
         <table class="table modern-table" id="staffTable">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>NAME</th>
-                    <th>Role</th>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Role / Designation</th>
                     <th>Email</th>
                     <th>Phone</th>
                     <th>Status</th>
@@ -189,32 +133,35 @@
             <tbody>
                 {% for staff in staffMembers %}
                     <tr>
-                        <td>{{ loop.iteration }}</td>
-                        <td>{{ staff.name }}</td>
-                        <td><span class="badge-role">{{ staff.role_name }}</span></td>
-                        <td>{{ staff.email }}</td>
-                        <td>{{ staff.phone }}</td>
+                        <td>{{ forloop.counter }}</td>
+                        <td class="fw-bold">{{ staff.name }}</td>
+                        <td><span class="badge-role">{{ staff.role_name|default:'Staff' }}</span></td>
+                        <td>{{ staff.email|default:'—' }}</td>
+                        <td>{{ staff.phone|default:'—' }}</td>
                         <td>
-                            {% if staff.status === 'active' %}
+                            {% if staff.status == 'active' %}
                                 <span class="badge-status-active">Active</span>
                             {% else %}
                                 <span class="badge-status-inactive">Inactive</span>
                             {% endif %}
                         </td>
                         <td class="text-end">
-                           <button type="button" class="btn-icon" title="Edit"
+                            <button type="button" class="btn-icon" title="Edit"
                                     data-bs-toggle="modal" data-bs-target="#editStaffModal{{ staff.id }}">
                                 <i class="bi bi-pencil-square"></i>
                             </button>
-                            <form action="{{ route('admin.staff.destroy', staff.id) }}" method="POST"
+                            <form action="{% url 'admin_staff_destroy' staff.id %}" method="POST"
                                   class="d-inline" onsubmit="return confirm('Remove this staff member?');">
                                 {% csrf_token %}
-                                <input type='hidden' name='_method' value='DELETE'>
                                 <button type="submit" class="btn-icon text-danger" title="Delete">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>
                         </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">No staff members found.</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -226,7 +173,7 @@
 <div class="modal fade" id="addStaffModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content" style="border-radius: 12px; border: none;">
-            <form method="POST" action="{{ route('admin.staff.store') }}">
+            <form method="POST" action="{% url 'admin_staff_store' %}">
                 {% csrf_token %}
                 <div class="modal-header" style="border-bottom: 1px solid #F3F4F6;">
                     <h5 class="modal-title" style="font-weight:700;">Add Staff Member</h5>
@@ -238,20 +185,32 @@
                         <input type="text" class="form-control" name="name" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Role <span class="text-danger">*</span></label>
+                        <label class="form-label">Designation / Role <span class="text-danger">*</span></label>
                         <select class="form-select" name="role" required>
-                            <option value="admin">Admin</option>
-                            <option value="manager">Manager</option>
-                            <option value="field_staff">Field Staff</option>
+                            {% for d in designations %}
+                                <option value="{{ d.id }}">{{ d.designation_name }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Email <span class="text-danger">*</span></label>
-                        <input type="email" class="form-control" name="email" required>
+                        <label class="form-label">App Username <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="app_username" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Phone <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" name="phone" required>
+                        <label class="form-label">App Password <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" name="app_password" required minlength="6">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Joining Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" name="joining_date" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="text" class="form-control" name="phone">
                     </div>
                 </div>
                 <div class="modal-footer" style="border-top: 1px solid #F3F4F6;">
@@ -271,9 +230,8 @@
 <div class="modal fade" id="editStaffModal{{ staff.id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content" style="border-radius: 12px; border: none;">
-            <form method="POST" action="{{ route('admin.staff.update', staff.id) }}">
+            <form method="POST" action="{% url 'admin_staff_update' staff.id %}">
                 {% csrf_token %}
-                <input type='hidden' name='_method' value='PUT'>
                 <div class="modal-header" style="border-bottom: 1px solid #F3F4F6;">
                     <h5 class="modal-title" style="font-weight:700;">Edit Staff Member</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -284,27 +242,31 @@
                         <input type="text" class="form-control" name="name" value="{{ staff.name }}" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Role</label>
+                        <label class="form-label">Designation / Role</label>
                         <select class="form-select" name="role" required>
-                            <option value="admin" @selected(staff.role === 'admin')>Admin</option>
-                            <option value="manager" @selected(staff.role === 'manager')>Manager</option>
-                            <option value="field_staff" @selected(staff.role === 'field_staff')>Field Staff</option>
+                            {% for d in designations %}
+                                <option value="{{ d.id }}" {% if d.id == staff.role %}selected{% endif %}>{{ d.designation_name }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Email</label>
-                        <input type="email" class="form-control" name="email" value="{{ staff.email }}" required>
+                        <input type="email" class="form-control" name="email" value="{{ staff.email|default:'' }}">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Phone</label>
-                        <input type="text" class="form-control" name="phone" value="{{ staff.phone }}" required>
+                        <input type="text" class="form-control" name="phone" value="{{ staff.phone|default:'' }}">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Status</label>
                         <select class="form-select" name="status" required>
-                            <option value="active" @selected(staff.status === 'active')>Active</option>
-                            <option value="inactive" @selected(staff.status === 'inactive')>Inactive</option>
+                            <option value="active" {% if staff.status == 'active' %}selected{% endif %}>Active</option>
+                            <option value="inactive" {% if staff.status == 'inactive' %}selected{% endif %}>Inactive</option>
                         </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Change Password (leave empty to keep current)</label>
+                        <input type="password" class="form-control" name="app_password">
                     </div>
                 </div>
                 <div class="modal-footer" style="border-top: 1px solid #F3F4F6;">
@@ -319,6 +281,8 @@
     </div>
 </div>
 {% endfor %}
+
+{% endblock %}
 
 {% block scripts %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
@@ -335,11 +299,9 @@
             columnDefs: [{ orderable: false, targets: -1 }]
         });
 
-        // Wire custom search box to DataTables
         $('#staffSearchInput').on('keyup', function () {
             table.search(this.value).draw();
         });
     });
 </script>
-{% endblock %}
 {% endblock %}

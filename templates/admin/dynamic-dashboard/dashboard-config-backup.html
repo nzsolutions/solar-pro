@@ -1,6 +1,15 @@
 {% extends 'layouts/admin.html' %}
 
 {% block content %}
+<style>
+    .form-control-color {
+        height: 38px;
+        padding: 4px;
+        cursor: pointer;
+        border-radius: 6px;
+    }
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="fw-bold">Dashboard Configuration (Backup)</h2>
     <button class="btn btn-primary px-4 shadow-sm" onclick="saveConfiguration()">
@@ -8,11 +17,22 @@
     </button>
 </div>
 
+{% if messages %}
+<div class="mb-3">
+    {% for message in messages %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-body">
         <h5 class="fw-bold mb-3">Section Master</h5>
         <div class="d-flex align-items-center gap-2 mb-3">
-            <input type="text" id="sectionName" class="form-control" placeholder="Enter section name" style="max-width: 400px;">
+            <input type="text" id="sectionName" class="form-control" placeholder="Enter section name" style="max-width: 400px;" onkeydown="if(event.key==='Enter'){event.preventDefault();addSection();}">
             <button type="button" class="btn btn-dark px-3" onclick="addSection()" title="Add Section">
                 <i class="bi bi-plus-lg"></i>
             </button>
@@ -25,45 +45,76 @@
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-body">
         <button class="btn btn-outline-dark mb-3" onclick="addGraph()">+ Add New Graph</button>
-        <form id="configForm" method="POST" action="{{ route('admin.dashboard.config.backup.save') }}">
+        <form id="configForm" method="POST" action="{% url 'admin_dashboard_config_backup_save' %}">
             {% csrf_token %}
             <input type="hidden" name="config_json" id="config_json">
             <div id="graphsContainer" class="row g-4"></div>
         </form>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
-    let graphs = {!! savedConfig !!};
-    const forms = @json(forms);
+    let graphs = {{ savedConfig|safe }};
+    const forms = {{ forms_json|safe }};
+    let sections = {{ sections_json|safe }};
+    const csrfToken = '{{ csrf_token }}';
+
+    function escHtml(str) {
+        if (!str) return '';
+        const d = document.createElement('div');
+        d.appendChild(document.createTextNode(str));
+        return d.innerHTML;
+    }
+
+    function syncGraphsFromDOM() {
+        graphs.forEach((g, i) => {
+            const secEl   = document.getElementById(`graph_section_${i}`);
+            const titleEl = document.getElementById(`graph_title_${i}`);
+            const formEl  = document.getElementById(`graph_form_${i}`);
+            const fieldEl = document.getElementById(`fieldSelect_${i}`);
+            const colorEl = document.getElementById(`graph_color_${i}`);
+            const typeEl  = document.getElementById(`graph_type_${i}`);
+            const sizeEl  = document.getElementById(`graph_size_${i}`);
+
+            if (secEl)   g.section_id = secEl.value;
+            if (titleEl) g.title      = titleEl.value;
+            if (formEl)  g.form_id   = formEl.value;
+            if (fieldEl && fieldEl.value) g.field = fieldEl.value;
+            if (colorEl) g.color      = colorEl.value;
+            if (typeEl)  g.type       = typeEl.value;
+            if (sizeEl)  g.size       = sizeEl.value;
+        });
+    }
 
     function renderGraphs() {
         const container = document.getElementById('graphsContainer');
-        container.innerHTML = '';
+        let html = '';
 
         graphs.forEach((graph, index) => {
-            const formOptions = forms.map(f => `<option value="${f.id}" ${f.id == graph.form_id ? 'selected' : ''}>${f.form_name}</option>`).join('');
-            const sectionOptions = sections.map(s => `<option value="${s.id}" ${s.id == graph.section_id ? 'selected' : ''}>${s.section_name}</option>`).join('');
+            const formOptions = forms.map(f => `<option value="${f.id}" ${String(f.id) === String(graph.form_id) ? 'selected' : ''}>${escHtml(f.form_name)}</option>`).join('');
+            const sectionOptions = sections.map(s => `<option value="${s.id}" ${String(s.id) === String(graph.section_id) ? 'selected' : ''}>${escHtml(s.section_name)}</option>`).join('');
             
-            container.innerHTML += `
-                <div class="col-12">
+            html += `
+                <div class="col-12" id="graph_card_${index}">
                     <div class="p-3 border rounded bg-light position-relative">
-                        <button type="button" class="btn-close position-absolute top-0 end-0 m-3" onclick="removeGraph(${index})"></button>
+                        <button type="button" class="btn-close position-absolute top-0 end-0 m-3" onclick="removeGraph(${index})" title="Remove"></button>
                         <div class="row g-3">
                             <div class="col-md-2">
                                 <label class="form-label text-muted small">Select Section</label>
-                                <select class="form-select" onchange="updateGraph(${index}, 'section_id', this.value)">
+                                <select class="form-select" id="graph_section_${index}" onchange="updateGraph(${index}, 'section_id', this.value)">
                                     <option value="">Select Section...</option>
                                     ${sectionOptions}
                                 </select>
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label text-muted small">Graph Title</label>
-                                <input type="text" class="form-control" value="${graph.title || ''}" onchange="updateGraph(${index}, 'title', this.value)">
+                                <input type="text" class="form-control" id="graph_title_${index}" value="${escHtml(graph.title || '')}" oninput="updateGraph(${index}, 'title', this.value)" onchange="updateGraph(${index}, 'title', this.value)">
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label text-muted small">Select Form</label>
-                                <select class="form-select" onchange="loadFields(this.value, ${index}); updateGraph(${index}, 'form_id', this.value)">
+                                <select class="form-select" id="graph_form_${index}" onchange="loadFields(this.value, ${index}); updateGraph(${index}, 'form_id', this.value)">
                                     <option value="">Choose Form...</option>
                                     ${formOptions}
                                 </select>
@@ -71,70 +122,88 @@
                             <div class="col-md-2">
                                 <label class="form-label text-muted small">Data Point (Y-Axis)</label>
                                 <select class="form-select" id="fieldSelect_${index}" onchange="updateGraph(${index}, 'field', this.value)">
-                                    <option value="${graph.field || ''}">${graph.field ? 'Loaded...' : 'Select Form First'}</option>
+                                    <option value="${escHtml(graph.field || '')}">${graph.field ? 'Loading fields...' : 'Select Form First'}</option>
                                 </select>
                             </div>
                             <div class="col-md-1">
                                 <label class="form-label text-muted small">Color</label>
-                                <input type="color" class="form-control form-control-color w-100" value="${graph.color || '#F59E0B'}" onchange="updateGraph(${index}, 'color', this.value)">
+                                <input type="color" class="form-control form-control-color w-100" id="graph_color_${index}" value="${graph.color || '#00a2ff'}" oninput="updateGraph(${index}, 'color', this.value)" onchange="updateGraph(${index}, 'color', this.value)">
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label text-muted small">Chart Type</label>
-                                <select class="form-select" onchange="updateGraph(${index}, 'type', this.value)">
-                                    <option value="line" ${graph.type == 'line' ? 'selected' : ''}>Line Chart (Trend)</option>
-                                    <option value="bar" ${graph.type == 'bar' ? 'selected' : ''}>Bar Chart</option>
-                                    <option value="pie" ${graph.type == 'pie' ? 'selected' : ''}>Pie Chart</option>
+                                <select class="form-select" id="graph_type_${index}" onchange="updateGraph(${index}, 'type', this.value)">
+                                    <option value="line" ${graph.type === 'line' ? 'selected' : ''}>Line Chart (Trend)</option>
+                                    <option value="bar" ${graph.type === 'bar' ? 'selected' : ''}>Bar Chart</option>
+                                    <option value="pie" ${graph.type === 'pie' ? 'selected' : ''}>Pie Chart</option>
                                 </select>
                             </div>
                             <div class="col-md-1">
                                 <label class="form-label text-muted small">Width</label>
-                                <select class="form-select" onchange="updateGraph(${index}, 'size', this.value)">
-                                    <option value="4" ${graph.size == '4' ? 'selected' : ''}>33%</option>
-                                    <option value="6" ${graph.size == '6' ? 'selected' : ''}>50%</option>
-                                    <option value="12" ${graph.size == '12' ? 'selected' : ''}>100%</option>
+                                <select class="form-select" id="graph_size_${index}" onchange="updateGraph(${index}, 'size', this.value)">
+                                    <option value="4" ${String(graph.size) === '4' ? 'selected' : ''}>33%</option>
+                                    <option value="6" ${String(graph.size) === '6' ? 'selected' : ''}>50%</option>
+                                    <option value="12" ${String(graph.size) === '12' ? 'selected' : ''}>100%</option>
                                 </select>
                             </div>
                         </div>
                     </div>
                 </div>
             `;
-            // Auto-load fields if form is pre-selected
-            if(graph.form_id) loadFields(graph.form_id, index, graph.field);
+        });
+
+        container.innerHTML = html;
+
+        // Auto-load fields for all graphs
+        graphs.forEach((graph, index) => {
+            if (graph.form_id) {
+                loadFields(graph.form_id, index, graph.field);
+            }
         });
     }
 
     function addGraph() {
-        graphs.push({ section_id: '', title: '', form_id: '', field: '', type: 'line', size: '6' });
+        syncGraphsFromDOM();
+        const defaultSec = sections.length > 0 ? sections[0].id : '';
+        const defaultForm = forms.length > 0 ? forms[0].id : '';
+        graphs.push({
+            section_id: defaultSec,
+            title: 'New Metric',
+            form_id: defaultForm,
+            field: '',
+            color: '#00a2ff',
+            type: 'line',
+            size: '6'
+        });
         renderGraphs();
     }
 
     function removeGraph(index) {
+        syncGraphsFromDOM();
         graphs.splice(index, 1);
         renderGraphs();
     }
 
     function updateGraph(index, key, value) {
-        graphs[index][key] = value;
+        if (graphs[index]) {
+            graphs[index][key] = value;
+        }
     }
 
     async function loadFields(formId, index, selectedField = null) {
         if (!formId) return;
-        
-        // Laravel securely generates the full URL including your subfolder
-        const baseUrl = "{{ url('admin/config-backup/fields') }}"; 
-        
-        const res = await fetch(`${baseUrl}/${formId}`);
-
-        const fields = await res.json();
-        
-        const select = document.getElementById(`fieldSelect_${index}`);
-        select.innerHTML = '<option value="">Select Target Field...</option>' + 
-            fields.map(f => `<option value="${f.id}" ${f.id === selectedField ? 'selected' : ''}>${f.label}</option>`).join('');
+        try {
+            const res = await fetch(`/admin/config-backup/fields/${formId}`);
+            const fields = await res.json();
+            const select = document.getElementById(`fieldSelect_${index}`);
+            if (!select) return;
+            select.innerHTML = '<option value="">Select Target Field...</option>' + 
+                fields.map(f => `<option value="${f.id}" ${f.id === selectedField ? 'selected' : ''}>${escHtml(f.label)}</option>`).join('');
+        } catch(e) {
+            console.error('Error loading fields', e);
+        }
     }
 
     // ---------- Section Master ----------
-    let sections = @json(sections);
-
     function renderSections() {
         const list = document.getElementById('sectionList');
         list.innerHTML = '';
@@ -168,11 +237,11 @@
         errBox.textContent = '';
 
         try {
-            const res = await fetch(`{{ url('dashboard-backup/section') }}/${id}`, {
+            const res = await fetch(`/dashboard-backup/section/${id}`, {
                 method: 'DELETE',
                 headers: {
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    'X-CSRFToken': csrfToken
                 }
             });
             const data = await res.json();
@@ -202,12 +271,12 @@
         }
 
         try {
-            const res = await fetch("{{ route('admin.dashboard.config.backup.section.store') }}", {
+            const res = await fetch("{% url 'admin_dashboard_config_backup_section_store' %}", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify({ section_name: name })
             });
@@ -227,13 +296,21 @@
         }
     }
 
-    renderSections();
-
     function saveConfiguration() {
+        syncGraphsFromDOM();
         document.getElementById('config_json').value = JSON.stringify(graphs);
         document.getElementById('configForm').submit();
     }
 
+    window.addSection = addSection;
+    window.deleteSection = deleteSection;
+    window.addGraph = addGraph;
+    window.removeGraph = removeGraph;
+    window.updateGraph = updateGraph;
+    window.loadFields = loadFields;
+    window.saveConfiguration = saveConfiguration;
+
+    renderSections();
     renderGraphs();
 </script>
 {% endblock %}

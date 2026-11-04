@@ -1,4 +1,5 @@
 {% extends 'layouts/admin.html' %}
+{% load humanize %}
 
 {% block content %}
 <style>
@@ -37,8 +38,8 @@
     .status-lost { background: #FEE2E2; color: #DC2626; }
     .status-negotiation { background: #FEF3C7; color: #D97706; }
     .status-contacted { background: #DBEAFE; color: #2563EB; }
-    .status-site-visit-scheduled { background: #FEF3C7; color: #B45309; }
-    .status-proposal-sent { background: #FFEDD5; color: #C2410C; }
+    .status-site_visit_scheduled { background: #FEF3C7; color: #B45309; }
+    .status-proposal_sent { background: #FFEDD5; color: #C2410C; }
     .status-new { background: #F3F4F6; color: #374151; }
     .status-in-progress { background: #EDE9FE; color: #7C3AED; }
 
@@ -55,7 +56,7 @@
         <p class="text-muted mb-0">Track and convert your sales pipeline</p>
     </div>
     <div>
-        <a href="{{ route('admin.addlead') }}" class="btn hover-lift" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+        <a href="{% url 'admin_addlead' %}" class="btn hover-lift" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
             <i class="bi bi-plus-lg"></i> Add Lead
         </a>
     </div>
@@ -68,7 +69,7 @@
             <div class="d-flex justify-content-between align-items-start">
                 <div>
                     <p class="text-muted mb-1" style="font-size: 0.85rem;">Total Leads</p>
-                    <h3 class="fw-bold mb-0">{{ data['total_leads'] }}</h3>
+                    <h3 class="fw-bold mb-0">{{ data.total_leads|default:0 }}</h3>
                 </div>
                 <div class="stat-icon"><i class="bi bi-clipboard-data"></i></div>
             </div>
@@ -79,7 +80,7 @@
             <div class="d-flex justify-content-between align-items-start">
                 <div>
                     <p class="text-muted mb-1" style="font-size: 0.85rem;">New</p>
-                    <h3 class="fw-bold mb-0">{{ data['new_leads'] }}</h3>
+                    <h3 class="fw-bold mb-0">{{ data.new_leads|default:0 }}</h3>
                 </div>
                 <div class="stat-icon"><i class="bi bi-star"></i></div>
             </div>
@@ -90,7 +91,7 @@
             <div class="d-flex justify-content-between align-items-start">
                 <div>
                     <p class="text-muted mb-1" style="font-size: 0.85rem;">In Progress</p>
-                    <h3 class="fw-bold mb-0">{{ data['in_progress_leads'] }}</h3>
+                    <h3 class="fw-bold mb-0">{{ data.in_progress_leads|default:0 }}</h3>
                 </div>
                 <div class="stat-icon"><i class="bi bi-activity"></i></div>
             </div>
@@ -101,7 +102,7 @@
             <div class="d-flex justify-content-between align-items-start">
                 <div>
                     <p class="text-muted mb-1" style="font-size: 0.85rem;">Converted</p>
-                    <h3 class="fw-bold mb-0">{{ data['converted_leads'] }}</h3>
+                    <h3 class="fw-bold mb-0">{{ data.converted_leads|default:0 }}</h3>
                 </div>
                 <div class="stat-icon"><i class="bi bi-check-circle"></i></div>
             </div>
@@ -112,7 +113,7 @@
             <div class="d-flex justify-content-between align-items-start">
                 <div>
                     <p class="text-muted mb-1" style="font-size: 0.85rem;">Lost</p>
-                    <h3 class="fw-bold mb-0">{{ data['lost_leads'] }}</h3>
+                    <h3 class="fw-bold mb-0">{{ data.lost_leads|default:0 }}</h3>
                 </div>
                 <div class="stat-icon"><i class="bi bi-x-circle"></i></div>
             </div>
@@ -122,23 +123,23 @@
 
 <!-- Search + Filter -->
 <div class="table-card mb-0">
-    <form method="GET" action="{{ route('admin.leads.index') }}" class="d-flex gap-3 mb-4 flex-wrap">
+    <form method="GET" action="{% url 'admin_leads_index' %}" class="d-flex gap-3 mb-4 flex-wrap">
         <div class="flex-grow-1" style="min-width: 260px;">
             <div class="input-group">
                 <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
-                <input type="text" name="search" class="form-control border-start-0 ps-0" placeholder="Search by client or location..." value="{{ request('search') }}">
+                <input type="text" name="search" class="form-control border-start-0 ps-0" placeholder="Search by client or location..." value="{{ current_search|default:'' }}">
             </div>
         </div>
         <div>
             <select name="status" class="form-select filter-select" onchange="this.form.submit()">
                 <option value="">All Statuses</option>
-                <option value="new" @selected(request('status') == 'new')>New</option>
-                <option value="contacted" @selected(request('status') == 'contacted')>Contacted</option>
-                <option value="site_visit_scheduled" @selected(request('status') == 'site_visit_scheduled')>Site Visit Scheduled</option>
-                <option value="proposal_sent" @selected(request('status') == 'proposal_sent')>Proposal Sent</option>
-                <option value="negotiation" @selected(request('status') == 'negotiation')>Negotiation</option>
-                <option value="won" @selected(request('status') == 'won')>Won</option>
-                <option value="lost" @selected(request('status') == 'lost')>Lost</option>
+                <option value="new" {% if current_status == 'new' %}selected{% endif %}>New</option>
+                <option value="contacted" {% if current_status == 'contacted' %}selected{% endif %}>Contacted</option>
+                <option value="site_visit_scheduled" {% if current_status == 'site_visit_scheduled' %}selected{% endif %}>Site Visit Scheduled</option>
+                <option value="proposal_sent" {% if current_status == 'proposal_sent' %}selected{% endif %}>Proposal Sent</option>
+                <option value="negotiation" {% if current_status == 'negotiation' %}selected{% endif %}>Negotiation</option>
+                <option value="won" {% if current_status == 'won' %}selected{% endif %}>Won</option>
+                <option value="lost" {% if current_status == 'lost' %}selected{% endif %}>Lost</option>
             </select>
         </div>
     </form>
@@ -154,7 +155,6 @@
                     <th>Value</th>
                     <th>Assigned</th>
                     <th>Status</th>
-                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -162,36 +162,25 @@
                     <tr>
                         <td>
                             <div class="lead-name">{{ lead.client_name }}</div>
-                            <div class="lead-location">{{ lead.location }}</div>
+                            <div class="lead-location">{{ lead.location|default:'—' }}</div>
                         </td>
-                        <td>{{ lead.source }}</td>
+                        <td>{{ lead.source|default:'—' }}</td>
                         <td>{{ lead.system_size }} kW</td>
-                        <td>&#8377;{{ number_format(lead.value) }}</td>
-                        <td>{{ lead.assigned_to }}</td>
+                        <td>₹{{ lead.value|floatformat:0|intcomma }}</td>
+                        <td>{{ lead.assigned_to|default:'—' }}</td>
                         <td>
-                            <span class="status-badge status-{{ \Illuminate\Support\Str::slug(lead.status) }}">
-                                {{ ucwords(str_replace('_', ' ', lead.status)) }}
+                            <span class="status-badge status-{{ lead.status }}">
+                                {{ lead.status|title }}
                             </span>
-                        </td>
-                        <td class="text-end">
-                            <a href="{{ route('admin.leads.show', lead.id) }}" class="row-link">
-                                <i class="bi bi-arrow-right fs-5"></i>
-                            </a>
                         </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-5">No leads found.</td>
+                        <td colspan="6" class="text-center text-muted py-5">No leads found.</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-
-    {% if method_exists(leads, 'links' %})
-        <div class="mt-4">
-            {{ leads.withQueryString()->links() }}
-        </div>
-    {% endif %}
 </div>
 {% endblock %}

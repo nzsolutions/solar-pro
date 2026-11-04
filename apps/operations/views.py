@@ -1,17 +1,20 @@
 import os
 import uuid
+import json
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
-from django.db.models import Sum, F, DecimalField, ExpressionWrapper
+from django.db.models import Sum, F, DecimalField, ExpressionWrapper, Count
 from django.contrib import messages
 from django.conf import settings
+from django.contrib.auth.hashers import make_password
 from apps.authentication.decorators import admin_required, employee_required
 from apps.operations.models import Project, ProjectDocument, Lead
 from apps.employees.models import Employee, EmployeeAttendance
 from apps.inventory.models import OpeningStock, StockCategory, AssignedStock
 from apps.expenses.models import Expense
-from apps.masters.models import SiteMaster, DocumentTypeMaster
+from apps.masters.models import SiteMaster, DocumentTypeMaster, DesignationMaster
+import openpyxl
 
 
 # ==========================================
@@ -45,18 +48,56 @@ def admin_dashboard_view(request):
     att_qs = EmployeeAttendance.objects.filter(punch_in__date=today).order_by('-punch_in')
     
     emp_map = {e.id: e.name for e in Employee.objects.all()}
-    proj_map = {p.id: p.client_name for p in Project.objects.all()}
+    
+    # Map employees to their projects via field_staff list or site_manager
+    emp_project_map = {}
+    for p in Project.objects.all():
+        p_name = p.project_name or p.client_name or f"Project #{p.id}"
+        if p.site_manager:
+            emp_project_map[p.site_manager] = p_name
+        if isinstance(p.field_staff, list):
+            for eid in p.field_staff:
+                try:
+                    emp_project_map[int(eid)] = p_name
+                except (ValueError, TypeError):
+                    pass
 
     attendance_log = []
     for att in att_qs:
         attendance_log.append({
             'employee_name': emp_map.get(att.employee_id, f"Employee #{att.employee_id}"),
-            'project_name': proj_map.get(att.employee_id, '—'),
+            'project_name': emp_project_map.get(att.employee_id, '—'),
             'punch_in': att.punch_in,
             'punch_out': att.punch_out,
         })
 
     selected_project = Project.objects.filter(id=project_id).first() if project_id else None
+
+    # Dynamic Funnel data from Lead model
+    lead_stages = [
+        ('new', 'New'),
+        ('contacted', 'Contacted'),
+        ('site_visit_scheduled', 'Visit'),
+        ('proposal_sent', 'Proposal'),
+        ('won', 'Won')
+    ]
+    funnel_labels = [label for _, label in lead_stages]
+    lead_counts = {item['status']: item['cnt'] for item in Lead.objects.values('status').annotate(cnt=Count('id'))}
+    total_leads = sum(lead_counts.values())
+    if total_leads > 0:
+        funnel_data = [lead_counts.get(st, 0) for st, _ in lead_stages]
+    else:
+        funnel_data = [100, 85, 60, 40, 25]
+
+    # Dynamic Energy trend curve based on capacity
+    total_kw = Lead.objects.aggregate(s=Sum('system_size'))['s'] or 50.0
+    total_mw = float(total_kw) / 1000.0
+    months = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May']
+    seasonal_factors = [0.85, 0.90, 0.95, 1.05, 1.10, 1.00, 0.95, 0.92, 0.88, 0.94, 1.02, 1.08]
+    base_mwh = max(total_mw * 4.5 * 30, 12.0)
+    chart_energy_data = [round(base_mwh * f, 1) for f in seasonal_factors]
+    chart_capacity_data = [round(base_mwh * 1.15, 1)] * len(months)
+    chart_labels = months
 
     data = {
         'field_staff_on_duty': field_staff_on_duty,
@@ -77,6 +118,11 @@ def admin_dashboard_view(request):
         'selected_project': selected_project,
         'project_id': project_id,
         'today_date': today.strftime('%d %b %Y'),
+        'chart_labels': json.dumps(chart_labels),
+        'chart_energy_data': json.dumps(chart_energy_data),
+        'chart_capacity_data': json.dumps(chart_capacity_data),
+        'funnel_labels': json.dumps(funnel_labels),
+        'funnel_data': json.dumps(funnel_data),
     }
     return render(request, 'admin/dashboard.html', context)
 
@@ -132,6 +178,7 @@ def projects_index(request):
         projects.append({
             'id': p.id,
             'code': f"SP-{str(p.id).zfill(4)}",
+            'project_name': p.project_name or p.client_name,
             'client_name': p.client_name,
             'site_name': site.site_name if site else '—',
             'address': site.site_address if site else '—',
@@ -216,6 +263,7 @@ def project_create(request):
 def project_store(request):
     if request.method == 'POST':
         client_name = request.POST.get('client_name', '').strip()
+        project_name = request.POST.get('project_name', '').strip()
         site_id = request.POST.get('site_id')
         status = request.POST.get('status', 'planning')
 
@@ -227,6 +275,7 @@ def project_store(request):
 
         project = Project.objects.create(
             company_id=request.session.get('company_id', 1),
+            project_name=project_name,
             client_name=client_name,
             site_id=int(site_id),
             site_manager=int(request.POST.get('site_manager')) if request.POST.get('site_manager') else None,
@@ -363,6 +412,7 @@ def project_update(request, id):
 
     if request.method == 'POST':
         client_name = request.POST.get('client_name', '').strip()
+        project_name = request.POST.get('project_name', '').strip()
         site_id = request.POST.get('site_id')
 
         if not client_name or not site_id:
@@ -371,6 +421,7 @@ def project_update(request, id):
 
         staff_list = [int(x) for x in request.POST.getlist('field_staff[]') if x.isdigit()]
 
+        project.project_name = project_name
         project.client_name = client_name
         project.site_id = int(site_id)
         project.site_manager = int(request.POST.get('site_manager')) if request.POST.get('site_manager') else None
@@ -438,3 +489,250 @@ def maintenance_charts_view(request):
     Matches Laravel AdminProjectController::maintenanceCharts.
     """
     return render(request, 'admin/operation/maintenancecharts.html')
+
+
+# ==========================================
+# 5. LEADS MANAGEMENT
+# ==========================================
+@admin_required
+def leads_index(request):
+    search = request.GET.get('search', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+
+    qs = Lead.objects.all().order_by('-created_at')
+    if search:
+        qs = qs.filter(client_name__icontains=search) | qs.filter(location__icontains=search)
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+
+    total_leads = Lead.objects.count()
+    new_leads = Lead.objects.filter(status='new').count()
+    in_progress_leads = Lead.objects.filter(status__in=['contacted', 'site_visit_scheduled', 'proposal_sent', 'negotiation']).count()
+    converted_leads = Lead.objects.filter(status='won').count()
+    lost_leads = Lead.objects.filter(status='lost').count()
+
+    return render(request, 'admin/sales/leads.html', {
+        'leads': qs,
+        'data': {
+            'total_leads': total_leads,
+            'new_leads': new_leads,
+            'in_progress_leads': in_progress_leads,
+            'converted_leads': converted_leads,
+            'lost_leads': lost_leads,
+        },
+        'current_search': search,
+        'current_status': status_filter,
+    })
+
+
+@admin_required
+def lead_create(request):
+    employees = Employee.objects.filter(status='active').order_by('name')
+    return render(request, 'admin/sales/addlead.html', {
+        'employees': employees,
+    })
+
+
+@admin_required
+def lead_store(request):
+    if request.method == 'POST':
+        client_name = request.POST.get('client_name', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        email = request.POST.get('email', '').strip()
+        source = request.POST.get('source', 'Online')
+        location = request.POST.get('location', '').strip()
+        system_size = request.POST.get('system_size', 5.0)
+        value = request.POST.get('value', 0)
+        assigned_to = request.POST.get('assigned_to', 'Admin')
+        status = request.POST.get('status', 'new')
+
+        if not client_name or not phone:
+            messages.error(request, 'Client Name and Phone are required.')
+            return redirect('admin_addlead')
+
+        Lead.objects.create(
+            company_id=request.session.get('company_id', 1),
+            client_name=client_name,
+            location=location or None,
+            source=source,
+            system_size=float(system_size) if system_size else 0.0,
+            value=float(value) if value else 0.0,
+            assigned_to=assigned_to,
+            status=status,
+        )
+        messages.success(request, 'Lead created successfully.')
+        return redirect('admin_leads_index')
+    return redirect('admin_addlead')
+
+
+@admin_required
+def lead_report(request):
+    from_date = request.GET.get('from', '')
+    to_date = request.GET.get('to', '')
+
+    qs = Lead.objects.all().order_by('-created_at')
+    if from_date:
+        qs = qs.filter(created_at__date__gte=from_date)
+    if to_date:
+        qs = qs.filter(created_at__date__lte=to_date)
+
+    lead_stages = [
+        ('new', 'New'),
+        ('contacted', 'Contacted'),
+        ('site_visit_scheduled', 'Visit'),
+        ('proposal_sent', 'Proposal'),
+        ('won', 'Won')
+    ]
+    funnel_labels = [label for _, label in lead_stages]
+    lead_counts = {item['status']: item['cnt'] for item in qs.values('status').annotate(cnt=Count('id'))}
+    total_leads = sum(lead_counts.values())
+    if total_leads > 0:
+        funnel_data = [lead_counts.get(st, 0) for st, _ in lead_stages]
+    else:
+        funnel_data = [100, 85, 60, 40, 25]
+
+    return render(request, 'admin/sales/leadreport.html', {
+        'leads': qs,
+        'from_date': from_date,
+        'to_date': to_date,
+        'funnel_labels': json.dumps(funnel_labels),
+        'funnel_data': json.dumps(funnel_data),
+    })
+
+
+@admin_required
+def lead_report_excel(request):
+    qs = Lead.objects.all().order_by('-created_at')
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Leads Report"
+
+    ws.append(["ID", "Client Name", "Location", "Source", "System Size (kW)", "Value (INR)", "Assigned To", "Status", "Date"])
+    for l in qs:
+        ws.append([
+            l.id,
+            l.client_name,
+            l.location or '—',
+            l.source or '—',
+            float(l.system_size),
+            float(l.value),
+            l.assigned_to or '—',
+            l.status.title(),
+            l.created_at.strftime('%Y-%m-%d %H:%M') if l.created_at else '—',
+        ])
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="leads_report.xlsx"'
+    wb.save(response)
+    return response
+
+
+# ==========================================
+# 6. STAFF MANAGEMENT
+# ==========================================
+@admin_required
+def staff_index(request):
+    company_id = request.session.get('company_id', 1)
+    designations_map = {d.id: d.designation_name for d in DesignationMaster.objects.all()}
+    
+    employees = Employee.objects.filter(company_id=company_id).order_by('-id')
+    staff_list = []
+    active_count = 0
+    inactive_count = 0
+    for emp in employees:
+        is_active = (emp.status == 'active')
+        if is_active:
+            active_count += 1
+        else:
+            inactive_count += 1
+
+        role_name = designations_map.get(emp.role, 'Staff') if emp.role else 'Staff'
+        staff_list.append({
+            'id': emp.id,
+            'name': emp.name,
+            'role': emp.role,
+            'role_name': role_name,
+            'email': emp.email,
+            'phone': emp.phone,
+            'status': emp.status,
+            'created_at': emp.created_at,
+        })
+
+    designations = DesignationMaster.objects.all().order_by('designation_name')
+
+    return render(request, 'admin/staffmanagement.html', {
+        'staffMembers': staff_list,
+        'designations': designations,
+        'total_staff': len(staff_list),
+        'active_staff': active_count,
+        'inactive_staff': inactive_count,
+        'total_designations': designations.count(),
+    })
+
+
+@admin_required
+def staff_store(request):
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        role = request.POST.get('role')
+        app_username = request.POST.get('app_username', '').strip()
+        app_password = request.POST.get('app_password', '').strip()
+        joining_date = request.POST.get('joining_date')
+        email = request.POST.get('email', '').strip()
+        phone = request.POST.get('phone', '').strip()
+
+        if not name or not role or not app_username or not app_password:
+            messages.error(request, 'Please fill in all required fields.')
+            return redirect('admin_staff_index')
+
+        if Employee.objects.filter(app_username=app_username).exists():
+            messages.error(request, 'App username already exists.')
+            return redirect('admin_staff_index')
+
+        Employee.objects.create(
+            company_id=request.session.get('company_id', 1),
+            name=name,
+            role=int(role) if role and role.isdigit() else None,
+            app_username=app_username,
+            app_password=make_password(app_password),
+            joining_date=joining_date or None,
+            email=email or None,
+            phone=phone or None,
+            status='active',
+        )
+        messages.success(request, 'Staff member added successfully.')
+        return redirect('admin_staff_index')
+    return redirect('admin_staff_index')
+
+
+@admin_required
+def staff_update(request, id):
+    if request.method == 'POST':
+        emp = get_object_or_404(Employee, id=id)
+        emp.name = request.POST.get('name', emp.name).strip()
+        role = request.POST.get('role')
+        if role and role.isdigit():
+            emp.role = int(role)
+        emp.email = request.POST.get('email', emp.email).strip() or None
+        emp.phone = request.POST.get('phone', emp.phone).strip() or None
+        emp.status = request.POST.get('status', emp.status)
+
+        new_password = request.POST.get('app_password', '').strip()
+        if new_password:
+            emp.app_password = make_password(new_password)
+
+        emp.save()
+        messages.success(request, 'Staff member updated successfully.')
+        return redirect('admin_staff_index')
+    return redirect('admin_staff_index')
+
+
+@admin_required
+def staff_destroy(request, id):
+    if request.method == 'POST':
+        emp = get_object_or_404(Employee, id=id)
+        emp.delete()
+        messages.success(request, 'Staff member removed successfully.')
+        return redirect('admin_staff_index')
+    return redirect('admin_staff_index')
+

@@ -27,7 +27,32 @@
         box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
         background-color: #fff;
     }
-    .form-control.is-invalid { border-color: #DC2626; background-color: #FEF2F2; }
+    .form-control.is-invalid, .form-select.is-invalid {
+        border-color: #DC2626 !important;
+        background-color: #FEF2F2 !important;
+    }
+    .form-control.is-invalid:focus, .form-select.is-invalid:focus {
+        border-color: #DC2626 !important;
+        background-color: #FEF2F2 !important;
+        box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2) !important;
+    }
+
+    /* Wizard step error banner */
+    .wizard-step-error-banner {
+        display: none;
+        background: #FEF2F2;
+        border: 1px solid #FECACA;
+        border-radius: 8px;
+        padding: 0.7rem 1rem;
+        margin-bottom: 1rem;
+        color: #B91C1C;
+        font-size: 0.88rem;
+        font-weight: 600;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .wizard-step-error-banner.show { display: flex !important; }
+    .wizard-step-error-banner i { font-size: 1rem; flex-shrink: 0; }
 
     /* Field Staff pill checkboxes */
     .staff-option {
@@ -277,10 +302,14 @@
             </div>
         </div>
 
+        <div class="wizard-step-error-banner" id="step1_error_banner">
+            <i class="bi bi-exclamation-circle-fill"></i>
+            <span id="step1_error_msg">Please fill in all required fields before continuing.</span>
+        </div>
         <div class="wizard-nav-btns">
             <a href="{% url 'admin_projects_index' %}" class="btn btn-outline-secondary">Cancel</a>
             <div class="spacer"></div>
-            <button type="button" class="btn hover-lift btn-next" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+            <button type="button" class="btn hover-lift btn-next" id="step1_next_btn" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
                 Next <i class="bi bi-arrow-right"></i>
             </button>
         </div>
@@ -525,16 +554,38 @@
         if (!field) return;
         if (isValid) {
             field.classList.remove('is-invalid');
-            if (errorEl) errorEl.classList.add('d-none');
+            if (errorEl) {
+                errorEl.classList.add('d-none');
+                errorEl.style.display = 'none';
+            }
         } else {
             field.classList.add('is-invalid');
-            if (errorEl) errorEl.classList.remove('d-none');
+            if (errorEl) {
+                errorEl.classList.remove('d-none');
+                errorEl.style.display = 'block';
+            }
         }
+    }
+
+    function showStepErrorBanner(step, msg) {
+        var banner = document.getElementById('step' + step + '_error_banner');
+        var msgEl  = document.getElementById('step' + step + '_error_msg');
+        if (banner) {
+            banner.classList.add('show');
+            if (msgEl && msg) msgEl.textContent = msg;
+            banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
+    function hideStepErrorBanner(step) {
+        var banner = document.getElementById('step' + step + '_error_banner');
+        if (banner) banner.classList.remove('show');
     }
 
     function validateStep(step) {
         var valid = true;
         var firstInvalid = null;
+        var errorMessages = [];
 
         if (step === 1) {
             var clientName  = document.getElementById('client_name');
@@ -542,53 +593,89 @@
             var email       = document.getElementById('email');
             var siteId      = document.getElementById('site_id');
 
-            var clientNameValid = clientName.value.trim().length > 0;
-            markField(clientName, document.getElementById('client_name_error'), clientNameValid);
-            if (!clientNameValid) { valid = false; firstInvalid = firstInvalid || clientName; }
-
-            var projectNameValid = projectName.value.trim().length > 0;
-            markField(projectName, document.getElementById('project_name_error'), projectNameValid);
-            if (!projectNameValid) { valid = false; firstInvalid = firstInvalid || projectName; }
-
-            var emailValue = email.value.trim();
-            var emailValid = emailValue === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue);
-            markField(email, document.getElementById('email_error'), emailValid);
-            if (!emailValid) { valid = false; firstInvalid = firstInvalid || email; }
-
-            var siteIdValid = siteId.value.trim().length > 0;
+            var siteIdValid = siteId && siteId.value.trim().length > 0;
             markField(siteId, document.getElementById('site_id_error'), siteIdValid);
-            if (!siteIdValid) { valid = false; firstInvalid = firstInvalid || siteId; }
+            if (!siteIdValid) { valid = false; firstInvalid = firstInvalid || siteId; errorMessages.push('Select a Site'); }
+
+            var clientNameValid = clientName && clientName.value.trim().length > 0;
+            markField(clientName, document.getElementById('client_name_error'), clientNameValid);
+            if (!clientNameValid) { valid = false; firstInvalid = firstInvalid || clientName; errorMessages.push('Client Name'); }
+
+            var projectNameValid = projectName && projectName.value.trim().length > 0;
+            markField(projectName, document.getElementById('project_name_error'), projectNameValid);
+            if (!projectNameValid) { valid = false; firstInvalid = firstInvalid || projectName; errorMessages.push('Project Name'); }
+
+            var emailValue = email ? email.value.trim() : '';
+            var emailValid = emailValue === '' || /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(emailValue);
+            var emailErrorEl = document.getElementById('email_error');
+            if (emailErrorEl && !emailValid) {
+                emailErrorEl.textContent = 'Please enter a valid email (e.g. name@domain.com) or leave blank.';
+            }
+            markField(email, emailErrorEl, emailValid);
+            if (!emailValid) { valid = false; firstInvalid = firstInvalid || email; errorMessages.push('Valid Email address'); }
+
+            console.log('[Step 1 Validation]', { siteIdValid, clientNameValid, projectNameValid, emailValid, valid, errorMessages });
+
+            if (!valid) {
+                showStepErrorBanner(1, '⚠️ Please check the highlighted fields: ' + errorMessages.join(', '));
+            } else {
+                hideStepErrorBanner(1);
+            }
         }
 
         if (step === 3) {
             var siteManager = document.getElementById('site_manager');
-            var siteManagerValid = siteManager.value.trim().length > 0;
+            var siteManagerValid = siteManager && siteManager.value.trim().length > 0;
             markField(siteManager, document.getElementById('site_manager_error'), siteManagerValid);
             if (!siteManagerValid) { valid = false; firstInvalid = firstInvalid || siteManager; }
         }
 
-        if (firstInvalid) firstInvalid.focus();
+        if (firstInvalid) {
+            firstInvalid.focus();
+            firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
         return valid;
     }
 
-    var emailFieldRT = document.getElementById('email');
-    if (emailFieldRT) {
-        var emailErrorRT = document.getElementById('email_error');
+    // Real-time input clearing
+    var siteEl = document.getElementById('site_id');
+    if (siteEl) {
+        siteEl.addEventListener('change', function() {
+            if (siteEl.value.trim().length > 0) markField(siteEl, document.getElementById('site_id_error'), true);
+        });
+    }
 
-        function validateEmailRealtime() {
-            var val = emailFieldRT.value.trim();
-            var isValid = val === '' || /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(val);
-            markField(emailFieldRT, emailErrorRT, isValid);
-            return isValid;
-        }
+    var clientEl = document.getElementById('client_name');
+    if (clientEl) {
+        clientEl.addEventListener('input', function() {
+            if (clientEl.value.trim().length > 0) markField(clientEl, document.getElementById('client_name_error'), true);
+        });
+    }
 
-        emailFieldRT.addEventListener('input', validateEmailRealtime);
-        emailFieldRT.addEventListener('blur', validateEmailRealtime);
+    var projEl = document.getElementById('project_name');
+    if (projEl) {
+        projEl.addEventListener('input', function() {
+            if (projEl.value.trim().length > 0) markField(projEl, document.getElementById('project_name_error'), true);
+        });
+    }
+
+    var emailEl = document.getElementById('email');
+    if (emailEl) {
+        emailEl.addEventListener('input', function() {
+            var val = emailEl.value.trim();
+            var ok = val === '' || /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(val);
+            if (ok) markField(emailEl, document.getElementById('email_error'), true);
+        });
     }
 
     document.querySelectorAll('.btn-next').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            if (!validateStep(currentStep)) return;
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            console.log('Next button clicked. Validating step:', currentStep);
+            var isStepValid = validateStep(currentStep);
+            console.log('Step valid:', isStepValid);
+            if (!isStepValid) return;
+            hideStepErrorBanner(currentStep);
             stepCompleted[currentStep - 1] = true;
             if (currentStep < totalSteps) showStep(currentStep + 1);
         });
@@ -603,7 +690,14 @@
     stepDots.forEach(function (dot) {
         dot.addEventListener('click', function () {
             var target = parseInt(dot.dataset.stepIndicator, 10);
-            if (target < currentStep) showStep(target);
+            if (target < currentStep) {
+                showStep(target);
+            } else if (target > currentStep) {
+                if (validateStep(currentStep)) {
+                    hideStepErrorBanner(currentStep);
+                    showStep(target);
+                }
+            }
         });
         dot.style.cursor = 'pointer';
     });
@@ -613,19 +707,16 @@
     var wizardForm = document.getElementById('projectWizardForm');
 
     wizardForm.addEventListener('submit', function (e) {
-        if (!validateStep(currentStep)) {
+        if (!validateStep(1)) {
             e.preventDefault();
+            showStep(1);
+            showStepErrorBanner(1, 'Please complete the required Client & Site information before saving.');
             return;
         }
-        stepCompleted[currentStep - 1] = true;
-
-        for (var i = 0; i < totalSteps; i++) {
-            if (!stepCompleted[i]) {
-                e.preventDefault();
-                alert('Please complete all steps before saving (Step ' + (i + 1) + ' is incomplete).');
-                showStep(i + 1);
-                return;
-            }
+        if (!validateStep(3)) {
+            e.preventDefault();
+            showStep(3);
+            return;
         }
     });
 

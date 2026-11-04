@@ -61,6 +61,7 @@
                 {% if allowedModules is None or 'attendance-master' in allowedModules %}
                 <li><a href="{% url 'admin_attendance_master_create' %}" class="menu-item"><i class="bi bi-clock-history"></i> Attendance Master</a></li>
                 {% endif %}
+                <li><a href="{% url 'admin_staff_index' %}" class="menu-item"><i class="bi bi-person-gear"></i> Staff Management</a></li>
             </ul>
         </li>
 
@@ -85,6 +86,7 @@
                 {% if allowedModules is None or 'expense-report' in allowedModules %}
                 <li><a href="{% url 'admin_expense_report_index' %}" class="menu-item"><i class="bi bi-file-earmark-bar-graph"></i> Expense Report</a></li>
                 {% endif %}
+                <li><a href="{% url 'admin_leads_report' %}" class="menu-item"><i class="bi bi-funnel"></i> Leads Report</a></li>
             </ul>
         </li>
 
@@ -96,6 +98,7 @@
         {% if allowedModules is None or 'add-project' in allowedModules %}
         <li><a href="{% url 'admin_projects_create' %}" class="menu-item"><i class="bi bi-plus-lg"></i> Add Project</a></li>
         {% endif %}
+        <li><a href="{% url 'admin_leads_index' %}" class="menu-item"><i class="bi bi-person-lines-fill"></i> Leads</a></li>
 
         <!-- Expenses Section -->
         {% if allowedModules is None or 'employee-expenses' in allowedModules %}
@@ -115,10 +118,10 @@
         <li><a href="{% url 'admin_form_submissions_index' %}" class="menu-item"><i class="bi bi-clipboard-check"></i> Form Submissions</a></li>
         {% endif %}
         {% if allowedModules is None or 'dashboard-config' in allowedModules %}
-        <li><a href="{% url 'admin_dashboard_config' %}" class="menu-item"><i class="bi bi-sliders"></i> Dashboard Config</a></li>
+        <li><a href="{% url 'admin_dashboard_config_backup' %}" class="menu-item"><i class="bi bi-sliders"></i> Dashboard Config</a></li>
         {% endif %}
         {% if allowedModules is None or 'dynamic-dashboard' in allowedModules %}
-        <li><a href="{% url 'admin_dynamic_dashboard' %}" class="menu-item"><i class="bi bi-speedometer2"></i> Dynamic Dashboard</a></li>
+        <li><a href="{% url 'admin_dynamic_dashboard_backup' %}" class="menu-item"><i class="bi bi-speedometer2"></i> Dynamic Dashboard</a></li>
         {% endif %}
 
         <!-- Stock Section -->
