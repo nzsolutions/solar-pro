@@ -67,20 +67,31 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'solarpro_core.wsgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.mysql'),
-        'NAME': os.getenv('DB_NAME', 'solar_project'),
-        'USER': os.getenv('DB_USER', 'root'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'jay@123'),
-        'HOST': os.getenv('DB_HOST', '127.0.0.1'),
-        'PORT': os.getenv('DB_PORT', '3306'),
-        'OPTIONS': {
-            'charset': 'utf8mb4',
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
+db_conn = os.getenv('DB_CONNECTION', '').lower()
+db_engine = os.getenv('DB_ENGINE', '')
+
+if db_conn == 'sqlite' or db_engine == 'django.db.backends.sqlite3' or (not db_conn and not db_engine and not os.getenv('USE_MYSQL')):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': db_engine or 'django.db.backends.mysql',
+            'NAME': os.getenv('DB_DATABASE', os.getenv('DB_NAME', 'solar_project')),
+            'USER': os.getenv('DB_USERNAME', os.getenv('DB_USER', 'root')),
+            'PASSWORD': os.getenv('DB_PASSWORD', 'jay@123'),
+            'HOST': os.getenv('DB_HOST', '127.0.0.1'),
+            'PORT': os.getenv('DB_PORT', '3306'),
+            'OPTIONS': {
+                'charset': 'utf8mb4',
+                'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            },
+        }
+    }
 
 PASSWORD_HASHERS = [
     'apps.authentication.hashers.LaravelBcryptPasswordHasher',
