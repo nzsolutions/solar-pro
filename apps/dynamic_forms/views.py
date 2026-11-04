@@ -1,10 +1,11 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.contrib import messages
+from django.views.decorators.csrf import csrf_exempt
 from apps.authentication.decorators import admin_required
-from apps.dynamic_forms.models import DynamicForm, FormSubmission, DashboardConfig
+from apps.dynamic_forms.models import DynamicForm, FormSubmission, DashboardConfig, DynamicDashboardSectionMaster
 from apps.operations.models import Project
 from apps.employees.models import Employee
 
@@ -251,12 +252,16 @@ def form_submissions_update(request, id):
 def dashboard_config_index(request):
     company_id = request.session.get('company_id', 1)
     forms = DynamicForm.objects.filter(company_id=company_id)
+    sections = DynamicDashboardSectionMaster.objects.filter(company_id=company_id).order_by('created_at')
     cfg = DashboardConfig.objects.filter(company_id=company_id).first()
     saved_config = cfg.config_json if cfg else '[]'
+
+    sections_list = [{'id': s.id, 'section_name': s.section_name} for s in sections]
 
     return render(request, 'admin/dynamic-dashboard/dashboard-config.html', {
         'forms': forms,
         'savedConfig': saved_config,
+        'sections': json.dumps(sections_list),
     })
 
 
@@ -272,6 +277,39 @@ def dashboard_config_save(request):
         )
         messages.success(request, 'Dashboard Configuration Saved!')
     return redirect('admin_dashboard_config')
+
+
+@admin_required
+def dashboard_section_store(request):
+    """AJAX: Create a new dashboard section."""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+        except Exception:
+            data = {}
+        section_name = (data.get('section_name') or '').strip()
+        if not section_name:
+            return JsonResponse({'success': False, 'message': 'Section name is required.'}, status=422)
+
+        company_id = request.session.get('company_id', 1)
+        sec = DynamicDashboardSectionMaster.objects.create(
+            company_id=company_id,
+            section_name=section_name,
+        )
+        return JsonResponse({'success': True, 'section': {'id': sec.id, 'section_name': sec.section_name}})
+    return JsonResponse({'success': False}, status=405)
+
+
+@admin_required
+def dashboard_section_delete(request, section_id):
+    """AJAX: Delete a dashboard section."""
+    if request.method == 'DELETE':
+        sec = DynamicDashboardSectionMaster.objects.filter(id=section_id).first()
+        if not sec:
+            return JsonResponse({'success': False, 'message': 'Section not found.'}, status=404)
+        sec.delete()
+        return JsonResponse({'success': True})
+    return JsonResponse({'success': False}, status=405)
 
 
 @admin_required
@@ -302,6 +340,7 @@ def dynamic_dashboard(request):
     project_id = request.GET.get('project_id')
 
     projects = Project.objects.filter(company_id=company_id)
+    sections_qs = DynamicDashboardSectionMaster.objects.filter(company_id=company_id).order_by('created_at')
     cfg = DashboardConfig.objects.filter(company_id=company_id).first()
     graphs = json.loads(cfg.config_json) if cfg and cfg.config_json else []
 
@@ -330,7 +369,8 @@ def dynamic_dashboard(request):
 
             dt = sub.created_at
             if filter_mode == 'weekly':
-                date_key = dt.strftime('%Y-W%W')
+                start_of_week = dt.date() - timedelta(days=dt.weekday())
+                date_key = start_of_week.strftime('%d %b %Y')
             elif filter_mode == 'monthly':
                 date_key = dt.strftime('%b %Y')
             else:
@@ -377,9 +417,212 @@ def dynamic_dashboard(request):
             'max': (max_val + (max_val * 0.1)) if max_val is not None else 100,
         })
 
+    # Group chart_data by section
+    section_map = {str(s.id): s.section_name for s in sections_qs}
+    grouped_by_section = {}
+    for idx, item in enumerate(chart_data):
+        sid = str(item['config'].get('section_id', ''))
+        sec_name = section_map.get(sid, 'Other')
+        if sec_name not in grouped_by_section:
+            grouped_by_section[sec_name] = []
+        grouped_by_section[sec_name].append({'index': idx, 'data': item})
+
+    # Build ordered sections list (ordered sections first, then 'Other')
+    ordered_sections = []
+    for s in sections_qs:
+        if s.section_name in grouped_by_section:
+            ordered_sections.append({'name': s.section_name, 'items': grouped_by_section[s.section_name]})
+    if 'Other' in grouped_by_section:
+        ordered_sections.append({'name': 'Other', 'items': grouped_by_section['Other']})
+
     return render(request, 'admin/dynamic-dashboard/dynamic-dashboard.html', {
         'chartData': chart_data,
+        'orderedSections': ordered_sections,
         'projects': projects,
         'filterMode': filter_mode,
-        'projectId': project_id,
+        'projectId': project_id or '',
+    })
+
+
+# ==========================================
+# 4. BACKUP (TEST) DYNAMIC DASHBOARD & CONFIG
+# ==========================================
+@admin_required
+def dashboard_config_backup_index(request):
+    company_id = request.session.get('company_id', 1)
+    forms_qs = DynamicForm.objects.filter(company_id=company_id)
+    cfg = DashboardConfig.objects.filter(company_id=company_id).first()
+    saved_config = cfg.config_json if cfg and cfg.config_json else '[]'
+
+    sections_qs = DynamicDashboardSectionMaster.objects.filter(company_id=company_id).order_by('id')
+    sections_list = [{'id': s.id, 'section_name': s.section_name} for s in sections_qs]
+    forms_list = [{'id': f.id, 'form_name': f.form_name} for f in forms_qs]
+
+    return render(request, 'admin/dynamic-dashboard/dashboard-config-backup.html', {
+        'forms': forms_qs,
+        'forms_json': json.dumps(forms_list),
+        'savedConfig': saved_config,
+        'sections': sections_qs,
+        'sections_json': json.dumps(sections_list),
+    })
+
+
+@admin_required
+def dashboard_config_backup_save(request):
+    if request.method == 'POST':
+        company_id = request.session.get('company_id', 1)
+        cfg_json = request.POST.get('config_json', '[]')
+        DashboardConfig.objects.update_or_create(
+            company_id=company_id,
+            defaults={'config_json': cfg_json}
+        )
+        messages.success(request, 'Dashboard Configuration Saved!')
+    return redirect('admin_dashboard_config_backup')
+
+
+@admin_required
+def dashboard_backup_section_store(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+        except Exception:
+            data = request.POST
+        name = (data.get('section_name') or '').strip()
+        if not name:
+            return JsonResponse({'success': False, 'message': 'Please enter a section name'}, status=422)
+        company_id = request.session.get('company_id', 1)
+        sec = DynamicDashboardSectionMaster.objects.create(
+            company_id=company_id,
+            section_name=name
+        )
+        return JsonResponse({'success': True, 'section': {'id': sec.id, 'section_name': sec.section_name}})
+    return JsonResponse({'success': False}, status=405)
+
+
+@admin_required
+def dashboard_backup_section_delete(request, section_id):
+    if request.method in ('DELETE', 'POST'):
+        sec = DynamicDashboardSectionMaster.objects.filter(id=section_id).first()
+        if not sec:
+            return JsonResponse({'success': False, 'message': 'Could not delete section'}, status=404)
+        sec.delete()
+        return JsonResponse({'success': True})
+    return JsonResponse({'success': False}, status=405)
+
+
+@admin_required
+def dynamic_dashboard_backup(request):
+    company_id = request.session.get('company_id', 1)
+    filter_mode = request.GET.get('filter', 'daily')
+    project_id = request.GET.get('project_id')
+
+    projects = Project.objects.filter(company_id=company_id)
+    sections_qs = DynamicDashboardSectionMaster.objects.filter(company_id=company_id).order_by('id')
+    cfg = DashboardConfig.objects.filter(company_id=company_id).first()
+    graphs = json.loads(cfg.config_json) if cfg and cfg.config_json else []
+
+    subs_qs = FormSubmission.objects.filter(company_id=company_id)
+    if project_id and project_id.isdigit():
+        subs_qs = subs_qs.filter(project_id=int(project_id))
+    submissions = list(subs_qs.order_by('created_at'))
+
+    chart_data = []
+
+    for graph in graphs:
+        form_id = graph.get('form_id')
+        field_str = graph.get('field', '')
+        parts = field_str.split('|')
+        if len(parts) != 2:
+            continue
+        row_name, col_name = parts[0], parts[1]
+
+        grouped = {}
+        min_val = None
+        max_val = None
+
+        for sub in submissions:
+            if str(sub.form_id) != str(form_id):
+                continue
+
+            dt = sub.created_at
+            if filter_mode == 'weekly':
+                start_of_week = dt.date() - timedelta(days=dt.weekday())
+                date_key = start_of_week.strftime('%d %b %Y')
+            elif filter_mode == 'monthly':
+                date_key = dt.strftime('%b %Y')
+            else:
+                date_key = dt.strftime('%d %b %Y')
+
+            s_data = sub.submission_data if isinstance(sub.submission_data, dict) else json.loads(sub.submission_data or '{}')
+
+            val = None
+            for sec in s_data.get('sections', []):
+                for r in sec.get('rows', []):
+                    if r.get('name') == row_name:
+                        ans = r.get('answers') or r.get('values', {})
+                        val = ans.get(col_name)
+                        break
+                if val is not None:
+                    break
+
+            try:
+                num_val = float(val)
+            except (ValueError, TypeError):
+                continue
+
+            if date_key not in grouped:
+                grouped[date_key] = {'sum': 0.0, 'count': 0}
+            grouped[date_key]['sum'] += num_val
+            grouped[date_key]['count'] += 1
+
+            if min_val is None or num_val < min_val:
+                min_val = num_val
+            if max_val is None or num_val > max_val:
+                max_val = num_val
+
+        labels = []
+        vals = []
+        for k, st in grouped.items():
+            labels.append(k)
+            vals.append(round(st['sum'] / st['count'], 2))
+
+        chart_data.append({
+            'config': graph,
+            'labels': labels,
+            'values': vals,
+            'min': max(0, min_val - (min_val * 0.1)) if min_val is not None else 0,
+            'max': (max_val + (max_val * 0.1)) if max_val is not None else 100,
+        })
+
+    # Group chart_data by section exactly matching Laravel DynamicDashboardBackupController
+    grouped_by_sec = {}
+    for idx, d in enumerate(chart_data):
+        sid = str(d['config'].get('section_id') or '')
+        if sid not in grouped_by_sec:
+            grouped_by_sec[sid] = []
+        grouped_by_sec[sid].append({'index': idx, 'data': d})
+
+    ordered = []
+    known_ids = set()
+    for s in sections_qs:
+        s_id_str = str(s.id)
+        known_ids.add(s_id_str)
+        if s_id_str in grouped_by_sec:
+            ordered.append({'name': s.section_name, 'items': grouped_by_sec[s_id_str]})
+
+    others = []
+    for sid, items in grouped_by_sec.items():
+        if sid not in known_ids:
+            others.extend(items)
+    if others:
+        ordered.append({'name': 'Other', 'items': others})
+
+    return render(request, 'admin/dynamic-dashboard/dynamic-dashboard-backup.html', {
+        'chartData': chart_data,
+        'chartData_json': json.dumps(chart_data),
+        'ordered': ordered,
+        'projects': projects,
+        'filterMode': filter_mode,
+        'projectId': project_id or '',
+        'sections': sections_qs,
     })

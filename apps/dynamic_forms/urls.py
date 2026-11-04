@@ -21,6 +21,20 @@ urlpatterns = [
     path('dashboard/config/save', views.dashboard_config_save, name='admin_dashboard_config_save'),
     path('admin/config/fields/<int:formId>', views.get_form_fields, name='admin_dashboard_fields'),
 
+    # Dashboard Section Master (AJAX)
+    path('dashboard/section/store', views.dashboard_section_store, name='admin_dashboard_section_store'),
+    path('dashboard/section/<int:section_id>/delete', views.dashboard_section_delete, name='admin_dashboard_section_delete'),
+
     # Dynamic Dashboard
     path('dynamic-dashboard', views.dynamic_dashboard, name='admin_dynamic_dashboard'),
+
+    # BACKUP (TEST) Dynamic Dashboard Config & Routes (matching Laravel web.php)
+    path('dashboard-backup/config', views.dashboard_config_backup_index, name='admin_dashboard_config_backup'),
+    path('dashboard-backup/config/save', views.dashboard_config_backup_save, name='admin_dashboard_config_backup_save'),
+    path('dashboard-backup/section', views.dashboard_backup_section_store, name='admin_dashboard_config_backup_section_store'),
+    path('dashboard-backup/section/<int:section_id>', views.dashboard_backup_section_delete, name='admin_dashboard_config_backup_section_delete'),
+    path('dashboard-backup/section/<int:section_id>/delete', views.dashboard_backup_section_delete, name='admin_dashboard_config_backup_section_delete_alt'),
+    path('admin/config-backup/fields/<int:formId>', views.get_form_fields, name='admin_dashboard_config_backup_fields'),
+    path('dynamic-dashboard-backup', views.dynamic_dashboard_backup, name='admin_dynamic_dashboard_backup'),
+    path('dashboard-backup', views.dynamic_dashboard_backup, name='admin_dashboard_backup_legacy'),
 ]

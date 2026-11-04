@@ -279,6 +279,48 @@ def seed_database():
     )
     print("  [+] Seeded SMTP Configuration #6")
 
+    # 14. Dynamic Dashboard Sections & Configs
+    from apps.dynamic_forms.models import DynamicDashboardSectionMaster, DashboardConfig
+    f_final, _ = DynamicForm.objects.get_or_create(
+        form_name="Daily Check List Final",
+        defaults={
+            "company_id": 1,
+            "description": "Daily plant health and inspection checklist.",
+            "project_ids": [p1.id],
+            "form_schema": {
+                "columns": ["Block 01", "Block 02", "Block 03", "Block 04", "Remark"],
+                "sections": [
+                    {"name": "4. HT Panel/RMU", "rows": [{"name": "Check Current IR", "type": "number", "unit": "A"}, {"name": "Check Voltage", "type": "number", "unit": "V"}]},
+                    {"name": "3. Power Transformer", "rows": [{"name": "Check Oil Temp", "type": "number", "unit": "°C"}, {"name": "Winding Temp", "type": "number", "unit": "°C"}]},
+                    {"name": "7. XX KVA UPS", "rows": [{"name": "battery voltage", "type": "number", "unit": "V"}, {"name": "Battery Voltage", "type": "number", "unit": "V"}, {"name": "output voltage", "type": "number", "unit": "V"}]},
+                    {"name": "4. Transformer ... Aux", "rows": [{"name": "LV Current", "type": "number", "unit": "A"}]},
+                    {"name": "Plant Performance", "rows": [{"name": "Generation & Irradiation", "type": "number", "unit": "kWh"}, {"name": "DC CUF & AC CUF", "type": "number", "unit": "%"}, {"name": "Performance Ratio", "type": "number", "unit": "%"}, {"name": "Module Cleaning", "type": "number", "unit": "sqm"}]}
+                ]
+            },
+            "is_active": 1
+        }
+    )
+    sec_monthly, _ = DynamicDashboardSectionMaster.objects.get_or_create(company_id=1, section_name="Monthly Overview")
+    sec_yearly, _ = DynamicDashboardSectionMaster.objects.get_or_create(company_id=1, section_name="Yearly Overview")
+    DynamicDashboardSectionMaster.objects.get_or_create(company_id=1, section_name="Break down Overview")
+
+    DashboardConfig.objects.get_or_create(
+        company_id=1,
+        defaults={
+            "config_json": json.dumps([
+                {"section_id": str(sec_monthly.id), "title": "Generation & Irradiation", "form_id": str(f_final.id), "field": "Check Current IR|Remark", "color": "#00a2ff", "type": "bar", "size": "6"},
+                {"section_id": str(sec_monthly.id), "title": "DC CUF & AC CUF", "form_id": str(f_final.id), "field": "Check Oil Temp|Block 02", "color": "#c000ff", "type": "line", "size": "6"},
+                {"section_id": str(sec_monthly.id), "title": "Performance Ratio", "form_id": str(f_final.id), "field": "battery voltage|Block 01", "color": "#ff0000", "type": "line", "size": "12"},
+                {"section_id": str(sec_monthly.id), "title": "Module Cleaning", "form_id": str(f_final.id), "field": "battery voltage|Block 02", "color": "#0040c0", "type": "line", "size": "12"},
+                {"section_id": str(sec_yearly.id), "title": "AGI Meter (Plant End) Export Energy (kWh)", "form_id": str(f_final.id), "field": "LV Current|Block 01", "color": "#00ff00", "type": "line", "size": "4"},
+                {"section_id": str(sec_yearly.id), "title": "Contractual Target vs Grid & Client Corrected PR", "form_id": str(f_final.id), "field": "battery voltage|Block 04", "color": "#ffe000", "type": "line", "size": "4"},
+                {"section_id": str(sec_yearly.id), "title": "Contractual Target vs Grid & Client Corrected Availability", "form_id": str(f_final.id), "field": "Battery Voltage|Block 01", "color": "#ff8c00", "type": "line", "size": "4"},
+                {"section_id": str(sec_monthly.id), "title": "new graph", "form_id": str(f_final.id), "field": "Check Current IR|Block 01", "color": "#ff00aa", "type": "line", "size": "12"}
+            ])
+        }
+    )
+    print("  [+] Seeded Dynamic Dashboard Sections & Reference Configs")
+
     print("\n[OK] Database seeding successfully completed!")
 
 

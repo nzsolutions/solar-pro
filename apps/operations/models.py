@@ -4,6 +4,7 @@ from django.db import models
 class Project(models.Model):
     id = models.BigAutoField(primary_key=True)
     company_id = models.IntegerField(default=1)
+    project_name = models.CharField(max_length=255, null=True, blank=True)
     client_name = models.CharField(max_length=255)
     site_id = models.IntegerField(null=True, blank=True)
     site_manager = models.IntegerField(null=True, blank=True)
