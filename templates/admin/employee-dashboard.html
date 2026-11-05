@@ -15,8 +15,20 @@
 
 <div class="card-box">
     <h4 class="fw-bold mb-1">Welcome, {{ employee.name|default:"Employee" }}</h4>
-    <p class="text-muted mb-0">Role: {{ employee.role|default:"—" }} &bull; Status: {{ employee.status|title }}</p>
+    <p class="text-muted mb-0">Role: {{ designation_name|default:employee.role|default:"—" }} &bull; Status: {{ employee.status|title }}</p>
 </div>
+
+{% if not allowedModules %}
+<div class="card-box border-warning" style="border-left: 4px solid var(--accent-orange, #FF9F1C);">
+    <div class="d-flex align-items-center gap-3">
+        <div style="font-size: 2rem; color: var(--accent-orange, #FF9F1C);"><i class="bi bi-shield-lock"></i></div>
+        <div>
+            <h5 class="fw-bold mb-1">No Module Permissions Assigned</h5>
+            <p class="text-muted mb-0">Your account is active, but your administrator has not granted any module permissions yet. Please contact your administrator to configure your access.</p>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <div class="card-box">
     <h5 class="fw-bold mb-3">Your Assigned Projects</h5>

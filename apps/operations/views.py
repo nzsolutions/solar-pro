@@ -152,9 +152,13 @@ def employee_dashboard_view(request):
         if p.site_manager == user_id or str(user_id) in [str(x) for x in staff_list]:
             projects.append(p)
 
+    from apps.masters.models import DesignationMaster
+    desig = DesignationMaster.objects.filter(id=employee.role).first()
+
     return render(request, 'admin/employee-dashboard.html', {
         'employee': employee,
         'projects': projects,
+        'designation_name': desig.designation_name if desig else employee.role,
     })
 
 
