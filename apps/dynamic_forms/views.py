@@ -397,7 +397,12 @@ def dynamic_dashboard(request):
     projects = Project.objects.filter(company_id=company_id)
     sections_qs = DynamicDashboardSectionMaster.objects.filter(company_id=company_id).order_by('created_at')
     cfg = DashboardConfig.objects.filter(company_id=company_id).first()
-    graphs = json.loads(cfg.config_json) if cfg and cfg.config_json else []
+    try:
+        graphs = json.loads(cfg.config_json) if cfg and cfg.config_json else []
+        if not isinstance(graphs, list):
+            graphs = []
+    except Exception:
+        graphs = []
 
     subs_qs = FormSubmission.objects.filter(company_id=company_id)
     if project_id and project_id.isdigit():
@@ -574,7 +579,12 @@ def dynamic_dashboard_backup(request):
     projects = Project.objects.filter(company_id=company_id)
     sections_qs = DynamicDashboardSectionMaster.objects.filter(company_id=company_id).order_by('id')
     cfg = DashboardConfig.objects.filter(company_id=company_id).first()
-    graphs = json.loads(cfg.config_json) if cfg and cfg.config_json else []
+    try:
+        graphs = json.loads(cfg.config_json) if cfg and cfg.config_json else []
+        if not isinstance(graphs, list):
+            graphs = []
+    except Exception:
+        graphs = []
 
     subs_qs = FormSubmission.objects.filter(company_id=company_id)
     if project_id and project_id.isdigit():

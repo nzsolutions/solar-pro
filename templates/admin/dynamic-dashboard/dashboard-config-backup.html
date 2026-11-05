@@ -81,7 +81,7 @@
             if (secEl)   g.section_id = secEl.value;
             if (titleEl) g.title      = titleEl.value;
             if (formEl)  g.form_id   = formEl.value;
-            if (fieldEl && fieldEl.value) g.field = fieldEl.value;
+            if (fieldEl) g.field      = fieldEl.value;
             if (colorEl) g.color      = colorEl.value;
             if (typeEl)  g.type       = typeEl.value;
             if (sizeEl)  g.size       = sizeEl.value;
@@ -114,7 +114,7 @@
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label text-muted small">Select Form</label>
-                                <select class="form-select" id="graph_form_${index}" onchange="loadFields(this.value, ${index}); updateGraph(${index}, 'form_id', this.value)">
+                                <select class="form-select" id="graph_form_${index}" onchange="updateGraph(${index}, 'field', ''); loadFields(this.value, ${index}); updateGraph(${index}, 'form_id', this.value)">
                                     <option value="">Choose Form...</option>
                                     ${formOptions}
                                 </select>
@@ -190,14 +190,24 @@
     }
 
     async function loadFields(formId, index, selectedField = null) {
-        if (!formId) return;
+        const select = document.getElementById(`fieldSelect_${index}`);
+        if (!formId) {
+            if (select) select.innerHTML = '<option value="">Select Form First</option>';
+            return;
+        }
+        if (select) {
+            select.innerHTML = '<option value="">Loading fields...</option>';
+        }
         try {
             const res = await fetch(`/admin/config-backup/fields/${formId}`);
             const fields = await res.json();
-            const select = document.getElementById(`fieldSelect_${index}`);
-            if (!select) return;
-            select.innerHTML = '<option value="">Select Target Field...</option>' + 
+            const currSelect = document.getElementById(`fieldSelect_${index}`);
+            if (!currSelect) return;
+            currSelect.innerHTML = '<option value="">Select Target Field...</option>' + 
                 fields.map(f => `<option value="${f.id}" ${f.id === selectedField ? 'selected' : ''}>${escHtml(f.label)}</option>`).join('');
+            if (graphs[index]) {
+                graphs[index].field = currSelect.value;
+            }
         } catch(e) {
             console.error('Error loading fields', e);
         }
