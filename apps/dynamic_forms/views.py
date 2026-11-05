@@ -79,34 +79,89 @@ def forms_store(request):
 def forms_show(request, id):
     form = get_object_or_404(DynamicForm, id=id)
     schema = form.form_schema if isinstance(form.form_schema, dict) else json.loads(form.form_schema or '{}')
+    if not isinstance(schema, dict):
+        schema = {'columns': [], 'sections': []}
+
+    columns = schema.get('columns') or []
+    sections = schema.get('sections') or []
 
     # Pull latest submission if exists to show sample values
     latest_sub = FormSubmission.objects.filter(form_id=id).order_by('-created_at').first()
+    sub_answers_by_pos = {}
+    sub_answers_by_name = {}
+
     if latest_sub:
         answers = latest_sub.submission_data if isinstance(latest_sub.submission_data, dict) else json.loads(latest_sub.submission_data or '{}')
-        columns = answers.get('columns') or schema.get('columns', [])
-        merged_sections = []
-        for saved_sec in answers.get('sections', []):
-            merged_rows = []
-            for saved_row in saved_sec.get('rows', []):
-                saved_answers = saved_row.get('answers') or saved_row.get('values', {})
-                vals = {col: saved_answers.get(col, '') for col in columns}
-                merged_rows.append({
-                    'name': saved_row.get('name', ''),
-                    'type': saved_row.get('type', 'text'),
-                    'unit': saved_row.get('unit', ''),
-                    'values': vals,
+        if isinstance(answers, dict):
+            if not columns and answers.get('columns'):
+                columns = answers.get('columns')
+            for s_idx, sec in enumerate(answers.get('sections', [])):
+                sec_name = sec.get('name', '').strip()
+                for r_idx, r in enumerate(sec.get('rows', [])):
+                    r_name = r.get('name', '').strip()
+                    row_vals = r.get('answers') or r.get('values') or {}
+                    if isinstance(row_vals, dict):
+                        sub_answers_by_pos[(s_idx, r_idx)] = row_vals
+                        if sec_name and r_name:
+                            sub_answers_by_name[(sec_name, r_name)] = row_vals
+
+    # Prepare display structure with column-matched cells
+    display_sections = []
+    for s_idx, sec in enumerate(sections):
+        sec_name = sec.get('name', '')
+        display_rows = []
+        for r_idx, r in enumerate(sec.get('rows', [])):
+            r_name = r.get('name', '')
+            r_type = r.get('type', 'text')
+            r_unit = r.get('unit', '')
+
+            # Resolve answers if submission exists
+            row_vals = sub_answers_by_pos.get((s_idx, r_idx)) or sub_answers_by_name.get((sec_name.strip(), r_name.strip()), {})
+
+            cells = []
+            for col in columns:
+                val = row_vals.get(col, '')
+                val_str = str(val).strip() if val is not None else ''
+                cells.append({
+                    'col': col,
+                    'value': val_str,
+                    'is_ok': val_str.upper() == 'OK',
+                    'is_nok': val_str.upper() == 'NOK',
                 })
-            merged_sections.append({
-                'name': saved_sec.get('name', ''),
-                'rows': merged_rows,
+
+            display_rows.append({
+                'name': r_name,
+                'type': r_type,
+                'unit': r_unit,
+                'cells': cells,
             })
-        if merged_sections:
-            schema = {'columns': columns, 'sections': merged_sections}
+
+        display_sections.append({
+            'name': sec_name,
+            'rows': display_rows,
+        })
+
+    # Get linked project names
+    project_names = []
+    if form.project_ids:
+        p_ids = form.project_ids if isinstance(form.project_ids, list) else []
+        projects = Project.objects.filter(id__in=[int(x) for x in p_ids if str(x).isdigit()])
+        project_names = [p.client_name for p in projects]
+
+    submission_count = FormSubmission.objects.filter(form_id=id).count()
+
+    latest_emp_name = None
+    if latest_sub:
+        emp = Employee.objects.filter(id=latest_sub.emp_id).first()
+        latest_emp_name = emp.name if emp else f'Employee #{latest_sub.emp_id}'
 
     return render(request, 'admin/forms/show.html', {
         'form': form,
-        'schema': schema,
+        'schema': {'columns': columns, 'sections': display_sections},
+        'latest_sub': latest_sub,
+        'latest_emp_name': latest_emp_name,
+        'submission_count': submission_count,
+        'project_names': project_names,
     })
 
 

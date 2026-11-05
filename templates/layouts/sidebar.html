@@ -1,22 +1,153 @@
 {% load auth_tags %}
 <style>
-    .sidebar-brand { padding: 1.5rem; display: flex; align-items: center; gap: 12px; }
-    .brand-icon { width: 32px; height: 32px; background: var(--accent-orange); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-    .brand-icon i { color: #fff; font-size: 1.2rem; }
-    .sidebar-menu { list-style: none; padding: 0; margin: 0; }
-    .menu-section { color: #6B7280; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; padding: 1.5rem 1.5rem 0.5rem; letter-spacing: 0.05em; }
-    .menu-item { display: block; color: #9CA3AF; padding: 0.75rem 1.5rem; text-decoration: none; display: flex; align-items: center; gap: 12px; transition: all 0.2s; border-left: 3px solid transparent; }
-    .menu-item:hover, .menu-item.active { background-color: var(--sidebar-hover); color: #fff; border-radius: 0 20px 20px 0; margin-right: 1rem; }
-    .menu-item.active { background-color: rgba(255, 255, 255, 0.1); }
-    .submenu .menu-item { padding-left: 2.75rem; font-size: 0.85rem; }
+    .sidebar-brand {
+        padding: 1.25rem 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .brand-icon {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, var(--accent-orange), #FF7E00);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(255, 159, 28, 0.35);
+        flex-shrink: 0;
+    }
+    .brand-icon i {
+        color: #fff;
+        font-size: 1.2rem;
+    }
+    .sidebar-menu {
+        list-style: none;
+        padding: 0.5rem 0 2rem 0;
+        margin: 0;
+    }
+    .menu-section {
+        color: #64748B;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 1.25rem 1.5rem 0.4rem;
+        letter-spacing: 0.08em;
+    }
+    .menu-item {
+        display: flex;
+        align-items: center;
+        color: #94A3B8;
+        padding: 0.7rem 1.5rem;
+        text-decoration: none;
+        font-size: 0.88rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        border-left: 3.5px solid transparent;
+        position: relative;
+    }
+    .menu-item i:first-child {
+        font-size: 1.1rem;
+        width: 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 10px;
+        color: #94A3B8;
+        transition: color 0.2s ease;
+    }
+    .menu-item:hover {
+        background-color: var(--sidebar-hover);
+        color: #FFFFFF;
+        border-radius: 0 16px 16px 0;
+        margin-right: 0.75rem;
+    }
+    .menu-item:hover i:first-child {
+        color: #FFFFFF;
+    }
+    .menu-item.active {
+        background: linear-gradient(90deg, rgba(255, 159, 28, 0.18) 0%, rgba(255, 159, 28, 0.04) 100%) !important;
+        color: #FFFFFF !important;
+        font-weight: 600;
+        border-left: 3.5px solid var(--accent-orange) !important;
+        border-radius: 0 16px 16px 0;
+        margin-right: 0.75rem;
+    }
+    .menu-item.active i:first-child {
+        color: var(--accent-orange) !important;
+    }
+
+    /* Submenu dropdown toggle */
+    .menu-item.dropdown-toggle {
+        justify-content: flex-start;
+    }
+    .menu-item.dropdown-toggle::after {
+        display: none !important; /* Hide default Bootstrap caret */
+    }
+    .menu-item.dropdown-toggle .arrow-icon {
+        margin-left: auto;
+        font-size: 0.75rem;
+        transition: transform 0.25s ease;
+        color: #64748B;
+        width: auto !important;
+    }
+    .menu-item.dropdown-toggle[aria-expanded="true"] .arrow-icon {
+        transform: rotate(180deg);
+        color: var(--accent-orange);
+    }
+    .menu-item.dropdown-toggle.parent-active {
+        color: #FFFFFF;
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 0 16px 16px 0;
+        margin-right: 0.75rem;
+    }
+    .menu-item.dropdown-toggle.parent-active i:first-child {
+        color: var(--accent-orange);
+    }
+
+    /* Submenus */
+    .submenu {
+        background: rgba(0, 0, 0, 0.22);
+        border-radius: 10px;
+        margin: 0.25rem 0.75rem 0.5rem 0.75rem;
+        padding: 0.35rem 0;
+    }
+    .submenu .menu-item {
+        padding: 0.55rem 1rem 0.55rem 2rem;
+        font-size: 0.83rem;
+        border-left: 3px solid transparent;
+        border-radius: 8px;
+        margin: 0.1rem 0.5rem;
+    }
+    .submenu .menu-item i:first-child {
+        font-size: 0.95rem;
+        width: 18px;
+        margin-right: 8px;
+    }
+    .submenu .menu-item:hover {
+        background-color: rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        margin-right: 0.5rem;
+    }
+    .submenu .menu-item.active {
+        background: rgba(255, 159, 28, 0.22) !important;
+        border-left: 3px solid var(--accent-orange) !important;
+        color: #FFFFFF !important;
+        border-radius: 8px;
+        margin-right: 0.5rem;
+    }
+    .submenu .menu-item.active i:first-child {
+        color: var(--accent-orange) !important;
+    }
 </style>
 
-<aside class="sidebar">
+<aside class="sidebar" id="appSidebar">
     <div class="sidebar-brand">
         <div class="brand-icon"><i class="bi bi-brightness-high-fill"></i></div>
         <div>
             <h5 class="mb-0 fw-bold" style="font-size: 1.1rem; color: #fff;">SolarPro</h5>
-            <small style="font-size: 0.65rem; color: #9CA3AF;">ENERGY MANAGEMENT</small>
+            <small style="font-size: 0.65rem; color: #9CA3AF; letter-spacing: 0.05em;">ENERGY MANAGEMENT</small>
         </div>
     </div>
 
