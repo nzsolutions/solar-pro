@@ -125,3 +125,59 @@ class AccessControl(models.Model):
 
     def __str__(self):
         return f"Role {self.role_id} - {self.menu_key}"
+
+
+
+class ActivityMaster(models.Model):
+    CATEGORY_CHOICES = [
+        ('Maintenance', 'Maintenance'),
+        ('Inspection', 'Inspection'),
+        ('Cleaning', 'Cleaning'),
+        ('Electrical', 'Electrical'),
+        ('Safety', 'Safety'),
+        ('Other', 'Other'),
+    ]
+
+    FREQUENCY_CHOICES = [
+        ('Daily', 'Daily'),
+        ('Weekly', 'Weekly'),
+        ('Monthly', 'Monthly'),
+        ('Quarterly', 'Quarterly'),
+        ('Half-Yearly', 'Half-Yearly'),
+        ('Yearly', 'Yearly'),
+        ('As Required', 'As Required'),
+    ]
+
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+    ]
+
+    id = models.BigAutoField(primary_key=True)
+    activity_title = models.CharField(max_length=255, unique=True)
+    activity_category = models.CharField(max_length=100, choices=CATEGORY_CHOICES, default='Maintenance')
+    description = models.TextField(blank=True, null=True)
+    default_frequency = models.CharField(max_length=50, choices=FREQUENCY_CHOICES, default='Monthly')
+    estimated_duration = models.CharField(max_length=100, blank=True, null=True)
+    form = models.ForeignKey(
+        'dynamic_forms.DynamicForm',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='activity_masters',
+        db_column='form_id'
+    )
+    photo_required = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    company_id = models.IntegerField(default=1)
+    added_by = models.CharField(max_length=100, default='Admin')
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+
+    class Meta:
+        db_table = 'activity_master'
+        managed = True
+        ordering = ['-id']
+
+    def __str__(self):
+        return self.activity_title

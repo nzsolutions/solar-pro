@@ -159,8 +159,8 @@
         {% endif %}
 
         <!-- Master Section -->
-        {% if allowedModules|has_any:'department-master,designation-master,employee-master,access-control,smtp-config,expense-category-master,stock-category-master,site-master,document-type-master,attendance-master' %}
-        {% route_is 'admin_departments_*,admin_designations_*,admin_employees_*,admin_access_control_*,admin_smtp_*,admin_expense_categories_*,admin_stock_categories_*,admin_sites_*,admin_document_types_*,admin_attendance_master_*,admin_staff_*' as is_master_active %}
+        {% if allowedModules|has_any:'department-master,designation-master,employee-master,access-control,smtp-config,expense-category-master,stock-category-master,site-master,document-type-master,attendance-master,activity-master' %}
+        {% route_is 'admin_departments_*,admin_designations_*,admin_employees_*,admin_access_control_*,admin_smtp_*,admin_expense_categories_*,admin_stock_categories_*,admin_sites_*,admin_document_types_*,admin_attendance_master_*,admin_activities_*,admin_staff_*' as is_master_active %}
         <li class="menu-item-has-children {% if is_master_active %}active{% endif %}">
             <a href="#masterSubmenu" data-bs-toggle="collapse" role="button" aria-expanded="{% if is_master_active %}true{% else %}false{% endif %}" aria-controls="masterSubmenu" class="menu-item dropdown-toggle">
                 <i class="bi bi-layers"></i> Master
@@ -214,6 +214,11 @@
                 {% if allowedModules|can_see:'attendance-master' %}
                 {% route_is 'admin_attendance_master_*' as is_attmast_active %}
                 <li><a href="{% url 'admin_attendance_master_create' %}" class="menu-item {% if is_attmast_active %}active{% endif %}"><i class="bi bi-clock-history"></i> Attendance Master</a></li>
+                {% endif %}
+
+                {% if allowedModules|can_see:'activity-master' %}
+                {% route_is 'admin_activities_*' as is_actmast_active %}
+                <li><a href="{% url 'admin_activities_index' %}" class="menu-item {% if is_actmast_active %}active{% endif %}"><i class="bi bi-check2-circle"></i> Activity Master</a></li>
                 {% endif %}
 
                 {% if allowedModules is None %}

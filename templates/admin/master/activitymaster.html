@@ -1,0 +1,579 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+    .page-subtitle { color: #6B7280; margin-top: -0.25rem; margin-bottom: 1.5rem; }
+
+    .breadcrumb-nav { font-size: 0.9rem; color: #9CA3AF; margin-bottom: 0.75rem; }
+    .breadcrumb-nav a { color: #9CA3AF; text-decoration: none; }
+    .breadcrumb-nav a:hover { color: var(--accent-orange, #F59E0B); }
+    .breadcrumb-nav .current { color: #111827; font-weight: 600; }
+    .breadcrumb-nav i { font-size: 0.8rem; margin: 0 0.4rem; }
+
+    /* Form Card */
+    .form-card { background: #fff; border-radius: 12px; padding: 1.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+    .form-card h5 { color: #111827; font-weight: 700; margin-bottom: 1rem; }
+    .form-card h5 i { color: var(--accent-orange, #F59E0B); margin-right: 0.4rem; }
+
+    .form-label { font-weight: 700; color: #111827; margin-bottom: 0.4rem; font-size: 0.88rem; }
+    .form-label .required { color: #EF4444; }
+
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 1px solid #E5E7EB;
+        padding: 0.6rem 0.85rem;
+        background-color: #FAFAFA;
+        font-size: 0.9rem;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--accent-orange, #F59E0B);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+        background-color: #fff;
+    }
+
+    /* Badge styles */
+    .badge-count {
+        background: #FEF3E2;
+        color: var(--accent-orange, #F59E0B);
+        font-weight: 700;
+        font-size: 0.8rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+    }
+
+    .badge-status-active {
+        background: #ECFDF5;
+        color: #10B981;
+        font-weight: 700;
+        font-size: 0.75rem;
+        padding: 0.3rem 0.85rem;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .badge-status-inactive {
+        background: #FEF2F2;
+        color: #EF4444;
+        font-weight: 700;
+        font-size: 0.75rem;
+        padding: 0.3rem 0.85rem;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .badge-category {
+        background: #EFF6FF;
+        color: #3B82F6;
+        font-weight: 600;
+        font-size: 0.75rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: 6px;
+    }
+
+    .badge-frequency {
+        background: #F3F4F6;
+        color: #4B5563;
+        font-weight: 600;
+        font-size: 0.75rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: 6px;
+    }
+
+    .modern-table { margin-bottom: 0; }
+    .modern-table thead th {
+        border: none;
+        color: #9CA3AF;
+        font-size: 0.76rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 700;
+        padding: 0.75rem 0.65rem;
+        background-color: #FAFAFA;
+    }
+    .modern-table tbody tr { border-top: 1px solid #F3F4F6; transition: background-color 0.15s ease; }
+    .modern-table tbody tr:hover { background-color: #FAFAFA; }
+    .modern-table tbody td { padding: 0.85rem 0.65rem; vertical-align: middle; color: #374151; font-size: 0.88rem; }
+
+    .btn-icon {
+        border: 1px solid #E5E7EB;
+        background: #fff;
+        border-radius: 8px;
+        width: 32px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #6B7280;
+        margin-left: 0.25rem;
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+    .btn-icon:hover { border-color: var(--accent-orange, #F59E0B); color: var(--accent-orange, #F59E0B); }
+    .btn-icon.text-danger:hover { border-color: #EF4444; color: #EF4444; }
+    .btn-icon.text-success:hover { border-color: #10B981; color: #10B981; }
+
+    .dt-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    .dt-export-btn {
+        border: 1px solid #E5E7EB !important;
+        background: #fff !important;
+        color: #374151 !important;
+        border-radius: 8px !important;
+        padding: 0.45rem 0.85rem !important;
+        font-size: 0.82rem !important;
+        font-weight: 500 !important;
+        display: inline-flex !important;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .form-check-input:checked {
+        background-color: var(--accent-orange, #F59E0B);
+        border-color: var(--accent-orange, #F59E0B);
+    }
+</style>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb-nav">
+    <a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Dashboard</a>
+    <i class="bi bi-chevron-right"></i>
+    <span>Master</span>
+    <i class="bi bi-chevron-right"></i>
+    <span class="current">Activity Master</span>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2 class="page-title mb-1">Activity Master</h2>
+        <div class="text-muted" style="font-size:0.9rem;">Define reusable solar maintenance and inspection activities library.</div>
+    </div>
+    <div>
+        <button type="button" class="btn hover-lift" data-bs-toggle="modal" data-bs-target="#addActivityModal"
+                style="background-color: var(--accent-orange); color: white; font-weight: 500; border-radius: 10px; padding: 0.6rem 1.25rem;">
+            <i class="bi bi-plus-lg me-1"></i> Add New Activity
+        </button>
+    </div>
+</div>
+
+<!-- Activity Listing Card -->
+<div class="form-card">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <h5 class="mb-0" style="font-weight:700;"><i class="bi bi-check2-circle"></i> Activity Library</h5>
+            <span class="badge-count">{{ activities|length }} Total</span>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table modern-table" id="activitiesTable">
+            <thead>
+                <tr>
+                    <th style="width: 80px;">Activity ID</th>
+                    <th>Activity Title</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Default Frequency</th>
+                    <th>Est. Duration</th>
+                    <th>Form Config Status</th>
+                    <th>Photo Req.</th>
+                    <th>Status</th>
+                    <th class="text-end" style="min-width: 140px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for act in activities %}
+                    <tr>
+                        <td>
+                            <span class="fw-bold text-muted">#ACT-{{ act.id|stringformat:"03d" }}</span>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ act.activity_title }}</div>
+                            <small class="text-muted" style="font-size: 0.75rem;">Added by {{ act.added_by }}</small>
+                        </td>
+                        <td>
+                            <span class="badge-category">{{ act.activity_category }}</span>
+                        </td>
+                        <td>
+                            <span title="{{ act.description|default:'No description' }}">
+                                {{ act.description|truncatechars:45|default:"—" }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge-frequency">{{ act.default_frequency }}</span>
+                        </td>
+                        <td>
+                            {% if act.estimated_duration %}
+                                <span><i class="bi bi-clock me-1 text-muted"></i>{{ act.estimated_duration }}</span>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if act.form %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill" style="font-size: 0.72rem;">
+                                    <i class="bi bi-check2"></i> Configured
+                                </span>
+                                <small class="d-block text-muted" style="font-size: 0.72rem;">{{ act.form.form_name|truncatechars:20 }}</small>
+                            {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary px-2 py-1 rounded-pill" style="font-size: 0.72rem;">
+                                    Not Configured
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if act.photo_required %}
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1 rounded-pill" style="font-size: 0.72rem;">
+                                    <i class="bi bi-camera"></i> Required
+                                </span>
+                            {% else %}
+                                <span class="text-muted" style="font-size: 0.75rem;">Optional</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if act.status == 'active' %}
+                                <span class="badge-status-active"><i class="bi bi-check-circle-fill"></i> Active</span>
+                            {% else %}
+                                <span class="badge-status-inactive"><i class="bi bi-dash-circle-fill"></i> Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <!-- View Button -->
+                            <button type="button" class="btn-icon" title="View Details"
+                                    data-bs-toggle="modal" data-bs-target="#viewModal{{ act.id }}">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <!-- Edit Button -->
+                            <button type="button" class="btn-icon" title="Edit Activity"
+                                    data-bs-toggle="modal" data-bs-target="#editModal{{ act.id }}">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            <!-- Activate / Deactivate Button -->
+                            <form action="{% url 'admin_activities_toggle_status' act.id %}" method="POST"
+                                  class="d-inline" onsubmit="return confirm('Are you sure you want to {% if act.status == 'active' %}deactivate{% else %}activate{% endif %} this activity?');">
+                                {% csrf_token %}
+                                {% if act.status == 'active' %}
+                                    <button type="submit" class="btn-icon text-danger" title="Deactivate">
+                                        <i class="bi bi-slash-circle"></i>
+                                    </button>
+                                {% else %}
+                                    <button type="submit" class="btn-icon text-success" title="Activate">
+                                        <i class="bi bi-check-circle"></i>
+                                    </button>
+                                {% endif %}
+                            </form>
+                        </td>
+                    </tr>
+
+                    <!-- View Modal -->
+                    <div class="modal fade" id="viewModal{{ act.id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content" style="border-radius: 14px; border: none;">
+                                <div class="modal-header" style="border-bottom: 1px solid #F3F4F6;">
+                                    <h5 class="modal-title fw-bold">
+                                        <i class="bi bi-info-circle text-primary me-2"></i>Activity Details
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body p-4">
+                                    <div class="mb-3">
+                                        <small class="text-muted text-uppercase fw-bold" style="font-size:0.75rem;">Activity ID &amp; Title</small>
+                                        <div class="fw-bold fs-5 text-dark">#ACT-{{ act.id|stringformat:"03d" }} — {{ act.activity_title }}</div>
+                                    </div>
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-6">
+                                            <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Category</small>
+                                            <div><span class="badge-category">{{ act.activity_category }}</span></div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Default Frequency</small>
+                                            <div><span class="badge-frequency">{{ act.default_frequency }}</span></div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Estimated Duration</small>
+                                            <div class="fw-semibold text-dark">{{ act.estimated_duration|default:"Not specified" }}</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Status</small>
+                                            <div>
+                                                {% if act.status == 'active' %}
+                                                    <span class="badge-status-active"><i class="bi bi-check-circle-fill"></i> Active</span>
+                                                {% else %}
+                                                    <span class="badge-status-inactive"><i class="bi bi-dash-circle-fill"></i> Inactive</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Photo Requirement</small>
+                                            <div class="fw-semibold text-dark">{% if act.photo_required %}Mandatory on task completion{% else %}Optional{% endif %}</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Linked Dynamic Form</small>
+                                            <div class="fw-semibold text-dark">{{ act.form.form_name|default:"None (Standard task)" }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Description</small>
+                                        <div class="p-3 bg-light rounded-3 text-secondary" style="font-size:0.9rem; line-height: 1.5;">
+                                            {{ act.description|default:"No description provided." }}
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between text-muted" style="font-size: 0.75rem;">
+                                        <span>Added By: <strong>{{ act.added_by }}</strong></span>
+                                        <span>Created: {{ act.created_at|date:"d M Y, h:i A"|default:"—" }}</span>
+                                    </div>
+                                </div>
+                                <div class="modal-footer" style="border-top: 1px solid #F3F4F6;">
+                                    <button type="button" class="btn btn-light border px-4" data-bs-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Edit Modal -->
+                    <div class="modal fade" id="editModal{{ act.id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-lg modal-dialog-centered">
+                            <div class="modal-content" style="border-radius: 14px; border: none;">
+                                <form method="POST" action="{% url 'admin_activities_update' act.id %}">
+                                    {% csrf_token %}
+                                    <div class="modal-header" style="border-bottom: 1px solid #F3F4F6;">
+                                        <h5 class="modal-title fw-bold">
+                                            <i class="bi bi-pencil-square text-warning me-2"></i>Edit Activity #ACT-{{ act.id|stringformat:"03d" }}
+                                        </h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body p-4">
+                                        <div class="row g-3">
+                                            <div class="col-md-8">
+                                                <label class="form-label" for="edit_title_{{ act.id }}">
+                                                    Activity Title <span class="required">*</span>
+                                                </label>
+                                                <input type="text" class="form-control" id="edit_title_{{ act.id }}"
+                                                       name="activity_title" value="{{ act.activity_title }}" required>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label" for="edit_category_{{ act.id }}">
+                                                    Category <span class="required">*</span>
+                                                </label>
+                                                <select class="form-select" id="edit_category_{{ act.id }}" name="activity_category" required>
+                                                    {% for cat in categories %}
+                                                        <option value="{{ cat }}" {% if act.activity_category == cat %}selected{% endif %}>{{ cat }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label" for="edit_desc_{{ act.id }}">Description</label>
+                                                <textarea class="form-control" id="edit_desc_{{ act.id }}" name="description"
+                                                          rows="3">{{ act.description|default:'' }}</textarea>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label" for="edit_freq_{{ act.id }}">Default Frequency <span class="required">*</span></label>
+                                                <select class="form-select" id="edit_freq_{{ act.id }}" name="default_frequency" required>
+                                                    {% for freq in frequencies %}
+                                                        <option value="{{ freq }}" {% if act.default_frequency == freq %}selected{% endif %}>{{ freq }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label" for="edit_dur_{{ act.id }}">Estimated Duration</label>
+                                                <input type="text" class="form-control" id="edit_dur_{{ act.id }}" name="estimated_duration"
+                                                       value="{{ act.estimated_duration|default:'' }}" placeholder="e.g. 2 hours, 45 mins">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label" for="edit_status_{{ act.id }}">Status <span class="required">*</span></label>
+                                                <select class="form-select" id="edit_status_{{ act.id }}" name="status" required>
+                                                    <option value="active" {% if act.status == 'active' %}selected{% endif %}>Active</option>
+                                                    <option value="inactive" {% if act.status == 'inactive' %}selected{% endif %}>Inactive</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <label class="form-label" for="edit_form_{{ act.id }}">Form Configuration (Optional)</label>
+                                                <select class="form-select" id="edit_form_{{ act.id }}" name="form_id">
+                                                    <option value="">-- No form attached --</option>
+                                                    {% for f in forms %}
+                                                        <option value="{{ f.id }}" {% if act.form_id == f.id %}selected{% endif %}>{{ f.form_name }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                                <small class="text-muted" style="font-size: 0.75rem;">Link a dynamic checklist or inspection form to this activity.</small>
+                                            </div>
+                                            <div class="col-md-4 d-flex align-items-center mt-4">
+                                                <div class="form-check form-switch mt-2">
+                                                    <input class="form-check-input" type="checkbox" role="switch"
+                                                           id="edit_photo_{{ act.id }}" name="photo_required" value="1"
+                                                           {% if act.photo_required %}checked{% endif %}>
+                                                    <label class="form-check-label fw-bold text-dark" for="edit_photo_{{ act.id }}">
+                                                        Photo Required
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer" style="border-top: 1px solid #F3F4F6;">
+                                        <button type="button" class="btn btn-light border px-3" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn hover-lift px-4"
+                                                style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                                            <i class="bi bi-check-lg"></i> Save Changes
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center text-muted py-4">No activities created yet. Click "+ Add New Activity" above to create one.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Activity Modal -->
+<div class="modal fade" id="addActivityModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 14px; border: none;">
+            <form method="POST" action="{% url 'admin_activities_store' %}">
+                {% csrf_token %}
+                <div class="modal-header" style="border-bottom: 1px solid #F3F4F6;">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-plus-circle text-warning me-2"></i>Add New Activity
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label" for="add_activity_title">Activity Title <span class="required">*</span></label>
+                            <input type="text" class="form-control" id="add_activity_title" name="activity_title"
+                                   placeholder="e.g. Solar Panel Cleaning, Inverter Inspection" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="add_activity_category">Category <span class="required">*</span></label>
+                            <select class="form-select" id="add_activity_category" name="activity_category" required>
+                                {% for cat in categories %}
+                                    <option value="{{ cat }}">{{ cat }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="add_description">Activity Description</label>
+                            <textarea class="form-control" id="add_description" name="description" rows="3"
+                                      placeholder="Provide detailed standard procedure, tools required or inspection guidelines..."></textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="add_default_frequency">Default Frequency <span class="required">*</span></label>
+                            <select class="form-select" id="add_default_frequency" name="default_frequency" required>
+                                {% for freq in frequencies %}
+                                    <option value="{{ freq }}" {% if freq == 'Monthly' %}selected{% endif %}>{{ freq }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="add_estimated_duration">Estimated Duration</label>
+                            <input type="text" class="form-control" id="add_estimated_duration" name="estimated_duration"
+                                   placeholder="e.g. 2 hours, 45 mins">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="add_status">Activity Status <span class="required">*</span></label>
+                            <select class="form-select" id="add_status" name="status" required>
+                                <option value="active" selected>Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label" for="add_form_id">Form Configuration (Optional)</label>
+                            <select class="form-select" id="add_form_id" name="form_id">
+                                <option value="">-- No form attached --</option>
+                                {% for f in forms %}
+                                    <option value="{{ f.id }}">{{ f.form_name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted" style="font-size: 0.75rem;">Link a dynamic checklist or inspection form to this activity.</small>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-center mt-4">
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" role="switch"
+                                       id="add_photo_required" name="photo_required" value="1">
+                                <label class="form-check-label fw-bold text-dark" for="add_photo_required">
+                                    Photo Required
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid #F3F4F6;">
+                    <button type="button" class="btn btn-light border px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn hover-lift px-4"
+                            style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                        <i class="bi bi-check-lg"></i> Create Activity
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script>
+    $(document).ready(function () {
+        $('#activitiesTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [5, 10, 25, 50, 100],
+            columnDefs: [{ orderable: false, targets: -1 }],
+            order: [[0, 'desc']],
+            dom: 'B lfrtip',
+            buttons: [
+                {
+                    extend: 'excelHtml5',
+                    text: '<i class="bi bi-file-earmark-excel"></i> Excel',
+                    className: 'btn dt-export-btn',
+                    title: 'SolarPro Activity Master Library',
+                    exportOptions: { columns: ':not(:last-child)' }
+                },
+                {
+                    extend: 'pdfHtml5',
+                    text: '<i class="bi bi-file-earmark-pdf"></i> PDF',
+                    className: 'btn dt-export-btn',
+                    title: 'SolarPro Activity Master Library',
+                    orientation: 'landscape',
+                    exportOptions: { columns: ':not(:last-child)' }
+                },
+                {
+                    extend: 'print',
+                    text: '<i class="bi bi-printer"></i> Print',
+                    className: 'btn dt-export-btn',
+                    title: 'SolarPro Activity Master Library',
+                    exportOptions: { columns: ':not(:last-child)' }
+                }
+            ],
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search activities...",
+                lengthMenu: "Show _MENU_ entries"
+            }
+        });
+    });
+</script>
+{% endblock %}
