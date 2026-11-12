@@ -72,6 +72,12 @@ MODULE_ROUTE_MAPPING = {
         'admin_attendance_master_create',
         'admin_attendance_master_store',
     ],
+    'activity-master': [
+        'admin_activities_index',
+        'admin_activities_store',
+        'admin_activities_update',
+        'admin_activities_toggle_status',
+    ],
     'project-reports': [
         'admin_projects_report',
         'admin_projects_report_excel',

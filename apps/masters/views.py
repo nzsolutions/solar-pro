@@ -1,3 +1,5 @@
+from apps.dynamic_forms.models import DynamicForm
+from django.db.models import Q
 import json
 import smtplib
 from email.mime.text import MIMEText
@@ -8,7 +10,7 @@ from django.contrib import messages
 from apps.authentication.decorators import admin_required
 from apps.masters.models import (
     DepartmentMaster, DesignationMaster, DocumentTypeMaster,
-    SiteMaster, AttendanceMaster, SMTPConfiguration, AccessControl
+    SiteMaster, AttendanceMaster, SMTPConfiguration, AccessControl, ActivityMaster
 )
 
 # ==========================================
@@ -384,6 +386,7 @@ MODULE_TREE = {
         'site-master': 'Site Master',
         'document-type-master': 'Document Type Master',
         'attendance-master': 'Attendance Master',
+        'activity-master': 'Activity Master',
     },
     'Reports': {
         'project-reports': 'Project Reports',
@@ -452,3 +455,132 @@ def access_control_save(request):
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)}, status=500)
     return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
+
+
+
+# ==========================================
+# 8. ACTIVITY MASTER
+# ==========================================
+@admin_required
+def activities_index(request):
+    search = request.GET.get('search', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    category_filter = request.GET.get('category', '').strip()
+
+    qs = ActivityMaster.objects.select_related('form').all()
+    if search:
+        qs = qs.filter(
+            Q(activity_title__icontains=search) |
+            Q(description__icontains=search) |
+            Q(activity_category__icontains=search)
+        )
+    if status_filter in ['active', 'inactive']:
+        qs = qs.filter(status=status_filter)
+    if category_filter:
+        qs = qs.filter(activity_category=category_filter)
+
+    activities = qs.order_by('-id')
+    forms = DynamicForm.objects.filter(is_active=1).order_by('form_name')
+
+    return render(request, 'admin/master/activitymaster.html', {
+        'activities': activities,
+        'forms': forms,
+        'categories': [c[0] for c in ActivityMaster.CATEGORY_CHOICES],
+        'frequencies': [f[0] for f in ActivityMaster.FREQUENCY_CHOICES],
+        'search': search,
+        'status_filter': status_filter,
+        'category_filter': category_filter,
+    })
+
+
+@admin_required
+def activity_store(request):
+    if request.method == 'POST':
+        title = request.POST.get('activity_title', '').strip()
+        category = request.POST.get('activity_category', '').strip() or 'Maintenance'
+        description = request.POST.get('description', '').strip()
+        default_frequency = request.POST.get('default_frequency', '').strip() or 'Monthly'
+        estimated_duration = request.POST.get('estimated_duration', '').strip()
+        form_id = request.POST.get('form_id', '').strip()
+        photo_required = True if request.POST.get('photo_required') in ['1', 'true', 'on'] else False
+        status = request.POST.get('status', 'active').strip() or 'active'
+
+        if not title:
+            messages.error(request, 'Activity Title is required.')
+            return redirect('admin_activities_index')
+
+        if ActivityMaster.objects.filter(activity_title__iexact=title).exists():
+            messages.error(request, f'An activity with the title "{title}" already exists.')
+            return redirect('admin_activities_index')
+
+        form_obj = None
+        if form_id and form_id.isdigit():
+            form_obj = DynamicForm.objects.filter(id=int(form_id)).first()
+
+        added_by = request.session.get('name') or ('Admin' if request.session.get('is_admin') == 1 else 'Staff')
+
+        ActivityMaster.objects.create(
+            activity_title=title,
+            activity_category=category,
+            description=description,
+            default_frequency=default_frequency,
+            estimated_duration=estimated_duration,
+            form=form_obj,
+            photo_required=photo_required,
+            status=status,
+            company_id=request.session.get('company_id', 1),
+            added_by=added_by
+        )
+        messages.success(request, f'Activity "{title}" created successfully.')
+    return redirect('admin_activities_index')
+
+
+@admin_required
+def activity_update(request, id):
+    activity = get_object_or_404(ActivityMaster, id=id)
+    if request.method == 'POST':
+        title = request.POST.get('activity_title', '').strip()
+        category = request.POST.get('activity_category', '').strip() or 'Maintenance'
+        description = request.POST.get('description', '').strip()
+        default_frequency = request.POST.get('default_frequency', '').strip() or 'Monthly'
+        estimated_duration = request.POST.get('estimated_duration', '').strip()
+        form_id = request.POST.get('form_id', '').strip()
+        photo_required = True if request.POST.get('photo_required') in ['1', 'true', 'on'] else False
+        status = request.POST.get('status', activity.status).strip() or activity.status
+
+        if not title:
+            messages.error(request, 'Activity Title is required.')
+            return redirect('admin_activities_index')
+
+        if ActivityMaster.objects.filter(activity_title__iexact=title).exclude(id=activity.id).exists():
+            messages.error(request, f'Another activity with the title "{title}" already exists.')
+            return redirect('admin_activities_index')
+
+        form_obj = None
+        if form_id and form_id.isdigit():
+            form_obj = DynamicForm.objects.filter(id=int(form_id)).first()
+
+        activity.activity_title = title
+        activity.activity_category = category
+        activity.description = description
+        activity.default_frequency = default_frequency
+        activity.estimated_duration = estimated_duration
+        activity.form = form_obj
+        activity.photo_required = photo_required
+        activity.status = status
+        activity.save()
+
+        messages.success(request, f'Activity "{title}" updated successfully.')
+    return redirect('admin_activities_index')
+
+
+@admin_required
+def activity_toggle_status(request, id):
+    activity = get_object_or_404(ActivityMaster, id=id)
+    if request.method == 'POST':
+        new_status = 'inactive' if activity.status == 'active' else 'active'
+        activity.status = new_status
+        activity.save()
+        action_verb = 'activated' if new_status == 'active' else 'deactivated'
+        messages.success(request, f'Activity "{activity.activity_title}" has been {action_verb}.')
+    return redirect('admin_activities_index')

@@ -42,4 +42,10 @@ urlpatterns = [
     path('admin/access-control', views.access_control_index, name='admin_access_control_index'),
     path('admin/access-control/permissions/<int:role_id>', views.access_control_permissions, name='admin_access_control_permissions'),
     path('admin/access-control/save', views.access_control_save, name='admin_access_control_save'),
+
+    # Activity Master
+    path('admin/activities', views.activities_index, name='admin_activities_index'),
+    path('admin/activities/store', views.activity_store, name='admin_activities_store'),
+    path('admin/activities/<int:id>/update', views.activity_update, name='admin_activities_update'),
+    path('admin/activities/<int:id>/toggle-status', views.activity_toggle_status, name='admin_activities_toggle_status'),
 ]
