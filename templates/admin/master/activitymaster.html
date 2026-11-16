@@ -246,6 +246,10 @@
                             {% endif %}
                         </td>
                         <td class="text-end">
+                            <!-- Configure Dynamic Form Button -->
+                            <a href="{% url 'admin_activity_form_builder' act.id %}" class="btn-icon text-primary" title="Configure Dynamic Activity Form">
+                                <i class="bi bi-ui-checks"></i>
+                            </a>
                             <!-- View Button -->
                             <button type="button" class="btn-icon" title="View Details"
                                     data-bs-toggle="modal" data-bs-target="#viewModal{{ act.id }}">
@@ -402,7 +406,12 @@
                                 </select>
                             </div>
                             <div class="col-md-8">
-                                <label class="form-label" for="edit_form_{{ act.id }}">Form Configuration (Optional)</label>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label class="form-label mb-0" for="edit_form_{{ act.id }}">Form Configuration (Optional)</label>
+                                    <a href="{% url 'admin_activity_form_builder' act.id %}" class="small text-primary text-decoration-none fw-bold">
+                                        <i class="bi bi-ui-checks me-1"></i>Open Dynamic Form Builder
+                                    </a>
+                                </div>
                                 <select class="form-select" id="edit_form_{{ act.id }}" name="form_id">
                                     <option value="">-- No form attached --</option>
                                     {% for f in forms %}

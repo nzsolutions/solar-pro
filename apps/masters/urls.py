@@ -48,4 +48,11 @@ urlpatterns = [
     path('admin/activities/store', views.activity_store, name='admin_activities_store'),
     path('admin/activities/<int:id>/update', views.activity_update, name='admin_activities_update'),
     path('admin/activities/<int:id>/toggle-status', views.activity_toggle_status, name='admin_activities_toggle_status'),
+
+    # Dynamic Activity Form Builder
+    path('admin/activities/form-builder', views.activity_form_builder_standalone, name='admin_activity_form_builder_standalone'),
+    path('admin/activities/form-builder/evaluate-preview', views.activity_form_evaluate_preview, name='admin_activity_form_evaluate_preview'),
+    path('admin/activities/<int:activity_id>/form-builder', views.activity_form_builder, name='admin_activity_form_builder'),
+    path('admin/activities/<int:activity_id>/form-builder/save', views.activity_form_builder_save, name='admin_activity_form_builder_save'),
+    path('admin/activities/<int:activity_id>/form-builder/json', views.activity_form_get_json, name='admin_activity_form_get_json'),
 ]
