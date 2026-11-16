@@ -181,3 +181,172 @@ class ActivityMaster(models.Model):
 
     def __str__(self):
         return self.activity_title
+
+
+class ActivityFormConfiguration(models.Model):
+    """
+    Root configuration entity for an activity's dynamic form.
+    Links 1:1 with an ActivityMaster record.
+    """
+    id = models.BigAutoField(primary_key=True)
+    activity = models.OneToOneField(
+        'masters.ActivityMaster',
+        on_delete=models.CASCADE,
+        related_name='form_configuration',
+        db_column='activity_id'
+    )
+    form_title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    company_id = models.IntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+
+    class Meta:
+        db_table = 'activity_form_configurations'
+        managed = True
+        ordering = ['id']
+
+    def __str__(self):
+        return f"Form Config: {self.form_title} ({self.activity.activity_title})"
+
+
+class ActivityFormField(models.Model):
+    """
+    Individual form field item within an activity form configuration.
+    Supports all 9 field types, ordering, requirements, and settings.
+    """
+    FIELD_TYPE_CHOICES = [
+        ('short_text', 'Short Text'),
+        ('long_text', 'Long Text'),
+        ('number', 'Number'),
+        ('yes_no', 'Yes/No'),
+        ('dropdown', 'Dropdown'),
+        ('multiple_choice', 'Multiple Choice'),
+        ('date', 'Date'),
+        ('time', 'Time'),
+        ('photo_capture', 'Photo Capture'),
+    ]
+
+    id = models.BigAutoField(primary_key=True)
+    form_config = models.ForeignKey(
+        'masters.ActivityFormConfiguration',
+        on_delete=models.CASCADE,
+        related_name='fields',
+        db_column='form_configuration_id'
+    )
+    field_label = models.CharField(max_length=255)
+    field_type = models.CharField(max_length=50, choices=FIELD_TYPE_CHOICES, default='short_text')
+    placeholder = models.CharField(max_length=255, blank=True, null=True)
+    help_text = models.TextField(blank=True, null=True)
+    is_required = models.BooleanField(default=False)
+    field_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    settings = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+
+    class Meta:
+        db_table = 'activity_form_fields'
+        managed = True
+        ordering = ['field_order', 'id']
+
+    def __str__(self):
+        return f"{self.field_label} ({self.get_field_type_display()})"
+
+
+class ActivityFormFieldOption(models.Model):
+    """
+    Selectable options for dropdown and multiple-choice fields.
+    """
+    id = models.BigAutoField(primary_key=True)
+    field = models.ForeignKey(
+        'masters.ActivityFormField',
+        on_delete=models.CASCADE,
+        related_name='options',
+        db_column='form_field_id'
+    )
+    option_label = models.CharField(max_length=255)
+    option_value = models.CharField(max_length=255)
+    display_order = models.PositiveIntegerField(default=0)
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+
+    class Meta:
+        db_table = 'activity_form_field_options'
+        managed = True
+        ordering = ['display_order', 'id']
+
+    def __str__(self):
+        return f"Option '{self.option_label}' for field #{self.field_id}"
+
+
+class ActivityFormPhotoSetting(models.Model):
+    """
+    Photo evidence requirements for the activity execution in mobile app.
+    Enforces camera-only direct capture, before/after requirements, and GPS/timestamp capture.
+    """
+    id = models.BigAutoField(primary_key=True)
+    form_config = models.OneToOneField(
+        'masters.ActivityFormConfiguration',
+        on_delete=models.CASCADE,
+        related_name='photo_settings',
+        db_column='form_configuration_id'
+    )
+    enable_photo_capture = models.BooleanField(default=False)
+    before_photo_required = models.BooleanField(default=False)
+    after_photo_required = models.BooleanField(default=False)
+    optional_photo = models.BooleanField(default=True)
+    photo_instructions = models.TextField(blank=True, null=True)
+    capture_timestamp_required = models.BooleanField(default=True)
+    submission_timestamp_required = models.BooleanField(default=True)
+    gps_coordinates_required = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+
+    class Meta:
+        db_table = 'activity_form_photo_settings'
+        managed = True
+
+    def __str__(self):
+        return f"Photo Settings for Form #{self.form_config_id}"
+
+
+class ActivityFormValidationRule(models.Model):
+    """
+    Validation and business exception rule definitions.
+    Distinguishes between standard validation and business exceptions.
+    """
+    RULE_TYPE_CHOICES = [
+        ('normal', 'Normal Validation'),
+        ('business_exception', 'Business Exception Validation'),
+    ]
+
+    id = models.BigAutoField(primary_key=True)
+    field = models.ForeignKey(
+        'masters.ActivityFormField',
+        on_delete=models.CASCADE,
+        related_name='validation_rules',
+        db_column='form_field_id'
+    )
+    rule_type = models.CharField(max_length=30, choices=RULE_TYPE_CHOICES, default='normal')
+    rule_name = models.CharField(max_length=100)
+    condition_operator = models.CharField(max_length=50, blank=True, null=True)
+    expected_value = models.CharField(max_length=255, blank=True, null=True)
+    acceptable_values = models.JSONField(default=list, blank=True)
+    min_value = models.DecimalField(max_digits=12, decimal_places=4, blank=True, null=True)
+    max_value = models.DecimalField(max_digits=12, decimal_places=4, blank=True, null=True)
+    error_message = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+
+    class Meta:
+        db_table = 'activity_form_validation_rules'
+        managed = True
+
+    def __str__(self):
+        return f"Rule '{self.rule_name}' ({self.get_rule_type_display()}) for field #{self.field_id}"
+
+

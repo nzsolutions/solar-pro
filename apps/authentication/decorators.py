@@ -77,6 +77,11 @@ MODULE_ROUTE_MAPPING = {
         'admin_activities_store',
         'admin_activities_update',
         'admin_activities_toggle_status',
+        'admin_activity_form_builder',
+        'admin_activity_form_builder_standalone',
+        'admin_activity_form_builder_save',
+        'admin_activity_form_get_json',
+        'admin_activity_form_evaluate_preview',
     ],
     'project-reports': [
         'admin_projects_report',

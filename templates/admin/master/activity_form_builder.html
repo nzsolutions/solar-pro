@@ -1,0 +1,1755 @@
+{% extends 'layouts/admin.html' %}
+{% load static %}
+
+{% block title %}SolarPro - Dynamic Form Builder: {{ activity.activity_title }}{% endblock %}
+
+{% block content %}
+<style>
+    .builder-header {
+        background: #fff;
+        border-radius: 14px;
+        padding: 1.5rem 1.75rem;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.06);
+        margin-bottom: 1.5rem;
+    }
+    .page-title { font-weight: 800; color: #111827; }
+    .breadcrumb-nav { font-size: 0.88rem; color: #9CA3AF; margin-bottom: 0.5rem; }
+    .breadcrumb-nav a { color: #9CA3AF; text-decoration: none; }
+    .breadcrumb-nav a:hover { color: var(--accent-orange, #FF9F1C); }
+    .breadcrumb-nav .current { color: #111827; font-weight: 600; }
+    .breadcrumb-nav i { font-size: 0.75rem; margin: 0 0.4rem; }
+
+    /* Builder Cards */
+    .builder-card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.06);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .builder-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.85rem;
+        border-bottom: 1px solid #F1F5F9;
+    }
+    .builder-card-header h5 {
+        font-weight: 700;
+        color: #0F172A;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    /* Toolbar for adding fields */
+    .field-type-btn {
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 10px;
+        padding: 0.65rem 0.9rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        font-size: 0.84rem;
+        font-weight: 600;
+        color: #334155;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        margin-bottom: 0.5rem;
+        margin-right: 0.4rem;
+    }
+    .field-type-btn i { font-size: 1rem; color: var(--accent-orange, #FF9F1C); }
+    .field-type-btn:hover {
+        background: #FFF7ED;
+        border-color: var(--accent-orange, #FF9F1C);
+        color: #9A3412;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(255, 159, 28, 0.15);
+    }
+
+    /* Field Card */
+    .field-item-card {
+        background: #FFFFFF;
+        border: 1.5px solid #E2E8F0;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        transition: all 0.2s ease;
+        position: relative;
+    }
+    .field-item-card:hover {
+        border-color: #CBD5E1;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    }
+    .field-item-card.is-expanded {
+        border-color: var(--accent-orange, #FF9F1C);
+        box-shadow: 0 6px 18px rgba(255, 159, 28, 0.08);
+    }
+    .field-header-row {
+        padding: 1rem 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        cursor: pointer;
+        user-select: none;
+    }
+    .field-left-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex: 1;
+        min-width: 0;
+    }
+    .field-drag-handle {
+        color: #94A3B8;
+        cursor: grab;
+        font-size: 1.2rem;
+        line-height: 1;
+    }
+    .field-type-pill {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        background: #EEF2FF;
+        color: #4338CA;
+        white-space: nowrap;
+    }
+    .field-title-display {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #0F172A;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .field-body-form {
+        padding: 1.25rem 1.5rem 1.5rem 1.5rem;
+        border-top: 1px solid #F1F5F9;
+        background: #FAFBFD;
+        border-bottom-left-radius: 12px;
+        border-bottom-right-radius: 12px;
+    }
+
+    /* Exception Box */
+    .exception-config-box {
+        background: #FFFBEB;
+        border: 1.5px dashed #F59E0B;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-top: 1rem;
+    }
+    .exception-config-box h6 {
+        font-weight: 700;
+        color: #B45309;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.88rem;
+    }
+
+    /* Option Pill Manager */
+    .options-pill-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-top: 0.5rem;
+    }
+    .option-chip {
+        background: #fff;
+        border: 1px solid #CBD5E1;
+        border-radius: 8px;
+        padding: 0.35rem 0.7rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #334155;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .option-chip i.bi-x {
+        cursor: pointer;
+        color: #EF4444;
+        font-size: 1.1rem;
+        line-height: 1;
+    }
+    .option-chip i.bi-x:hover { transform: scale(1.2); }
+
+    /* Mobile Simulation Frame */
+    .mobile-simulator-wrapper {
+        position: sticky;
+        top: 20px;
+    }
+    .mobile-device-frame {
+        width: 100%;
+        max-width: 380px;
+        margin: 0 auto;
+        background: #FFFFFF;
+        border: 10px solid #1E293B;
+        border-radius: 36px;
+        box-shadow: 0 16px 40px rgba(0,0,0,0.18);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        height: 740px;
+    }
+    .mobile-notch {
+        height: 22px;
+        background: #1E293B;
+        border-bottom-left-radius: 12px;
+        border-bottom-right-radius: 12px;
+        width: 140px;
+        margin: 0 auto;
+    }
+    .mobile-status-bar {
+        padding: 0.4rem 1.2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #64748B;
+        background: #F8FAFC;
+        border-bottom: 1px solid #E2E8F0;
+    }
+    .mobile-screen-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1.25rem 1rem;
+        background: #F8FAFC;
+    }
+    .mobile-app-header {
+        background: linear-gradient(135deg, #171B2B, #23283E);
+        color: #FFFFFF;
+        border-radius: 14px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .mobile-field-group {
+        background: #FFFFFF;
+        border-radius: 12px;
+        padding: 0.85rem 1rem;
+        margin-bottom: 0.75rem;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+    .mobile-field-label {
+        font-weight: 700;
+        font-size: 0.82rem;
+        color: #1E293B;
+        margin-bottom: 0.35rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .mobile-field-help {
+        font-size: 0.72rem;
+        color: #64748B;
+        margin-top: 0.3rem;
+    }
+    .mobile-camera-box {
+        border: 2px dashed #CBD5E1;
+        background: #F1F5F9;
+        border-radius: 10px;
+        padding: 1rem 0.5rem;
+        text-align: center;
+        color: #475569;
+        font-size: 0.78rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .mobile-camera-box:hover {
+        border-color: var(--accent-orange, #FF9F1C);
+        background: #FFF7ED;
+        color: #C2410C;
+    }
+
+    /* Live Exception Badge */
+    .exception-banner {
+        background: #FEF3C7;
+        border: 1px solid #F59E0B;
+        color: #92400E;
+        font-size: 0.73rem;
+        font-weight: 600;
+        padding: 0.35rem 0.6rem;
+        border-radius: 6px;
+        margin-top: 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .pass-banner {
+        color: #15803D;
+        font-size: 0.72rem;
+        font-weight: 600;
+        margin-top: 0.3rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .btn-icon-sm {
+        width: 30px;
+        height: 30px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        border: 1px solid #CBD5E1;
+        background: #fff;
+        color: #475569;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .btn-icon-sm:hover { background: #F1F5F9; color: #0F172A; }
+    .btn-icon-sm.text-danger:hover { background: #FEF2F2; color: #EF4444; border-color: #FCA5A5; }
+</style>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb-nav">
+    <a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Dashboard</a>
+    <i class="bi bi-chevron-right"></i>
+    <a href="{% url 'admin_activities_index' %}">Activity Master</a>
+    <i class="bi bi-chevron-right"></i>
+    <span class="current">Form Builder: {{ activity.activity_title }}</span>
+</div>
+
+<!-- Header Card -->
+<div class="builder-header">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                <h2 class="page-title mb-0">Dynamic Activity Form Builder</h2>
+                <span class="badge bg-secondary-subtle text-secondary px-2 py-1 rounded-pill" style="font-size:0.75rem;">
+                    #ACT-{{ activity.id|stringformat:"03d" }}
+                </span>
+                <span class="badge bg-primary-subtle text-primary px-2 py-1 rounded-pill" style="font-size:0.75rem;">
+                    {{ activity.activity_category }}
+                </span>
+                <span class="badge bg-light text-dark border px-2 py-1 rounded-pill" style="font-size:0.75rem;">
+                    <i class="bi bi-arrow-repeat me-1"></i>{{ activity.default_frequency }}
+                </span>
+            </div>
+            <p class="text-muted mb-0" style="font-size: 0.9rem;">
+                Configuring field checklist, expected values, business exceptions &amp; photo evidence for <strong>"{{ activity.activity_title }}"</strong>.
+            </p>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <!-- Template Loader Dropdown -->
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="border-radius: 8px;">
+                    <i class="bi bi-magic me-1"></i> Load Pre-built Template
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="border-radius: 10px;">
+                    <li><h6 class="dropdown-header text-uppercase fw-bold" style="font-size:0.72rem;">Solar Standard Checklists</h6></li>
+                    <li><a class="dropdown-item py-2" href="javascript:void(0)" onclick="loadPrebuiltTemplate('battery_check')">
+                        <i class="bi bi-battery-charging text-warning me-2"></i> Battery Bank Inspection &amp; Voltage
+                    </a></li>
+                    <li><a class="dropdown-item py-2" href="javascript:void(0)" onclick="loadPrebuiltTemplate('solar_panel_cleaning')">
+                        <i class="bi bi-brightness-high text-info me-2"></i> Solar Panel Cleaning Quality
+                    </a></li>
+                    <li><a class="dropdown-item py-2" href="javascript:void(0)" onclick="loadPrebuiltTemplate('inverter_inspection')">
+                        <i class="bi bi-cpu text-success me-2"></i> Inverter Inspection &amp; Thermal Check
+                    </a></li>
+                </ul>
+            </div>
+
+            <a href="{% url 'admin_activities_index' %}" class="btn btn-light border px-3" style="border-radius: 8px;">
+                <i class="bi bi-arrow-left me-1"></i> Back
+            </a>
+
+            <button type="button" class="btn hover-lift px-4" id="saveFormBtn" onclick="saveFormConfiguration()"
+                    style="background-color: var(--accent-orange, #FF9F1C); color: #fff; font-weight: 700; border-radius: 8px;">
+                <i class="bi bi-save me-1"></i> Save Form Configuration
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Main Builder Layout: Left Configuration / Right Mobile Simulation -->
+<div class="row g-4">
+    <!-- Left Column: Form Builder Config -->
+    <div class="col-lg-7 col-xl-7">
+
+        <!-- Form Basic Metadata Card -->
+        <div class="builder-card">
+            <div class="builder-card-header">
+                <h5><i class="bi bi-card-heading text-warning"></i> Form Metadata</h5>
+                <span class="badge bg-success-subtle text-success px-2 py-1 rounded-pill" style="font-size: 0.72rem;">
+                    Active Checklist
+                </span>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-7">
+                    <label class="form-label fw-bold text-dark small">Form Title <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="formTitleInput" value="{{ form_config.form_title }}">
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label fw-bold text-dark small">Linked Activity</label>
+                    <input type="text" class="form-control bg-light" value="{{ activity.activity_title }}" readonly>
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-bold text-dark small">Form Instructions / Description</label>
+                    <textarea class="form-control" id="formDescInput" rows="2" placeholder="Brief SOP or safety instructions displayed to the mobile worker...">{{ form_config.description|default:'' }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Photo & Evidence Requirements Card -->
+        <div class="builder-card" style="border-left: 4px solid var(--accent-orange, #FF9F1C);">
+            <div class="builder-card-header">
+                <h5><i class="bi bi-camera-fill text-warning"></i> Photo Evidence &amp; Compliance Configuration</h5>
+                <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="enablePhotoCaptureSwitch" onchange="togglePhotoConfigSection()">
+                    <label class="form-check-label fw-bold text-dark small" for="enablePhotoCaptureSwitch">Require Photos</label>
+                </div>
+            </div>
+
+            <div id="photoConfigBody">
+                <div class="alert alert-warning d-flex align-items-center py-2 px-3 mb-3" style="font-size:0.83rem; background: #FFFBEB; border-color: #FDE68A; color: #92400E; border-radius: 8px;">
+                    <i class="bi bi-shield-lock-fill fs-5 me-2 text-warning"></i>
+                    <div>
+                        <strong>Mobile Camera Enforcement:</strong> Evidence photos must be taken live using the device camera. Uploading images from gallery is strictly prohibited to prevent fraud.
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-dark small">Photo Requirement Mode</label>
+                        <select class="form-select" id="photoRequirementMode" onchange="updateLivePreview()">
+                            <option value="both">Both Before &amp; After Photos Required</option>
+                            <option value="before">Before Photo Only</option>
+                            <option value="after">After Photo Only</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-dark small">Additional Field Evidence</label>
+                        <div class="d-flex flex-column gap-2 mt-1">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="captureTimestampSwitch" checked onchange="updateLivePreview()">
+                                <label class="form-check-label small" for="captureTimestampSwitch">Record GPS Timestamp automatically</label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="captureGpsSwitch" checked onchange="updateLivePreview()">
+                                <label class="form-check-label small" for="captureGpsSwitch">Record Site GPS Coordinates on submit</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold text-dark small">Photo Capture Instructions</label>
+                        <input type="text" class="form-control" id="photoInstructionsInput"
+                               placeholder="e.g. Ensure battery cell serial tags and liquid levels are clearly legible in frame."
+                               oninput="updateLivePreview()">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Fields Toolbar -->
+        <div class="builder-card">
+            <div class="builder-card-header">
+                <h5><i class="bi bi-plus-circle text-primary"></i> Add Form Fields</h5>
+                <span class="text-muted small">Choose input type to append</span>
+            </div>
+            <div class="d-flex flex-wrap">
+                {% for item in field_type_choices %}
+                    <button type="button" class="field-type-btn" onclick="addField('{{ item.type }}')">
+                        <i class="bi {{ item.icon }}"></i>
+                        <span>{{ item.label }}</span>
+                    </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Dynamic Fields Container -->
+        <div class="builder-card">
+            <div class="builder-card-header">
+                <div class="d-flex align-items-center gap-2">
+                    <h5><i class="bi bi-list-check text-success"></i> Configured Checklist Fields</h5>
+                    <span class="badge bg-secondary-subtle text-secondary px-2 py-1 rounded-pill" id="fieldsCountBadge">0 Fields</span>
+                </div>
+                <div class="text-muted small">Reorder using Up/Down buttons</div>
+            </div>
+
+            <!-- Empty State Placeholder -->
+            <div id="fieldsEmptyState" class="text-center py-5" style="display: none;">
+                <div class="mb-3 text-muted" style="font-size: 3rem;">
+                    <i class="bi bi-ui-checks-grid"></i>
+                </div>
+                <h6 class="fw-bold text-dark">No Fields Added Yet</h6>
+                <p class="text-muted small mb-3">Click on any field type above or load a pre-built template to start building this activity's checklist.</p>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadPrebuiltTemplate('battery_check')">
+                    <i class="bi bi-magic me-1"></i> Try Battery Check Template
+                </button>
+            </div>
+
+            <!-- Form Fields Accordion List -->
+            <div id="fieldsListContainer">
+                <!-- Dynamically rendered via JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Live Mobile Application Simulation Preview -->
+    <div class="col-lg-5 col-xl-5">
+        <div class="mobile-simulator-wrapper">
+            <div class="d-flex justify-content-between align-items-center mb-2 px-2">
+                <div class="fw-bold text-dark small d-flex align-items-center gap-1">
+                    <i class="bi bi-phone text-primary"></i> Live Mobile Preview
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill" style="font-size: 0.7rem;">
+                        Interactive Sandbox
+                    </span>
+                    <button type="button" class="btn btn-sm btn-link text-muted p-0 text-decoration-none" onclick="resetPreviewInputs()" title="Clear Preview Inputs">
+                        <i class="bi bi-arrow-counterclockwise"></i> Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- Smartphone Frame -->
+            <div class="mobile-device-frame">
+                <div class="mobile-notch"></div>
+                <div class="mobile-status-bar">
+                    <span>9:41 AM</span>
+                    <span class="d-flex align-items-center gap-1">
+                        <i class="bi bi-wifi"></i>
+                        <i class="bi bi-reception-4"></i>
+                        <i class="bi bi-battery-full"></i>
+                    </span>
+                </div>
+
+                <div class="mobile-screen-content" id="mobileScreenContent">
+                    <!-- Mobile App Header -->
+                    <div class="mobile-app-header">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <small class="text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em; color: #F59E0B;">
+                                <i class="bi bi-brightness-high me-1"></i>SolarPro Field App
+                            </small>
+                            <span class="badge bg-white text-dark py-0 px-2" style="font-size: 0.65rem;">Task #4102</span>
+                        </div>
+                        <h6 class="fw-bold mb-1" id="mobilePreviewTitle">Battery Check</h6>
+                        <small class="opacity-75 d-block" style="font-size: 0.72rem;" id="mobilePreviewDesc">
+                            Inspect battery terminals and record cell voltage.
+                        </small>
+                        <div class="d-flex gap-2 mt-2" style="font-size: 0.68rem;">
+                            <span class="badge bg-dark-subtle text-light"><i class="bi bi-geo-alt me-1"></i>Site 04 - Array B</span>
+                            <span class="badge bg-dark-subtle text-light"><i class="bi bi-person me-1"></i>Field Tech #12</span>
+                        </div>
+                    </div>
+
+                    <!-- Photo Section Preview in Mobile App -->
+                    <div id="mobilePhotoSectionPreview" class="mobile-field-group mb-3" style="display: none;">
+                        <div class="mobile-field-label">
+                            <span><i class="bi bi-camera text-primary me-1"></i> Verification Evidence</span>
+                            <span class="badge bg-danger-subtle text-danger" style="font-size: 0.65rem;">Required</span>
+                        </div>
+                        <p class="text-muted" style="font-size: 0.7rem; margin-bottom: 0.6rem;" id="mobilePhotoInstructions">
+                            Direct camera capture required.
+                        </p>
+
+                        <div class="row g-2" id="mobilePhotoButtonsRow">
+                            <!-- Populated dynamically (before/after/both) -->
+                        </div>
+
+                        <!-- GPS & Timestamp Indicators -->
+                        <div class="d-flex justify-content-between mt-2 pt-2 border-top text-muted" style="font-size: 0.65rem;" id="mobilePhotoMetaInfo">
+                            <span id="mobileGpsMeta"><i class="bi bi-pin-map text-success me-1"></i>GPS Coordinates Auto-tagged</span>
+                            <span id="mobileTimeMeta"><i class="bi bi-clock-history me-1"></i>Timestamp Auto-tagged</span>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Fields Preview Container -->
+                    <div id="mobileFieldsPreviewContainer">
+                        <!-- Populated dynamically -->
+                    </div>
+
+                    <!-- Submit Button Simulation -->
+                    <div class="mt-3 mb-4">
+                        <button type="button" class="btn w-100 py-2 text-white fw-bold shadow-sm"
+                                style="background: linear-gradient(135deg, #FF9F1C, #F97316); border-radius: 10px; font-size: 0.85rem;"
+                                onclick="testSimulateSubmission()">
+                            <i class="bi bi-send-check me-1"></i> Test Validate &amp; Evaluate Exceptions
+                        </button>
+                    </div>
+
+                    <!-- Evaluation Result Panel inside phone -->
+                    <div id="mobileEvaluationResultBox" style="display: none;" class="mb-3">
+                        <!-- Shows pass / validation errors / business exceptions -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Initial data injected from Django
+    const activityId = {{ activity.id }};
+    const initialFormData = {{ form_json|safe }};
+    const prebuiltTemplates = {{ prebuilt_templates_json|safe }};
+
+    // State
+    let formState = {
+        form_title: initialFormData.form_title || "{{ activity.activity_title }} Checklist Form",
+        description: initialFormData.description || "",
+        photo_settings: initialFormData.photo_settings || {
+            enable_photo_capture: false,
+            before_photo_required: false,
+            after_photo_required: false,
+            optional_photo: true,
+            photo_instructions: "",
+            capture_timestamp_required: true,
+            submission_timestamp_required: true,
+            gps_coordinates_required: true
+        },
+        fields: initialFormData.fields || []
+    };
+
+    let nextTempId = 1000;
+
+    // --- Initialization ---
+    document.addEventListener('DOMContentLoaded', function () {
+        // Sync header inputs
+        document.getElementById('formTitleInput').addEventListener('input', function() {
+            formState.form_title = this.value;
+            updateLivePreview();
+        });
+        document.getElementById('formDescInput').addEventListener('input', function() {
+            formState.description = this.value;
+            updateLivePreview();
+        });
+
+        // Initialize photo controls from state
+        const p = formState.photo_settings;
+        document.getElementById('enablePhotoCaptureSwitch').checked = !!p.enable_photo_capture;
+        document.getElementById('photoInstructionsInput').value = p.photo_instructions || "";
+        document.getElementById('captureTimestampSwitch').checked = p.capture_timestamp_required !== false;
+        document.getElementById('captureGpsSwitch').checked = p.gps_coordinates_required !== false;
+
+        let mode = 'both';
+        if (p.before_photo_required && !p.after_photo_required) mode = 'before';
+        if (!p.before_photo_required && p.after_photo_required) mode = 'after';
+        document.getElementById('photoRequirementMode').value = mode;
+
+        togglePhotoConfigSection();
+
+        // If no fields, offer starter template or show empty state
+        if (!formState.fields || formState.fields.length === 0) {
+            // Check if activity matches battery or cleaning or inverter to pre-seed
+            const titleLow = "{{ activity.activity_title|lower }}";
+            if (titleLow.includes('battery')) {
+                loadPrebuiltTemplate('battery_check', false);
+            } else if (titleLow.includes('clean') || titleLow.includes('panel') || titleLow.includes('module')) {
+                loadPrebuiltTemplate('solar_panel_cleaning', false);
+            } else if (titleLow.includes('inverter')) {
+                loadPrebuiltTemplate('inverter_inspection', false);
+            } else {
+                renderFieldsList();
+                updateLivePreview();
+            }
+        } else {
+            renderFieldsList();
+            updateLivePreview();
+        }
+    });
+
+    // --- Photo Controls ---
+    function togglePhotoConfigSection() {
+        const isEnabled = document.getElementById('enablePhotoCaptureSwitch').checked;
+        formState.photo_settings.enable_photo_capture = isEnabled;
+        const body = document.getElementById('photoConfigBody');
+        if (isEnabled) {
+            body.style.display = 'block';
+        } else {
+            body.style.display = 'none';
+        }
+        updatePhotoSettingsFromInputs();
+        updateLivePreview();
+    }
+
+    function updatePhotoSettingsFromInputs() {
+        const mode = document.getElementById('photoRequirementMode').value;
+        formState.photo_settings.enable_photo_capture = document.getElementById('enablePhotoCaptureSwitch').checked;
+        formState.photo_settings.before_photo_required = (mode === 'before' || mode === 'both');
+        formState.photo_settings.after_photo_required = (mode === 'after' || mode === 'both');
+        formState.photo_settings.photo_instructions = document.getElementById('photoInstructionsInput').value;
+        formState.photo_settings.capture_timestamp_required = document.getElementById('captureTimestampSwitch').checked;
+        formState.photo_settings.gps_coordinates_required = document.getElementById('captureGpsSwitch').checked;
+    }
+
+    // --- Pre-built Templates ---
+    function loadPrebuiltTemplate(key, confirmPrompt = true) {
+        if (!prebuiltTemplates[key]) return;
+        if (confirmPrompt && formState.fields.length > 0) {
+            if (!confirm("Loading a template will replace existing fields. Continue?")) {
+                return;
+            }
+        }
+
+        const tpl = JSON.parse(JSON.stringify(prebuiltTemplates[key]));
+        formState.form_title = tpl.form_title;
+        formState.description = tpl.description;
+        formState.photo_settings = tpl.photo_settings;
+        formState.fields = tpl.fields.map((f, idx) => {
+            f.id = nextTempId++;
+            f.field_order = idx + 1;
+            return f;
+        });
+
+        // Update inputs
+        document.getElementById('formTitleInput').value = formState.form_title;
+        document.getElementById('formDescInput').value = formState.description;
+        document.getElementById('enablePhotoCaptureSwitch').checked = !!formState.photo_settings.enable_photo_capture;
+        document.getElementById('photoInstructionsInput').value = formState.photo_settings.photo_instructions || "";
+
+        let mode = 'both';
+        if (tpl.photo_settings.before_photo_required && !tpl.photo_settings.after_photo_required) mode = 'before';
+        if (!tpl.photo_settings.before_photo_required && tpl.photo_settings.after_photo_required) mode = 'after';
+        document.getElementById('photoRequirementMode').value = mode;
+
+        togglePhotoConfigSection();
+        renderFieldsList();
+        updateLivePreview();
+
+        if (confirmPrompt) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Template Loaded',
+                text: `Loaded "${tpl.form_title}" with ${tpl.fields.length} checklist fields and validation rules.`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+    }
+
+    // --- Field Management: Add / Delete / Reorder ---
+    function addField(type) {
+        const typeLabels = {
+            'short_text': 'Short Text',
+            'long_text': 'Detailed Remarks',
+            'number': 'Measured Reading',
+            'yes_no': 'Compliance Check',
+            'dropdown': 'Inspection Status',
+            'multiple_choice': 'Checklist Options',
+            'date': 'Inspection Date',
+            'time': 'Inspection Time',
+            'photo_capture': 'Field Photo'
+        };
+
+        const newField = {
+            id: nextTempId++,
+            field_label: typeLabels[type] || 'New Field',
+            field_type: type,
+            placeholder: '',
+            help_text: '',
+            is_required: false,
+            field_order: formState.fields.length + 1,
+            settings: type === 'number' ? { unit: '', min_value: '', max_value: '', step: '0.1' } : {},
+            options: (type === 'dropdown' || type === 'multiple_choice') ? [
+                { label: 'Normal / Good', value: 'Normal', display_order: 1 },
+                { label: 'Defect / Attention Required', value: 'Defect', display_order: 2 }
+            ] : [],
+            validation_rules: []
+        };
+
+        formState.fields.push(newField);
+        renderFieldsList();
+        updateLivePreview();
+
+        // Smooth scroll to new field
+        setTimeout(() => {
+            const el = document.getElementById(`fieldCard_${newField.id}`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                toggleFieldExpand(newField.id, true);
+            }
+        }, 100);
+    }
+
+    function deleteField(id) {
+        if (!confirm("Are you sure you want to remove this field?")) return;
+        formState.fields = formState.fields.filter(f => f.id != id);
+        reindexFields();
+        renderFieldsList();
+        updateLivePreview();
+    }
+
+    function duplicateField(id) {
+        const source = formState.fields.find(f => f.id == id);
+        if (!source) return;
+        const copy = JSON.parse(JSON.stringify(source));
+        copy.id = nextTempId++;
+        copy.field_label = copy.field_label + " (Copy)";
+        formState.fields.push(copy);
+        reindexFields();
+        renderFieldsList();
+        updateLivePreview();
+    }
+
+    function moveField(id, direction) {
+        const index = formState.fields.findIndex(f => f.id == id);
+        if (index === -1) return;
+        const newIndex = index + direction;
+        if (newIndex < 0 || newIndex >= formState.fields.length) return;
+
+        const temp = formState.fields[index];
+        formState.fields[index] = formState.fields[newIndex];
+        formState.fields[newIndex] = temp;
+
+        reindexFields();
+        renderFieldsList();
+        updateLivePreview();
+    }
+
+    function reindexFields() {
+        formState.fields.forEach((f, idx) => {
+            f.field_order = idx + 1;
+        });
+    }
+
+    function toggleFieldExpand(id, forceOpen = null) {
+        const card = document.getElementById(`fieldCard_${id}`);
+        const body = document.getElementById(`fieldBody_${id}`);
+        const icon = document.getElementById(`expandIcon_${id}`);
+        if (!card || !body) return;
+
+        const isCurrentlyOpen = card.classList.contains('is-expanded');
+        const shouldOpen = forceOpen !== null ? forceOpen : !isCurrentlyOpen;
+
+        if (shouldOpen) {
+            card.classList.add('is-expanded');
+            body.style.display = 'block';
+            if (icon) icon.className = 'bi bi-chevron-up text-muted';
+        } else {
+            card.classList.remove('is-expanded');
+            body.style.display = 'none';
+            if (icon) icon.className = 'bi bi-chevron-down text-muted';
+        }
+    }
+
+    // --- Render Fields List (Accordion) ---
+    function renderFieldsList() {
+        const container = document.getElementById('fieldsListContainer');
+        const emptyState = document.getElementById('fieldsEmptyState');
+        const countBadge = document.getElementById('fieldsCountBadge');
+
+        countBadge.innerText = `${formState.fields.length} Field${formState.fields.length === 1 ? '' : 's'}`;
+
+        if (!formState.fields || formState.fields.length === 0) {
+            container.innerHTML = '';
+            emptyState.style.display = 'block';
+            return;
+        }
+
+        emptyState.style.display = 'none';
+
+        let html = '';
+        formState.fields.forEach((field, index) => {
+            const hasException = field.validation_rules && field.validation_rules.some(r => r.rule_type === 'business_exception' && r.is_active);
+            const excRule = hasException ? field.validation_rules.find(r => r.rule_type === 'business_exception' && r.is_active) : null;
+
+            let exceptionSummaryPill = '';
+            if (excRule) {
+                let expTxt = excRule.expected_value || '';
+                if (field.field_type === 'number') {
+                    if (excRule.condition_operator === 'between') expTxt = `${excRule.min_value} - ${excRule.max_value} ${field.settings?.unit || ''}`;
+                    else if (excRule.condition_operator === 'gte') expTxt = `≥ ${excRule.min_value} ${field.settings?.unit || ''}`;
+                    else if (excRule.condition_operator === 'lte') expTxt = `≤ ${excRule.max_value} ${field.settings?.unit || ''}`;
+                } else if (field.field_type === 'dropdown' || field.field_type === 'multiple_choice') {
+                    if (excRule.acceptable_values && excRule.acceptable_values.length > 0) {
+                        expTxt = excRule.acceptable_values.join(', ');
+                    }
+                }
+                exceptionSummaryPill = `
+                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill small" title="${excRule.error_message || 'Business tolerance defined'}">
+                        <i class="bi bi-shield-exclamation me-1"></i>Expected: ${expTxt || 'Configured'}
+                    </span>
+                `;
+            }
+
+            html += `
+                <div class="field-item-card" id="fieldCard_${field.id}">
+                    <div class="field-header-row" onclick="toggleFieldExpand(${field.id})">
+                        <div class="field-left-meta">
+                            <span class="field-drag-handle" title="Field Order ${field.field_order}"><i class="bi bi-grip-vertical"></i></span>
+                            <span class="badge bg-light text-dark border fw-bold" style="font-size:0.75rem;">#${field.field_order}</span>
+                            <span class="field-type-pill">${formatFieldType(field.field_type)}</span>
+                            <div class="field-title-display" id="titleDisplay_${field.id}">
+                                ${escapeHtml(field.field_label)}
+                                ${field.is_required ? '<span class="text-danger fw-bold ms-1" title="Mandatory field">*</span>' : ''}
+                            </div>
+                            ${exceptionSummaryPill}
+                        </div>
+
+                        <div class="d-flex align-items-center gap-1" onclick="event.stopPropagation()">
+                            <button type="button" class="btn-icon-sm" title="Move Up" onclick="moveField(${field.id}, -1)" ${index === 0 ? 'disabled' : ''}>
+                                <i class="bi bi-arrow-up"></i>
+                            </button>
+                            <button type="button" class="btn-icon-sm" title="Move Down" onclick="moveField(${field.id}, 1)" ${index === formState.fields.length - 1 ? 'disabled' : ''}>
+                                <i class="bi bi-arrow-down"></i>
+                            </button>
+                            <button type="button" class="btn-icon-sm" title="Duplicate Field" onclick="duplicateField(${field.id})">
+                                <i class="bi bi-copy"></i>
+                            </button>
+                            <button type="button" class="btn-icon-sm text-danger" title="Delete Field" onclick="deleteField(${field.id})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            <button type="button" class="btn-icon-sm" onclick="toggleFieldExpand(${field.id})">
+                                <i class="bi bi-chevron-down text-muted" id="expandIcon_${field.id}"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Expanded Edit Form -->
+                    <div class="field-body-form" id="fieldBody_${field.id}" style="display: none;">
+                        <div class="row g-3">
+                            <div class="col-md-7">
+                                <label class="form-label fw-bold text-dark small">Field Label <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" value="${escapeHtml(field.field_label)}"
+                                       oninput="updateFieldProperty(${field.id}, 'field_label', this.value)">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold text-dark small">Field Type</label>
+                                <select class="form-select form-select-sm" onchange="changeFieldType(${field.id}, this.value)">
+                                    ${renderFieldTypeOptions(field.field_type)}
+                                </select>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="req_${field.id}" ${field.is_required ? 'checked' : ''}
+                                           onchange="updateFieldProperty(${field.id}, 'is_required', this.checked)">
+                                    <label class="form-check-label fw-bold text-dark small" for="req_${field.id}">Required</label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold text-dark small">Placeholder Text</label>
+                                <input type="text" class="form-control form-control-sm" value="${escapeHtml(field.placeholder || '')}"
+                                       placeholder="Instructions inside input..."
+                                       oninput="updateFieldProperty(${field.id}, 'placeholder', this.value)">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold text-dark small">Helper Text / Guidance</label>
+                                <input type="text" class="form-control form-control-sm" value="${escapeHtml(field.help_text || '')}"
+                                       placeholder="Displayed below field in mobile app..."
+                                       oninput="updateFieldProperty(${field.id}, 'help_text', this.value)">
+                            </div>
+
+                            <!-- Specific Settings based on Type -->
+                            ${renderFieldSpecificSettings(field)}
+
+                            <!-- Expected Value & Exception Validation Section -->
+                            <div class="col-12">
+                                ${renderExceptionRulesSection(field)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function formatFieldType(t) {
+        const map = {
+            'short_text': 'Short Text',
+            'long_text': 'Long Text',
+            'number': 'Number',
+            'yes_no': 'Yes / No',
+            'dropdown': 'Dropdown',
+            'multiple_choice': 'Multiple Choice',
+            'date': 'Date',
+            'time': 'Time',
+            'photo_capture': 'Photo Capture'
+        };
+        return map[t] || t;
+    }
+
+    function renderFieldTypeOptions(selected) {
+        const types = [
+            ['short_text', 'Short Text'],
+            ['long_text', 'Long Text'],
+            ['number', 'Number'],
+            ['yes_no', 'Yes/No'],
+            ['dropdown', 'Dropdown'],
+            ['multiple_choice', 'Multiple Choice'],
+            ['date', 'Date'],
+            ['time', 'Time'],
+            ['photo_capture', 'Photo Capture']
+        ];
+        return types.map(([val, lbl]) => `<option value="${val}" ${val === selected ? 'selected' : ''}>${lbl}</option>`).join('');
+    }
+
+    // --- Field Specific Settings UI ---
+    function renderFieldSpecificSettings(field) {
+        const s = field.settings || {};
+
+        if (field.field_type === 'number') {
+            return `
+                <div class="col-12 pt-2 border-top">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small fw-bold">Measurement Unit</label>
+                            <input type="text" class="form-control form-control-sm" placeholder="e.g. V, °C, Amps, kW, Nos"
+                                   value="${escapeHtml(s.unit || '')}"
+                                   oninput="updateFieldSetting(${field.id}, 'unit', this.value)">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small fw-bold">Minimum Allowed</label>
+                            <input type="number" step="any" class="form-control form-control-sm" placeholder="e.g. 0"
+                                   value="${s.min_value ?? ''}"
+                                   oninput="updateFieldSetting(${field.id}, 'min_value', this.value)">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small fw-bold">Maximum Allowed</label>
+                            <input type="number" step="any" class="form-control form-control-sm" placeholder="e.g. 100"
+                                   value="${s.max_value ?? ''}"
+                                   oninput="updateFieldSetting(${field.id}, 'max_value', this.value)">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small fw-bold">Step Increment</label>
+                            <input type="text" class="form-control form-control-sm" placeholder="0.1, 1, etc."
+                                   value="${escapeHtml(s.step || '0.1')}"
+                                   oninput="updateFieldSetting(${field.id}, 'step', this.value)">
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (field.field_type === 'dropdown' || field.field_type === 'multiple_choice') {
+            const opts = field.options || [];
+            return `
+                <div class="col-12 pt-2 border-top">
+                    <label class="form-label text-dark small fw-bold">Configured Options</label>
+                    <div class="input-group input-group-sm mb-2" style="max-width: 450px;">
+                        <input type="text" class="form-control" id="newOptInput_${field.id}" placeholder="Enter new option value..."
+                               onkeydown="if(event.key === 'Enter'){ event.preventDefault(); addOptionToField(${field.id}); }">
+                        <button class="btn btn-primary" type="button" onclick="addOptionToField(${field.id})">
+                            <i class="bi bi-plus"></i> Add Option
+                        </button>
+                    </div>
+
+                    <div class="options-pill-list" id="optionsList_${field.id}">
+                        ${opts.map((opt, oIdx) => `
+                            <span class="option-chip">
+                                <span>${escapeHtml(opt.label || opt.value)}</span>
+                                <i class="bi bi-x" onclick="removeOptionFromField(${field.id}, ${oIdx})" title="Remove"></i>
+                            </span>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        if (field.field_type === 'short_text' || field.field_type === 'long_text') {
+            return `
+                <div class="col-12 pt-2 border-top">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold">Min Length (chars)</label>
+                            <input type="number" class="form-control form-control-sm" placeholder="Optional"
+                                   value="${s.min_length ?? ''}"
+                                   oninput="updateFieldSetting(${field.id}, 'min_length', this.value)">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold">Max Length (chars)</label>
+                            <input type="number" class="form-control form-control-sm" placeholder="Optional"
+                                   value="${s.max_length ?? ''}"
+                                   oninput="updateFieldSetting(${field.id}, 'max_length', this.value)">
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        return '';
+    }
+
+    // --- Expected Value & Business Exception Rules Builder ---
+    function renderExceptionRulesSection(field) {
+        const rules = field.validation_rules || [];
+        const excRule = rules.find(r => r.rule_type === 'business_exception') || {
+            rule_type: 'business_exception',
+            rule_name: 'Acceptable Parameter Check',
+            condition_operator: field.field_type === 'number' ? 'between' : 'equals',
+            expected_value: field.field_type === 'yes_no' ? 'Yes' : '',
+            acceptable_values: [],
+            min_value: null,
+            max_value: null,
+            error_message: '',
+            is_active: false
+        };
+
+        const isChecked = excRule.is_active;
+
+        return `
+            <div class="exception-config-box">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6>
+                        <i class="bi bi-shield-check text-warning"></i>
+                        Expected Value &amp; Business Exception Validation
+                    </h6>
+                    <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" id="enableExc_${field.id}" ${isChecked ? 'checked' : ''}
+                               onchange="toggleExceptionRule(${field.id}, this.checked)">
+                        <label class="form-check-label small fw-bold text-dark" for="enableExc_${field.id}">Enable Rule</label>
+                    </div>
+                </div>
+                <small class="text-muted d-block mb-2" style="font-size:0.75rem;">
+                    Distinguishes standard validation (syntax/required) from operational exceptions (e.g. Battery Voltage &lt; 8V). Valid values will not show red errors, but flag exception reports.
+                </small>
+
+                <div id="excInputs_${field.id}" style="display: ${isChecked ? 'block' : 'none'};">
+                    <div class="row g-2 mt-2">
+                        ${renderExceptionCriteriaInputs(field, excRule)}
+
+                        <div class="col-12 mt-2">
+                            <label class="form-label fw-bold text-dark small">Exception Message (Flagged in Report)</label>
+                            <input type="text" class="form-control form-control-sm"
+                                   placeholder="e.g. Reading is outside acceptable tolerance threshold."
+                                   value="${escapeHtml(excRule.error_message || '')}"
+                                   oninput="updateExceptionProperty(${field.id}, 'error_message', this.value)">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderExceptionCriteriaInputs(field, rule) {
+        if (field.field_type === 'yes_no') {
+            const exp = rule.expected_value || 'Yes';
+            return `
+                <div class="col-md-6">
+                    <label class="form-label text-dark small fw-bold">Expected State</label>
+                    <select class="form-select form-select-sm" onchange="updateExceptionProperty(${field.id}, 'expected_value', this.value)">
+                        <option value="Yes" ${exp === 'Yes' ? 'selected' : ''}>Yes (Answering 'No' flags Exception)</option>
+                        <option value="No" ${exp === 'No' ? 'selected' : ''}>No (Answering 'Yes' flags Exception)</option>
+                    </select>
+                </div>
+            `;
+        }
+
+        if (field.field_type === 'number') {
+            const op = rule.condition_operator || 'between';
+            return `
+                <div class="col-md-4">
+                    <label class="form-label text-dark small fw-bold">Acceptable Criteria</label>
+                    <select class="form-select form-select-sm" onchange="updateExceptionProperty(${field.id}, 'condition_operator', this.value)">
+                        <option value="between" ${op === 'between' ? 'selected' : ''}>Between Range (Min - Max)</option>
+                        <option value="gte" ${op === 'gte' ? 'selected' : ''}>Greater Than or Equal (>=)</option>
+                        <option value="lte" ${op === 'lte' ? 'selected' : ''}>Less Than or Equal (<=)</option>
+                        <option value="equals" ${op === 'equals' ? 'selected' : ''}>Exact Value (==)</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label text-dark small fw-bold">Acceptable Min (${escapeHtml(field.settings?.unit || '')})</label>
+                    <input type="number" step="any" class="form-control form-control-sm" placeholder="e.g. 8.0"
+                           value="${rule.min_value ?? ''}"
+                           oninput="updateExceptionProperty(${field.id}, 'min_value', this.value)">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label text-dark small fw-bold">Acceptable Max (${escapeHtml(field.settings?.unit || '')})</label>
+                    <input type="number" step="any" class="form-control form-control-sm" placeholder="e.g. 14.5"
+                           value="${rule.max_value ?? ''}"
+                           oninput="updateExceptionProperty(${field.id}, 'max_value', this.value)">
+                </div>
+            `;
+        }
+
+        if (field.field_type === 'dropdown' || field.field_type === 'multiple_choice') {
+            const opts = field.options || [];
+            const acceptableList = rule.acceptable_values || [];
+            return `
+                <div class="col-12">
+                    <label class="form-label text-dark small fw-bold">Acceptable Values (Select which choices pass normal criteria)</label>
+                    <div class="d-flex flex-wrap gap-2">
+                        ${opts.map(opt => {
+                            const val = opt.value || opt.label;
+                            const isSelected = acceptableList.includes(val);
+                            return `
+                                <div class="form-check form-check-inline bg-white px-2 py-1 rounded border">
+                                    <input class="form-check-input" type="checkbox" id="acc_${field.id}_${escapeHtml(val)}"
+                                           ${isSelected ? 'checked' : ''}
+                                           onchange="toggleAcceptableOption(${field.id}, '${escapeHtml(val)}', this.checked)">
+                                    <label class="form-check-label small" for="acc_${field.id}_${escapeHtml(val)}">${escapeHtml(opt.label || val)}</label>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="col-md-6">
+                <label class="form-label text-dark small fw-bold">Expected Exact Text</label>
+                <input type="text" class="form-control form-control-sm" placeholder="Expected text..."
+                       value="${escapeHtml(rule.expected_value || '')}"
+                       oninput="updateExceptionProperty(${field.id}, 'expected_value', this.value)">
+            </div>
+        `;
+    }
+
+    // --- State Updaters ---
+    function updateFieldProperty(id, key, val) {
+        const field = formState.fields.find(f => f.id == id);
+        if (!field) return;
+        field[key] = val;
+        if (key === 'field_label') {
+            const titleEl = document.getElementById(`titleDisplay_${id}`);
+            if (titleEl) titleEl.innerText = val + (field.is_required ? " *" : "");
+        }
+        updateLivePreview();
+    }
+
+    function updateFieldSetting(id, key, val) {
+        const field = formState.fields.find(f => f.id == id);
+        if (!field) return;
+        if (!field.settings) field.settings = {};
+        field.settings[key] = val;
+        updateLivePreview();
+    }
+
+    function changeFieldType(id, newType) {
+        const field = formState.fields.find(f => f.id == id);
+        if (!field) return;
+        field.field_type = newType;
+        if ((newType === 'dropdown' || newType === 'multiple_choice') && (!field.options || field.options.length === 0)) {
+            field.options = [
+                { label: 'Normal / Good', value: 'Normal', display_order: 1 },
+                { label: 'Attention Required', value: 'Attention', display_order: 2 }
+            ];
+        }
+        renderFieldsList();
+        toggleFieldExpand(id, true);
+        updateLivePreview();
+    }
+
+    function addOptionToField(id) {
+        const input = document.getElementById(`newOptInput_${id}`);
+        if (!input) return;
+        const val = input.value.trim();
+        if (!val) return;
+        const field = formState.fields.find(f => f.id == id);
+        if (!field) return;
+        if (!field.options) field.options = [];
+        field.options.push({ label: val, value: val, display_order: field.options.length + 1 });
+        input.value = '';
+        renderFieldsList();
+        toggleFieldExpand(id, true);
+        updateLivePreview();
+    }
+
+    function removeOptionFromField(id, optIndex) {
+        const field = formState.fields.find(f => f.id == id);
+        if (!field || !field.options) return;
+        field.options.splice(optIndex, 1);
+        renderFieldsList();
+        toggleFieldExpand(id, true);
+        updateLivePreview();
+    }
+
+    function toggleExceptionRule(id, isEnabled) {
+        const field = formState.fields.find(f => f.id == id);
+        if (!field) return;
+        if (!field.validation_rules) field.validation_rules = [];
+        let rule = field.validation_rules.find(r => r.rule_type === 'business_exception');
+        if (!rule) {
+            rule = {
+                rule_type: 'business_exception',
+                rule_name: 'Operational Exception Rule',
+                condition_operator: field.field_type === 'number' ? 'between' : 'equals',
+                expected_value: field.field_type === 'yes_no' ? 'Yes' : '',
+                acceptable_values: [],
+                min_value: null,
+                max_value: null,
+                error_message: '',
+                is_active: isEnabled
+            };
+            field.validation_rules.push(rule);
+        } else {
+            rule.is_active = isEnabled;
+        }
+
+        const box = document.getElementById(`excInputs_${id}`);
+        if (box) box.style.display = isEnabled ? 'block' : 'none';
+        updateLivePreview();
+    }
+
+    function updateExceptionProperty(id, key, val) {
+        const field = formState.fields.find(f => f.id == id);
+        if (!field) return;
+        let rule = field.validation_rules.find(r => r.rule_type === 'business_exception');
+        if (!rule) return;
+        rule[key] = val;
+        updateLivePreview();
+    }
+
+    function toggleAcceptableOption(id, val, isChecked) {
+        const field = formState.fields.find(f => f.id == id);
+        if (!field) return;
+        let rule = field.validation_rules.find(r => r.rule_type === 'business_exception');
+        if (!rule) return;
+        if (!rule.acceptable_values) rule.acceptable_values = [];
+        if (isChecked) {
+            if (!rule.acceptable_values.includes(val)) rule.acceptable_values.push(val);
+        } else {
+            rule.acceptable_values = rule.acceptable_values.filter(x => x !== val);
+        }
+        updateLivePreview();
+    }
+
+    // --- Live Mobile App Preview Renderer ---
+    function updateLivePreview() {
+        // 1. Update Title & Desc
+        document.getElementById('mobilePreviewTitle').innerText = formState.form_title || "Untitled Activity Form";
+        document.getElementById('mobilePreviewDesc').innerText = formState.description || "Complete all checklist items.";
+
+        // 2. Photo Section Preview
+        const photoPreviewSec = document.getElementById('mobilePhotoSectionPreview');
+        const p = formState.photo_settings;
+        if (p.enable_photo_capture) {
+            photoPreviewSec.style.display = 'block';
+            document.getElementById('mobilePhotoInstructions').innerText = p.photo_instructions || "Direct camera capture required for proof.";
+
+            let buttonsHtml = '';
+            if (p.before_photo_required && p.after_photo_required) {
+                buttonsHtml = `
+                    <div class="col-6">
+                        <div class="mobile-camera-box">
+                            <i class="bi bi-camera-fill d-block mb-1 fs-5 text-warning"></i>
+                            <strong>Before Photo</strong>
+                            <small class="d-block text-muted" style="font-size:0.65rem;">Tap to Capture</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-camera-box">
+                            <i class="bi bi-camera-fill d-block mb-1 fs-5 text-success"></i>
+                            <strong>After Photo</strong>
+                            <small class="d-block text-muted" style="font-size:0.65rem;">Tap to Capture</small>
+                        </div>
+                    </div>
+                `;
+            } else if (p.before_photo_required) {
+                buttonsHtml = `
+                    <div class="col-12">
+                        <div class="mobile-camera-box">
+                            <i class="bi bi-camera-fill d-block mb-1 fs-5 text-warning"></i>
+                            <strong>Before Photo Required</strong>
+                            <small class="d-block text-muted" style="font-size:0.65rem;">Direct camera capture</small>
+                        </div>
+                    </div>
+                `;
+            } else {
+                buttonsHtml = `
+                    <div class="col-12">
+                        <div class="mobile-camera-box">
+                            <i class="bi bi-camera-fill d-block mb-1 fs-5 text-success"></i>
+                            <strong>After Photo Required</strong>
+                            <small class="d-block text-muted" style="font-size:0.65rem;">Direct camera capture</small>
+                        </div>
+                    </div>
+                `;
+            }
+            document.getElementById('mobilePhotoButtonsRow').innerHTML = buttonsHtml;
+
+            document.getElementById('mobileGpsMeta').style.display = p.gps_coordinates_required ? 'inline' : 'none';
+            document.getElementById('mobileTimeMeta').style.display = p.capture_timestamp_required ? 'inline' : 'none';
+        } else {
+            photoPreviewSec.style.display = 'none';
+        }
+
+        // 3. Dynamic Fields Preview
+        const fieldsContainer = document.getElementById('mobileFieldsPreviewContainer');
+        if (!formState.fields || formState.fields.length === 0) {
+            fieldsContainer.innerHTML = '<div class="text-center text-muted py-4 small">No fields added yet.</div>';
+            return;
+        }
+
+        let fieldsHtml = '';
+        formState.fields.forEach(field => {
+            fieldsHtml += `
+                <div class="mobile-field-group" id="previewGroup_${field.id}">
+                    <div class="mobile-field-label">
+                        <span>${escapeHtml(field.field_label)} ${field.is_required ? '<span class="text-danger">*</span>' : ''}</span>
+                        ${field.settings?.unit ? `<span class="badge bg-light text-dark border">${escapeHtml(field.settings.unit)}</span>` : ''}
+                    </div>
+
+                    ${renderMobileInputControl(field)}
+
+                    ${field.help_text ? `<div class="mobile-field-help">${escapeHtml(field.help_text)}</div>` : ''}
+
+                    <!-- Live Exception Feedback Container -->
+                    <div id="liveFeedback_${field.id}"></div>
+                </div>
+            `;
+        });
+
+        fieldsContainer.innerHTML = fieldsHtml;
+
+        // Re-attach live interactive listeners to preview inputs
+        attachPreviewInputListeners();
+    }
+
+    function renderMobileInputControl(field) {
+        const id = `simInput_${field.id}`;
+        const s = field.settings || {};
+
+        if (field.field_type === 'short_text') {
+            return `<input type="text" class="form-control form-control-sm sim-field-input" id="${id}" data-fid="${field.id}" placeholder="${escapeHtml(field.placeholder || 'Enter value...')}">`;
+        }
+        if (field.field_type === 'long_text') {
+            return `<textarea class="form-control form-control-sm sim-field-input" id="${id}" data-fid="${field.id}" rows="2" placeholder="${escapeHtml(field.placeholder || 'Enter remarks...')}"></textarea>`;
+        }
+        if (field.field_type === 'number') {
+            return `
+                <div class="input-group input-group-sm">
+                    <input type="number" step="${s.step || 'any'}" class="form-control sim-field-input" id="${id}" data-fid="${field.id}"
+                           placeholder="${escapeHtml(field.placeholder || '0.0')}">
+                    ${s.unit ? `<span class="input-group-text">${escapeHtml(s.unit)}</span>` : ''}
+                </div>
+            `;
+        }
+        if (field.field_type === 'yes_no') {
+            return `
+                <div class="btn-group w-100" role="group">
+                    <input type="radio" class="btn-check sim-field-input" name="simRadio_${field.id}" id="${id}_yes" value="Yes" data-fid="${field.id}">
+                    <label class="btn btn-sm btn-outline-success" for="${id}_yes"><i class="bi bi-check2"></i> Yes</label>
+
+                    <input type="radio" class="btn-check sim-field-input" name="simRadio_${field.id}" id="${id}_no" value="No" data-fid="${field.id}">
+                    <label class="btn btn-sm btn-outline-danger" for="${id}_no"><i class="bi bi-x"></i> No</label>
+                </div>
+            `;
+        }
+        if (field.field_type === 'dropdown') {
+            const opts = field.options || [];
+            return `
+                <select class="form-select form-select-sm sim-field-input" id="${id}" data-fid="${field.id}">
+                    <option value="">-- ${escapeHtml(field.placeholder || 'Select option')} --</option>
+                    ${opts.map(o => `<option value="${escapeHtml(o.value || o.label)}">${escapeHtml(o.label || o.value)}</option>`).join('')}
+                </select>
+            `;
+        }
+        if (field.field_type === 'multiple_choice') {
+            const opts = field.options || [];
+            return `
+                <div class="d-flex flex-column gap-1">
+                    ${opts.map((o, idx) => `
+                        <div class="form-check form-check-sm">
+                            <input class="form-check-input sim-field-input" type="checkbox" name="simCheck_${field.id}" id="${id}_${idx}" value="${escapeHtml(o.value || o.label)}" data-fid="${field.id}">
+                            <label class="form-check-label small" for="${id}_${idx}">${escapeHtml(o.label || o.value)}</label>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        if (field.field_type === 'date') {
+            return `<input type="date" class="form-control form-control-sm sim-field-input" id="${id}" data-fid="${field.id}">`;
+        }
+        if (field.field_type === 'time') {
+            return `<input type="time" class="form-control form-control-sm sim-field-input" id="${id}" data-fid="${field.id}">`;
+        }
+        if (field.field_type === 'photo_capture') {
+            return `
+                <div class="mobile-camera-box">
+                    <i class="bi bi-camera text-primary fs-5 d-block mb-1"></i>
+                    <strong>Take Photo</strong>
+                    <small class="d-block text-muted" style="font-size:0.65rem;">Direct camera capture</small>
+                </div>
+            `;
+        }
+
+        return '';
+    }
+
+    function attachPreviewInputListeners() {
+        document.querySelectorAll('.sim-field-input').forEach(input => {
+            input.addEventListener('input', runLiveFieldEvaluation);
+            input.addEventListener('change', runLiveFieldEvaluation);
+        });
+    }
+
+    // --- Live Interactive Evaluation in Preview ---
+    function runLiveFieldEvaluation(e) {
+        const fieldId = this.dataset.fid;
+        const field = formState.fields.find(f => f.id == fieldId);
+        if (!field) return;
+
+        let val = '';
+        if (this.type === 'radio') {
+            const checked = document.querySelector(`input[name="${this.name}"]:checked`);
+            val = checked ? checked.value : '';
+        } else if (this.type === 'checkbox') {
+            const checked = Array.from(document.querySelectorAll(`input[name="${this.name}"]:checked`)).map(c => c.value);
+            val = checked.join(', ');
+        } else {
+            val = this.value;
+        }
+
+        const feedbackBox = document.getElementById(`liveFeedback_${fieldId}`);
+        if (!feedbackBox) return;
+
+        if (!val.trim()) {
+            feedbackBox.innerHTML = '';
+            return;
+        }
+
+        // Test with client-side evaluator directly for instant real-time response
+        const mockSubmit = {};
+        mockSubmit[fieldId] = val;
+        const evaluation = evaluateSingleFieldClient(field, val);
+
+        if (evaluation.has_exception) {
+            feedbackBox.innerHTML = `
+                <div class="exception-banner">
+                    <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                    <span><strong>Exception Flagged:</strong> ${escapeHtml(evaluation.message)}</span>
+                </div>
+            `;
+        } else if (evaluation.is_valid && evaluation.has_expected) {
+            feedbackBox.innerHTML = `
+                <div class="pass-banner">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <span>Within expected parameters (Normal)</span>
+                </div>
+            `;
+        } else {
+            feedbackBox.innerHTML = '';
+        }
+    }
+
+    function evaluateSingleFieldClient(field, valStr) {
+        const rules = field.validation_rules || [];
+        const excRule = rules.find(r => r.rule_type === 'business_exception' && r.is_active);
+        if (!excRule) return { is_valid: true, has_exception: false, has_expected: false };
+
+        let hasException = false;
+        let msg = excRule.error_message || "";
+
+        if (field.field_type === 'yes_no') {
+            const exp = (excRule.expected_value || 'Yes').trim();
+            if (valStr.toLowerCase() !== exp.toLowerCase()) {
+                hasException = true;
+                if (!msg) msg = `Expected '${exp}', employee recorded '${valStr}'.`;
+            }
+        } else if (field.field_type === 'number') {
+            const num = parseFloat(valStr);
+            if (!isNaN(num)) {
+                const op = excRule.condition_operator || 'between';
+                const min = excRule.min_value !== null ? parseFloat(excRule.min_value) : null;
+                const max = excRule.max_value !== null ? parseFloat(excRule.max_value) : null;
+
+                if (op === 'between' && (min !== null || max !== null)) {
+                    const minOk = min === null || num >= min;
+                    const maxOk = max === null || num <= max;
+                    if (!minOk || !maxOk) {
+                        hasException = true;
+                        if (!msg) msg = `Value ${num} is out of safe range (${min !== null ? min : '-∞'} to ${max !== null ? max : '+∞'}).`;
+                    }
+                } else if (op === 'gte' && min !== null && num < min) {
+                    hasException = true;
+                    if (!msg) msg = `Value ${num} is below minimum acceptable threshold (${min}).`;
+                } else if (op === 'lte' && max !== null && num > max) {
+                    hasException = true;
+                    if (!msg) msg = `Value ${num} exceeds maximum acceptable threshold (${max}).`;
+                }
+            }
+        } else if (field.field_type === 'dropdown' || field.field_type === 'multiple_choice') {
+            const accList = excRule.acceptable_values || [];
+            if (accList.length > 0 && !accList.includes(valStr)) {
+                hasException = true;
+                if (!msg) msg = `Value '${valStr}' is not in acceptable list (${accList.join(', ')}).`;
+            }
+        }
+
+        return {
+            is_valid: true,
+            has_exception: hasException,
+            has_expected: true,
+            message: msg
+        };
+    }
+
+    function resetPreviewInputs() {
+        document.querySelectorAll('.sim-field-input').forEach(i => {
+            if (i.type === 'radio' || i.type === 'checkbox') i.checked = false;
+            else i.value = '';
+        });
+        document.querySelectorAll('[id^="liveFeedback_"]').forEach(el => el.innerHTML = '');
+        document.getElementById('mobileEvaluationResultBox').style.display = 'none';
+    }
+
+    // --- Full Test Simulation Submission ---
+    async function testSimulateSubmission() {
+        const submittedValues = {};
+        formState.fields.forEach(f => {
+            const id = f.id;
+            const input = document.getElementById(`simInput_${id}`);
+            if (input) {
+                submittedValues[id] = input.value;
+            } else {
+                const radio = document.querySelector(`input[name="simRadio_${id}"]:checked`);
+                if (radio) submittedValues[id] = radio.value;
+            }
+        });
+
+        try {
+            const res = await fetch("{% url 'admin_activity_form_evaluate_preview' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    fields: formState.fields,
+                    values: submittedValues
+                })
+            });
+
+            const data = await res.json();
+            const resultBox = document.getElementById('mobileEvaluationResultBox');
+            resultBox.style.display = 'block';
+
+            let resultHtml = '';
+            if (!data.is_valid) {
+                const errList = Object.values(data.validation_errors).map(e => `<li>${escapeHtml(e)}</li>`).join('');
+                resultHtml = `
+                    <div class="alert alert-danger py-2 px-3 small rounded-3 border-0 shadow-sm">
+                        <div class="fw-bold mb-1"><i class="bi bi-x-circle-fill me-1"></i>Validation Failed:</div>
+                        <ul class="mb-0 ps-3">${errList}</ul>
+                    </div>
+                `;
+            } else if (data.has_exceptions) {
+                const excList = data.exceptions.map(e => `
+                    <div class="mb-1">
+                        <strong>${escapeHtml(e.field_label)}:</strong> ${escapeHtml(e.message)}
+                    </div>
+                `).join('');
+                resultHtml = `
+                    <div class="alert alert-warning py-2 px-3 small rounded-3 border-0 shadow-sm" style="background:#FEF3C7; color:#92400E;">
+                        <div class="fw-bold mb-1"><i class="bi bi-shield-exclamation me-1"></i>Business Exceptions Flagged (${data.exceptions.length}):</div>
+                        ${excList}
+                        <div class="mt-2 text-muted fst-italic" style="font-size:0.68rem;">
+                            * Form would be successfully submitted by worker, and exceptions logged to the Exception Report for engineering review.
+                        </div>
+                    </div>
+                `;
+            } else {
+                resultHtml = `
+                    <div class="alert alert-success py-2 px-3 small rounded-3 border-0 shadow-sm">
+                        <i class="bi bi-check-circle-fill me-1"></i><strong>All Parameters Normal:</strong> 100% compliant with operating standards.
+                    </div>
+                `;
+            }
+
+            resultBox.innerHTML = resultHtml;
+            resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    // --- Save Form Configuration ---
+    async function saveFormConfiguration() {
+        const btn = document.getElementById('saveFormBtn');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Saving...`;
+
+        // Gather latest inputs
+        formState.form_title = document.getElementById('formTitleInput').value.trim() || "{{ activity.activity_title }} Checklist Form";
+        formState.description = document.getElementById('formDescInput').value.trim();
+        updatePhotoSettingsFromInputs();
+
+        try {
+            const res = await fetch("{% url 'admin_activity_form_builder_save' activity.id %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify(formState)
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Form Configuration Saved!',
+                    text: data.message,
+                    confirmButtonColor: '#FF9F1C',
+                    confirmButtonText: 'Back to Activity Master',
+                    showCancelButton: true,
+                    cancelButtonText: 'Continue Editing'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = "{% url 'admin_activities_index' %}";
+                    }
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Save Failed',
+                    text: data.message || 'Something went wrong.',
+                    confirmButtonColor: '#FF9F1C'
+                });
+            }
+        } catch (err) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Network Error',
+                text: 'Could not communicate with the server.',
+                confirmButtonColor: '#FF9F1C'
+            });
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    // --- Helpers ---
+    function getCsrfToken() {
+        const name = 'csrftoken';
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue || '{{ csrf_token }}';
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+</script>
+{% endblock %}

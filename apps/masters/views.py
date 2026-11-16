@@ -10,8 +10,11 @@ from django.contrib import messages
 from apps.authentication.decorators import admin_required
 from apps.masters.models import (
     DepartmentMaster, DesignationMaster, DocumentTypeMaster,
-    SiteMaster, AttendanceMaster, SMTPConfiguration, AccessControl, ActivityMaster
+    SiteMaster, AttendanceMaster, SMTPConfiguration, AccessControl, ActivityMaster,
+    ActivityFormConfiguration, ActivityFormField, ActivityFormFieldOption,
+    ActivityFormPhotoSetting, ActivityFormValidationRule
 )
+from apps.masters.form_builder_service import ActivityFormService
 
 # ==========================================
 # 1. DEPARTMENT MASTER
@@ -584,3 +587,128 @@ def activity_toggle_status(request, id):
         action_verb = 'activated' if new_status == 'active' else 'deactivated'
         messages.success(request, f'Activity "{activity.activity_title}" has been {action_verb}.')
     return redirect('admin_activities_index')
+
+
+# ==========================================
+# 9. DYNAMIC ACTIVITY FORM BUILDER
+# ==========================================
+@admin_required
+def activity_form_builder(request, activity_id):
+    """
+    Renders the Dynamic Form Builder for a specific Activity Master record.
+    Allows configuring checklist fields, validation rules, expected values,
+    business exception rules, and photo evidence requirements.
+    """
+    activity = get_object_or_404(ActivityMaster, id=activity_id)
+    form_config = ActivityFormService.get_or_create_form_config(activity)
+    form_dict = ActivityFormService.form_to_dict(form_config)
+    prebuilt_templates = ActivityFormService.get_prebuilt_templates()
+
+    field_type_choices = [
+        {'type': 'short_text', 'label': 'Short Text', 'icon': 'bi-input-cursor-text', 'desc': 'Single line text input'},
+        {'type': 'long_text', 'label': 'Long Text', 'icon': 'bi-textarea-t', 'desc': 'Multi-line notes and remarks'},
+        {'type': 'number', 'label': 'Number', 'icon': 'bi-123', 'desc': 'Numeric reading with min/max, unit & tolerance'},
+        {'type': 'yes_no', 'label': 'Yes / No', 'icon': 'bi-toggles', 'desc': 'Binary confirmation with expected state'},
+        {'type': 'dropdown', 'label': 'Dropdown', 'icon': 'bi-menu-button-wide', 'desc': 'Single select option list'},
+        {'type': 'multiple_choice', 'label': 'Multiple Choice', 'icon': 'bi-check2-square', 'desc': 'Multi-select options'},
+        {'type': 'date', 'label': 'Date', 'icon': 'bi-calendar-event', 'desc': 'Calendar date selector'},
+        {'type': 'time', 'label': 'Time', 'icon': 'bi-clock', 'desc': 'Time picker'},
+        {'type': 'photo_capture', 'label': 'Photo Evidence', 'icon': 'bi-camera', 'desc': 'Camera-only verification photo'},
+    ]
+
+    all_activities = ActivityMaster.objects.filter(company_id=activity.company_id).exclude(id=activity.id).order_by('activity_title')
+
+    return render(request, 'admin/master/activity_form_builder.html', {
+        'activity': activity,
+        'form_config': form_config,
+        'form_json': json.dumps(form_dict),
+        'prebuilt_templates_json': json.dumps(prebuilt_templates),
+        'field_type_choices': field_type_choices,
+        'all_activities': all_activities,
+    })
+
+
+@admin_required
+def activity_form_builder_standalone(request):
+    """
+    Redirects to the first available activity or shows an activity selection screen.
+    """
+    first_activity = ActivityMaster.objects.order_by('id').first()
+    if first_activity:
+        return redirect('admin_activity_form_builder', activity_id=first_activity.id)
+    messages.warning(request, 'Please create an Activity in Activity Master first.')
+    return redirect('admin_activities_index')
+
+
+@admin_required
+def activity_form_get_json(request, activity_id):
+    """
+    API endpoint returning the structured form JSON for an activity.
+    """
+    activity = get_object_or_404(ActivityMaster, id=activity_id)
+    form_config = ActivityFormService.get_or_create_form_config(activity)
+    form_dict = ActivityFormService.form_to_dict(form_config)
+    return JsonResponse({
+        'success': True,
+        'activity_id': activity.id,
+        'activity_title': activity.activity_title,
+        'form_data': form_dict
+    })
+
+
+@admin_required
+def activity_form_builder_save(request, activity_id):
+    """
+    Saves the form configuration for an activity.
+    Accepts application/json or POST body payload.
+    """
+    activity = get_object_or_404(ActivityMaster, id=activity_id)
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'POST method required.'}, status=405)
+
+    try:
+        if request.content_type == 'application/json':
+            payload = json.loads(request.body.decode('utf-8'))
+        else:
+            raw_payload = request.POST.get('form_payload', '{}')
+            payload = json.loads(raw_payload) if isinstance(raw_payload, str) else raw_payload
+
+        form_config = ActivityFormService.save_form_from_dict(activity, payload)
+        messages.success(request, f'Form configuration for "{activity.activity_title}" saved successfully.')
+        return JsonResponse({
+            'success': True,
+            'message': f'Form configuration for "{activity.activity_title}" saved successfully.',
+            'form_config_id': form_config.id,
+            'fields_count': form_config.fields.count()
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error saving form configuration: {str(e)}'
+        }, status=400)
+
+
+@admin_required
+def activity_form_evaluate_preview(request):
+    """
+    Interactive test evaluation endpoint for the Form Builder preview mode.
+    Tests user input against both standard validation and business exception rules.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'POST method required.'}, status=405)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+        fields_config = data.get('fields', [])
+        submitted_values = data.get('values', {})
+        result = ActivityFormService.evaluate_submission(fields_config, submitted_values)
+        return JsonResponse({
+            'success': True,
+            **result
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Evaluation error: {str(e)}'
+        }, status=400)
+
