@@ -83,6 +83,12 @@ MODULE_ROUTE_MAPPING = {
         'admin_activity_form_get_json',
         'admin_activity_form_evaluate_preview',
     ],
+    'leave-management': [
+        'admin_leave_management_index',
+        'admin_leave_request_detail',
+        'admin_leave_request_approve',
+        'admin_leave_request_reject',
+    ],
     'project-reports': [
         'admin_projects_report',
         'admin_projects_report_excel',

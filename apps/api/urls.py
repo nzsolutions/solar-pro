@@ -41,4 +41,8 @@ urlpatterns = [
 
     # Analytics
     path('employee-graph-analytics', views.employee_graph_analytics, name='api_employee_graph_analytics'),
+
+    # Leave Management (Mobile API)
+    path('apply-leave', views.apply_leave, name='api_apply_leave'),
+    path('get-employee-leaves', views.get_employee_leaves, name='api_get_employee_leaves'),
 ]

@@ -350,3 +350,52 @@ class ActivityFormValidationRule(models.Model):
         return f"Rule '{self.rule_name}' ({self.get_rule_type_display()}) for field #{self.field_id}"
 
 
+class LeaveRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    LEAVE_TYPE_CHOICES = [
+        ('Casual Leave', 'Casual Leave'),
+        ('Sick Leave', 'Sick Leave'),
+        ('Privilege Leave', 'Privilege Leave'),
+        ('Maternity/Paternity Leave', 'Maternity/Paternity Leave'),
+        ('Emergency Leave', 'Emergency Leave'),
+        ('Compensatory Off', 'Compensatory Off'),
+        ('Other', 'Other'),
+    ]
+
+    id = models.BigAutoField(primary_key=True)
+    company_id = models.IntegerField(default=1)
+    employee = models.ForeignKey(
+        'employees.Employee',
+        on_delete=models.CASCADE,
+        related_name='leave_requests',
+        db_column='employee_id'
+    )
+    leave_type = models.CharField(max_length=100, choices=LEAVE_TYPE_CHOICES, default='Casual Leave')
+    start_date = models.DateField()
+    end_date = models.DateField()
+    days_count = models.DecimalField(max_digits=5, decimal_places=1, default=1.0)
+    reason = models.TextField()
+    attachment = models.CharField(max_length=255, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    rejection_reason = models.TextField(blank=True, null=True)
+    admin_remarks = models.TextField(blank=True, null=True)
+    action_by = models.CharField(max_length=100, blank=True, null=True)
+    action_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+
+    class Meta:
+        db_table = 'leave_requests'
+        ordering = ['-created_at', '-id']
+        managed = True
+
+    def __str__(self):
+        return f"Leave #{self.id} - {self.employee.name} ({self.leave_type}: {self.start_date} to {self.end_date}) [{self.status}]"
+
+
+

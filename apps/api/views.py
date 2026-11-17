@@ -21,7 +21,7 @@ from apps.dynamic_forms.models import DynamicForm, FormSubmission
 from apps.employees.models import Employee, EmployeeAttendance, EmployeeOTP
 from apps.expenses.models import Expense, ExpenseCategory
 from apps.inventory.models import AssignedStock, OpeningStock, StockCategory
-from apps.masters.models import AttendanceMaster, DocumentTypeMaster, SiteMaster, SMTPConfiguration
+from apps.masters.models import AttendanceMaster, DocumentTypeMaster, SiteMaster, SMTPConfiguration, LeaveRequest, DesignationMaster, DepartmentMaster
 from apps.operations.models import Project, ProjectDocument
 
 laravel_hasher = LaravelBcryptPasswordHasher()
@@ -1431,3 +1431,238 @@ def employee_graph_analytics(request):
             'message': 'An error occurred while fetching graph analytics.',
             'error': str(e)
         }, status=500)
+
+
+# -------------------------------------------------------------
+# 11. Leave Management Mobile APIs
+# -------------------------------------------------------------
+@csrf_exempt
+def apply_leave(request):
+    """
+    POST /api/apply-leave
+    Allows employees to submit leave requests from the mobile application.
+    Extracts employee identity from session or authenticated payload (emp_id).
+    Validates date ranges, calculates days count, checks for overlapping leaves,
+    and supports optional file attachments.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
+
+    data = get_request_data(request)
+    emp_id = data.get('emp_id') or request.POST.get('emp_id') or request.session.get('user_id')
+
+    if not emp_id:
+        return JsonResponse({
+            'success': False,
+            'message': 'Employee authentication required. Please provide a valid emp_id or log in.'
+        }, status=401)
+
+    employee = Employee.objects.filter(id=emp_id, status='active').first()
+    if not employee:
+        return JsonResponse({'success': False, 'message': 'Active employee record not found.'}, status=404)
+
+    leave_type = data.get('leave_type') or request.POST.get('leave_type')
+    start_date_str = data.get('start_date') or request.POST.get('start_date')
+    end_date_str = data.get('end_date') or request.POST.get('end_date')
+    reason = data.get('reason') or request.POST.get('reason')
+
+    errors = {}
+    if not leave_type:
+        errors['leave_type'] = ['Leave type is required.']
+    if not start_date_str:
+        errors['start_date'] = ['Start date is required.']
+    if not end_date_str:
+        errors['end_date'] = ['End date is required.']
+    if not reason:
+        errors['reason'] = ['Reason for leave is required.']
+
+    if errors:
+        return JsonResponse({
+            'success': False,
+            'message': 'Validation failed.',
+            'errors': errors
+        }, status=422)
+
+    try:
+        start_date = datetime.strptime(str(start_date_str).strip(), '%Y-%m-%d').date()
+        end_date = datetime.strptime(str(end_date_str).strip(), '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid date format. Expected YYYY-MM-DD.'
+        }, status=422)
+
+    if end_date < start_date:
+        return JsonResponse({
+            'success': False,
+            'message': 'End date cannot be earlier than start date.'
+        }, status=422)
+
+    # Calculate days count (inclusive)
+    days_count = (end_date - start_date).days + 1
+    custom_days = data.get('days_count') or request.POST.get('days_count')
+    if custom_days:
+        try:
+            days_count = float(custom_days)
+        except (ValueError, TypeError):
+            pass
+
+    # Prevent duplicate or overlapping pending/approved leave requests
+    overlapping = LeaveRequest.objects.filter(
+        employee=employee,
+        status__in=['pending', 'approved'],
+        start_date__lte=end_date,
+        end_date__gte=start_date
+    ).first()
+
+    if overlapping:
+        return JsonResponse({
+            'success': False,
+            'message': f'You already have a {overlapping.status} leave request overlapping with this period ({overlapping.start_date} to {overlapping.end_date}).'
+        }, status=409)
+
+    attachment_path = None
+    if 'attachment' in request.FILES:
+        file_obj = request.FILES['attachment']
+        save_name = f"leaves/{timezone.now().strftime('%Y%m%d%H%M%S')}_{file_obj.name}"
+        saved_path = default_storage.save(save_name, file_obj)
+        attachment_path = saved_path
+
+    try:
+        leave_request = LeaveRequest.objects.create(
+            company_id=employee.company_id,
+            employee=employee,
+            leave_type=leave_type,
+            start_date=start_date,
+            end_date=end_date,
+            days_count=days_count,
+            reason=reason,
+            attachment=attachment_path,
+            status='pending'
+        )
+
+        # Notify Admin via dynamic SMTP if configured
+        try:
+            smtp = SMTPConfiguration.objects.first()
+            admin_email = smtp.from_email if smtp and smtp.from_email else 'admin@solarpro.local'
+            from_name = smtp.from_name if smtp else 'SolarPro'
+            email_body = (
+                f"Hello Admin,\n\n"
+                f"A new leave request has been submitted by {employee.name} (EMP-{employee.id:04d}).\n\n"
+                f"Leave Type: {leave_type}\n"
+                f"Dates: {start_date} to {end_date} ({days_count} days)\n"
+                f"Reason: {reason}\n\n"
+                f"Please review and take action in the Leave Management module."
+            )
+            send_dynamic_smtp_email(admin_email, f"New Leave Request - {employee.name}", email_body)
+        except Exception:
+            pass
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Leave request submitted successfully.',
+            'data': {
+                'leave_id': leave_request.id,
+                'employee_id': employee.id,
+                'employee_name': employee.name,
+                'leave_type': leave_request.leave_type,
+                'start_date': str(leave_request.start_date),
+                'end_date': str(leave_request.end_date),
+                'days_count': str(leave_request.days_count),
+                'reason': leave_request.reason,
+                'status': leave_request.status,
+                'attachment': leave_request.attachment,
+                'created_at': leave_request.created_at.strftime('%Y-%m-%d %H:%M:%S') if leave_request.created_at else ''
+            }
+        }, status=201)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'An error occurred while submitting the leave request.',
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+def get_employee_leaves(request):
+    """
+    GET or POST /api/get-employee-leaves
+    Retrieves leave history and current status for an employee.
+    Extracts employee identity from payload, GET query param, or session.
+    Returns details including leave type, dates, days, reason, current status,
+    admin remarks, and rejection reason.
+    """
+    data = get_request_data(request)
+    emp_id = data.get('emp_id') or request.GET.get('emp_id') or request.POST.get('emp_id') or request.session.get('user_id')
+
+    if not emp_id:
+        return JsonResponse({
+            'success': False,
+            'message': 'Please provide an emp_id or authenticate.'
+        }, status=400)
+
+    try:
+        employee = Employee.objects.filter(id=emp_id).first()
+        if not employee:
+            return JsonResponse({'success': False, 'message': 'Employee not found.'}, status=404)
+
+        status_filter = data.get('status') or request.GET.get('status') or request.POST.get('status')
+
+        leaves_qs = LeaveRequest.objects.filter(employee=employee)
+        if status_filter in ['pending', 'approved', 'rejected']:
+            leaves_qs = leaves_qs.filter(status=status_filter)
+
+        leaves_qs = leaves_qs.order_by('-created_at', '-id')
+
+        # Compute summary stats
+        all_leaves = LeaveRequest.objects.filter(employee=employee)
+        stats = {
+            'total_requests': all_leaves.count(),
+            'pending': all_leaves.filter(status='pending').count(),
+            'approved': all_leaves.filter(status='approved').count(),
+            'rejected': all_leaves.filter(status='rejected').count(),
+        }
+
+        desig = DesignationMaster.objects.filter(id=employee.role).first() if employee.role else None
+        dept = DepartmentMaster.objects.filter(id=desig.department_id).first() if desig and desig.department_id else None
+
+        records = []
+        for l in leaves_qs:
+            records.append({
+                'id': l.id,
+                'leave_type': l.leave_type,
+                'start_date': str(l.start_date),
+                'end_date': str(l.end_date),
+                'days_count': str(l.days_count),
+                'reason': l.reason,
+                'status': l.status,
+                'rejection_reason': l.rejection_reason or '',
+                'admin_remarks': l.admin_remarks or '',
+                'action_by': l.action_by or '',
+                'action_at': l.action_at.strftime('%Y-%m-%d %H:%M:%S') if l.action_at else '',
+                'attachment': l.attachment or '',
+                'created_at': l.created_at.strftime('%Y-%m-%d %H:%M:%S') if l.created_at else ''
+            })
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Employee leaves retrieved successfully.',
+            'employee': {
+                'id': employee.id,
+                'name': employee.name,
+                'employee_code': f"EMP-{employee.id:04d}",
+                'department': dept.department_name if dept else '—',
+                'designation': desig.designation_name if desig else '—',
+            },
+            'summary': stats,
+            'data': records
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'An error occurred while retrieving employee leaves.',
+            'error': str(e)
+        }, status=500)
+
