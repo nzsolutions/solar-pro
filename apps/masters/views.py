@@ -692,7 +692,8 @@ def activity_form_builder_save(request, activity_id):
 def activity_form_evaluate_preview(request):
     """
     Interactive test evaluation endpoint for the Form Builder preview mode.
-    Tests user input against both standard validation and business exception rules.
+    Tests user input against both standard validation and business exception rules,
+    as well as mandatory photo evidence.
     """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'POST method required.'}, status=405)
@@ -701,7 +702,14 @@ def activity_form_evaluate_preview(request):
         data = json.loads(request.body.decode('utf-8'))
         fields_config = data.get('fields', [])
         submitted_values = data.get('values', {})
-        result = ActivityFormService.evaluate_submission(fields_config, submitted_values)
+        photo_settings = data.get('photo_settings')
+        photo_data = data.get('photo_data')
+        result = ActivityFormService.evaluate_submission(
+            fields_config,
+            submitted_values,
+            photo_settings=photo_settings,
+            photo_data=photo_data
+        )
         return JsonResponse({
             'success': True,
             **result
@@ -711,4 +719,125 @@ def activity_form_evaluate_preview(request):
             'success': False,
             'message': f'Evaluation error: {str(e)}'
         }, status=400)
+
+
+@admin_required
+def activity_form_submit_test(request, activity_id):
+    """
+    Submits a real form test from the Form Builder's Live Mobile Preview.
+    Uploads and saves all Before & After photos, field photos, GPS coordinates,
+    timestamps, and field data into Django file storage and MySQL database.
+    """
+    activity = get_object_or_404(ActivityMaster, id=activity_id)
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'POST method required.'}, status=405)
+
+    try:
+        from apps.employees.models import Employee
+        from apps.operations.models import Project
+
+        # 1. Parse payload (JSON or multipart form-data)
+        if request.content_type and 'application/json' in request.content_type:
+            payload = json.loads(request.body.decode('utf-8'))
+            field_answers = payload.get('values', {})
+            photo_data = payload.get('photo_data', {})
+            before_photos = photo_data.get('before_photos', [])
+            after_photos = photo_data.get('after_photos', [])
+            field_photos = photo_data.get('field_photos', {})
+            gps_coordinates = payload.get('gps_coordinates', {})
+            timestamps = payload.get('timestamps', {})
+            inspection_details = payload.get('inspection_details', {})
+        else:
+            raw_payload = request.POST.get('payload', '{}')
+            payload = json.loads(raw_payload) if isinstance(raw_payload, str) else raw_payload
+            field_answers = payload.get('values', {})
+            photo_data = payload.get('photo_data', {})
+            before_photos = photo_data.get('before_photos', [])
+            after_photos = photo_data.get('after_photos', [])
+            field_photos = photo_data.get('field_photos', {})
+            gps_coordinates = payload.get('gps_coordinates', {})
+            timestamps = payload.get('timestamps', {})
+            inspection_details = payload.get('inspection_details', {})
+
+            # Also pull files from request.FILES if present
+            if 'before_photos' in request.FILES:
+                before_photos.extend(request.FILES.getlist('before_photos'))
+            if 'after_photos' in request.FILES:
+                after_photos.extend(request.FILES.getlist('after_photos'))
+            for key in request.FILES:
+                if key.startswith('field_photo_') or key.startswith('field_'):
+                    f_id = key.split('_')[-1]
+                    field_photos.setdefault(f_id, []).extend(request.FILES.getlist(key))
+
+        # 2. Check form config & photo settings
+        form_config = ActivityFormService.get_or_create_form_config(activity)
+        photo_setting = getattr(form_config, 'photo_settings', None)
+
+        # 3. Mandatory photo enforcement
+        if photo_setting and photo_setting.enable_photo_capture:
+            if photo_setting.before_photo_required and not before_photos:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Before Maintenance photo is required. Please capture or upload evidence before maintenance.',
+                    'errors': {'before_photos': 'Before Maintenance photo is mandatory.'}
+                }, status=422)
+
+            if photo_setting.after_photo_required and not after_photos:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'After Maintenance photo is required. Please capture or upload evidence after maintenance.',
+                    'errors': {'after_photos': 'After Maintenance photo is mandatory.'}
+                }, status=422)
+
+        # 4. Resolve Employee and Project
+        admin_emp = Employee.objects.filter(company_id=activity.company_id).first()
+        emp_id = admin_emp.id if admin_emp else 1
+        proj = Project.objects.filter(company_id=activity.company_id).first()
+        project_id = proj.id if proj else None
+
+        # 5. Ensure DynamicForm exists and is updated for this activity
+        dynamic_form = activity.form
+        if not dynamic_form:
+            dynamic_form = DynamicForm.objects.create(
+                company_id=activity.company_id,
+                form_name=form_config.form_title,
+                description=form_config.description,
+                form_schema=ActivityFormService.build_dynamic_form_schema(form_config),
+                is_active=1
+            )
+            activity.form = dynamic_form
+            activity.save(update_fields=['form'])
+        else:
+            dynamic_form.form_name = form_config.form_title
+            dynamic_form.description = form_config.description
+            dynamic_form.form_schema = ActivityFormService.build_dynamic_form_schema(form_config)
+            dynamic_form.save()
+
+        # 6. Save Form Submission with all photos, GPS, and timestamps
+        submission = ActivityFormService.save_form_submission(
+            form_id=dynamic_form.id,
+            emp_id=emp_id,
+            project_id=project_id,
+            field_answers=field_answers,
+            before_photos=before_photos,
+            after_photos=after_photos,
+            field_photos=field_photos,
+            gps_coordinates=gps_coordinates,
+            timestamps=timestamps,
+            inspection_details=inspection_details
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Form submission #{submission.id} created successfully with photo evidence!',
+            'submission_id': submission.id,
+            'view_url': f'/admin/form-submissions/{submission.id}/edit'
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Submission failed: {str(e)}'
+        }, status=400)
+
 

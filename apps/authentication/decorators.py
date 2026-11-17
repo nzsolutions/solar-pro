@@ -80,6 +80,7 @@ MODULE_ROUTE_MAPPING = {
         'admin_activity_form_builder',
         'admin_activity_form_builder_standalone',
         'admin_activity_form_builder_save',
+        'admin_activity_form_submit_test',
         'admin_activity_form_get_json',
         'admin_activity_form_evaluate_preview',
     ],

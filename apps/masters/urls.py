@@ -54,5 +54,6 @@ urlpatterns = [
     path('admin/activities/form-builder/evaluate-preview', views.activity_form_evaluate_preview, name='admin_activity_form_evaluate_preview'),
     path('admin/activities/<int:activity_id>/form-builder', views.activity_form_builder, name='admin_activity_form_builder'),
     path('admin/activities/<int:activity_id>/form-builder/save', views.activity_form_builder_save, name='admin_activity_form_builder_save'),
+    path('admin/activities/<int:activity_id>/form-builder/submit-test', views.activity_form_submit_test, name='admin_activity_form_submit_test'),
     path('admin/activities/<int:activity_id>/form-builder/json', views.activity_form_get_json, name='admin_activity_form_get_json'),
 ]

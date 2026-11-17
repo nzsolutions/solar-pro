@@ -1105,6 +1105,8 @@ def submit_form(request):
         }, status=422)
 
     try:
+        from apps.masters.form_builder_service import ActivityFormService
+
         employee = Employee.objects.filter(id=emp_id).first()
         if not employee:
             return JsonResponse({'success': False, 'message': 'Employee not found.'}, status=404)
@@ -1121,18 +1123,111 @@ def submit_form(request):
             if last_att and hasattr(last_att, 'project_id'):
                 project_id = last_att.project_id
 
+        # Normalize submission_data into dictionary
+        if isinstance(submission_data, str):
+            try:
+                sub_dict = json.loads(submission_data)
+            except Exception:
+                sub_dict = {'raw_data': submission_data}
+        elif isinstance(submission_data, dict):
+            sub_dict = submission_data
+        else:
+            sub_dict = {}
+
+        # 1. Process and save any uploaded files from request.FILES and base64 payloads
+        before_photos = []
+        after_photos = []
+        field_photos = {}
+
+        # Check existing photos in sub_dict
+        existing_ev = sub_dict.get('photo_evidence', {})
+        if isinstance(existing_ev, dict):
+            for p in existing_ev.get('before_photos', []):
+                saved = ActivityFormService.save_photo_file(p, subfolder='before_photos')
+                if saved:
+                    before_photos.append(saved)
+            for p in existing_ev.get('after_photos', []):
+                saved = ActivityFormService.save_photo_file(p, subfolder='after_photos')
+                if saved:
+                    after_photos.append(saved)
+
+        # Check request.FILES
+        if 'before_photos' in request.FILES:
+            for f in request.FILES.getlist('before_photos'):
+                saved = ActivityFormService.save_photo_file(f, subfolder='before_photos')
+                if saved:
+                    before_photos.append(saved)
+        if 'after_photos' in request.FILES:
+            for f in request.FILES.getlist('after_photos'):
+                saved = ActivityFormService.save_photo_file(f, subfolder='after_photos')
+                if saved:
+                    after_photos.append(saved)
+
+        for key in request.FILES:
+            if key.startswith('field_photo_') or key.startswith('field_'):
+                f_id = key.split('_')[-1]
+                for f in request.FILES.getlist(key):
+                    saved = ActivityFormService.save_photo_file(f, subfolder='field_photos')
+                    if saved:
+                        field_photos.setdefault(f_id, []).append(saved)
+
+        # 2. Check Photo Evidence Requirements from Form Schema or ActivityFormPhotoSetting
+        form_schema = form.form_schema if isinstance(form.form_schema, dict) else json.loads(form.form_schema or '{}')
+        photo_cfg = form_schema.get('photo_settings', {})
+
+        if photo_cfg.get('enable_photo_capture'):
+            if photo_cfg.get('before_photo_required') and not before_photos:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Before Maintenance photo is required. Please capture or upload evidence before maintenance.',
+                    'errors': {'before_photos': ['Before Maintenance photo is mandatory.']}
+                }, status=422)
+
+            if photo_cfg.get('after_photo_required') and not after_photos:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'After Maintenance photo is required. Please capture or upload evidence after maintenance.',
+                    'errors': {'after_photos': ['After Maintenance photo is mandatory.']}
+                }, status=422)
+
+        # Update sub_dict with saved photos
+        if before_photos or after_photos or photo_cfg.get('enable_photo_capture'):
+            sub_dict['photo_evidence'] = {
+                'before_photos': before_photos,
+                'after_photos': after_photos,
+                'before_count': len(before_photos),
+                'after_count': len(after_photos)
+            }
+        if field_photos:
+            sub_dict['field_photos'] = field_photos
+
+        # Ensure GPS and Timestamps if submitted
+        if 'latitude' in data and 'longitude' in data and 'gps_coordinates' not in sub_dict:
+            sub_dict['gps_coordinates'] = {
+                'latitude': data.get('latitude'),
+                'longitude': data.get('longitude'),
+                'accuracy': data.get('accuracy')
+            }
+        if 'timestamps' not in sub_dict:
+            sub_dict['timestamps'] = {
+                'submission_time': timezone.now().strftime('%d %b %Y, %I:%M %p'),
+                'iso_timestamp': timezone.now().isoformat()
+            }
+
         submission = FormSubmission.objects.create(
             company_id=employee.company_id,
             form_id=form_id,
             project_id=project_id,
             emp_id=emp_id,
-            submission_data=submission_data
+            submission_data=sub_dict
         )
 
         return JsonResponse({
             'success': True,
             'message': 'Form submitted successfully.',
-            'submission_id': submission.id
+            'submission_id': submission.id,
+            'before_photos': before_photos,
+            'after_photos': after_photos
         }, status=201)
 
     except Exception as e:

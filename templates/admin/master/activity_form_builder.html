@@ -273,6 +273,76 @@
         color: #C2410C;
     }
 
+    .photo-section-box {
+        border: 1px solid #E2E8F0;
+        border-radius: 10px;
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+        background: #F8FAFC;
+        transition: border-color 0.2s, background-color 0.2s;
+    }
+    .photo-section-box.required-missing {
+        border-color: #EF4444 !important;
+        background: #FEF2F2 !important;
+    }
+    .sim-photo-gallery {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+    .sim-photo-card {
+        position: relative;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #CBD5E1;
+        background: #FFFFFF;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .sim-photo-img {
+        width: 100%;
+        height: 70px;
+        object-fit: cover;
+        display: block;
+    }
+    .sim-photo-delete-btn {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        background: #DC2626;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        cursor: pointer;
+        padding: 0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        transition: transform 0.15s, background-color 0.15s;
+    }
+    .sim-photo-delete-btn:hover {
+        background: #B91C1C;
+        transform: scale(1.1);
+    }
+    .sim-photo-badge {
+        position: absolute;
+        bottom: 2px;
+        left: 2px;
+        background: rgba(15, 23, 42, 0.75);
+        color: #fff;
+        font-size: 0.55rem;
+        padding: 1px 4px;
+        border-radius: 4px;
+        max-width: 90%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     /* Live Exception Badge */
     .exception-banner {
         background: #FEF3C7;
@@ -552,15 +622,16 @@
                     <!-- Photo Section Preview in Mobile App -->
                     <div id="mobilePhotoSectionPreview" class="mobile-field-group mb-3" style="display: none;">
                         <div class="mobile-field-label">
-                            <span><i class="bi bi-camera text-primary me-1"></i> Verification Evidence</span>
-                            <span class="badge bg-danger-subtle text-danger" style="font-size: 0.65rem;">Required</span>
+                            <span><i class="bi bi-camera-fill text-warning me-1"></i> Maintenance Photo Evidence</span>
+                            <span class="badge bg-danger-subtle text-danger" id="mobilePhotoRequiredBadge" style="font-size: 0.65rem;">Required</span>
                         </div>
                         <p class="text-muted" style="font-size: 0.7rem; margin-bottom: 0.6rem;" id="mobilePhotoInstructions">
                             Direct camera capture required.
                         </p>
 
-                        <div class="row g-2" id="mobilePhotoButtonsRow">
-                            <!-- Populated dynamically (before/after/both) -->
+                        <!-- Separate Before & After Containers -->
+                        <div id="mobilePhotoSectionsContainer">
+                            <!-- Populated dynamically with Before and After photo boxes -->
                         </div>
 
                         <!-- GPS & Timestamp Indicators -->
@@ -575,12 +646,17 @@
                         <!-- Populated dynamically -->
                     </div>
 
-                    <!-- Submit Button Simulation -->
-                    <div class="mt-3 mb-4">
+                    <!-- Submit & Test Buttons Simulation -->
+                    <div class="mt-3 mb-4 d-flex flex-column gap-2">
                         <button type="button" class="btn w-100 py-2 text-white fw-bold shadow-sm"
                                 style="background: linear-gradient(135deg, #FF9F1C, #F97316); border-radius: 10px; font-size: 0.85rem;"
                                 onclick="testSimulateSubmission()">
                             <i class="bi bi-send-check me-1"></i> Test Validate &amp; Evaluate Exceptions
+                        </button>
+                        <button type="button" class="btn btn-success w-100 py-2 fw-bold shadow-sm"
+                                style="border-radius: 10px; font-size: 0.85rem;"
+                                onclick="submitLiveTestForm()">
+                            <i class="bi bi-cloud-arrow-up-fill me-1"></i> Submit Form &amp; Save to Database
                         </button>
                     </div>
 
@@ -1079,6 +1155,38 @@
             `;
         }
 
+        if (field.field_type === 'photo_capture') {
+            return `
+                <div class="col-12 pt-2 border-top">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mt-1">
+                                <input class="form-check-input" type="checkbox" id="allowMultiple_${field.id}"
+                                       ${s.allow_multiple !== false ? 'checked' : ''}
+                                       onchange="updateFieldSetting(${field.id}, 'allow_multiple', this.checked)">
+                                <label class="form-check-label small fw-bold text-dark" for="allowMultiple_${field.id}">
+                                    Allow Multiple Photos Upload
+                                </label>
+                            </div>
+                            <small class="text-muted d-block" style="font-size:0.7rem;">Worker can attach multiple camera photos for this item.</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small fw-bold">Min Photos</label>
+                            <input type="number" class="form-control form-control-sm" placeholder="1" min="1" max="10"
+                                   value="${s.min_photos || 1}"
+                                   oninput="updateFieldSetting(${field.id}, 'min_photos', parseInt(this.value) || 1)">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small fw-bold">Max Photos</label>
+                            <input type="number" class="form-control form-control-sm" placeholder="5" min="1" max="10"
+                                   value="${s.max_photos || 5}"
+                                   oninput="updateFieldSetting(${field.id}, 'max_photos', parseInt(this.value) || 5)">
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         return '';
     }
 
@@ -1317,59 +1425,173 @@
         updateLivePreview();
     }
 
+    // --- Photo Evidence Simulation State ---
+    let simPhotos = {
+        before: [],
+        after: [],
+        fields: {}
+    };
+
+    function handleSimPhotoSelect(event, section) {
+        const files = Array.from(event.target.files);
+        if (!files || files.length === 0) return;
+
+        let loadedCount = 0;
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const photoObj = {
+                    id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+                    url: e.target.result,
+                    name: file.name,
+                    size: file.size,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                };
+
+                if (section === 'before') {
+                    simPhotos.before.push(photoObj);
+                } else if (section === 'after') {
+                    simPhotos.after.push(photoObj);
+                } else if (section.startsWith('field_')) {
+                    const fId = section.replace('field_', '');
+                    simPhotos.fields[fId] = simPhotos.fields[fId] || [];
+                    simPhotos.fields[fId].push(photoObj);
+                }
+
+                loadedCount++;
+                if (loadedCount === files.length) {
+                    renderSimPhotoGallery(section);
+                    // Clear missing highlights if resolved
+                    if (section === 'before') document.getElementById('simBeforePhotoSection')?.classList.remove('required-missing');
+                    if (section === 'after') document.getElementById('simAfterPhotoSection')?.classList.remove('required-missing');
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+
+        event.target.value = '';
+    }
+
+    function deleteSimPhoto(section, photoId) {
+        if (section === 'before') {
+            simPhotos.before = simPhotos.before.filter(p => p.id !== photoId);
+        } else if (section === 'after') {
+            simPhotos.after = simPhotos.after.filter(p => p.id !== photoId);
+        } else if (section.startsWith('field_')) {
+            const fId = section.replace('field_', '');
+            if (simPhotos.fields[fId]) {
+                simPhotos.fields[fId] = simPhotos.fields[fId].filter(p => p.id !== photoId);
+            }
+        }
+        renderSimPhotoGallery(section);
+    }
+
+    function renderSimPhotoGallery(section) {
+        let photos = [];
+        let galleryEl = null;
+
+        if (section === 'before') {
+            photos = simPhotos.before;
+            galleryEl = document.getElementById('gallery_before');
+        } else if (section === 'after') {
+            photos = simPhotos.after;
+            galleryEl = document.getElementById('gallery_after');
+        } else if (section.startsWith('field_')) {
+            const fId = section.replace('field_', '');
+            photos = simPhotos.fields[fId] || [];
+            galleryEl = document.getElementById(`gallery_field_${fId}`);
+        }
+
+        if (!galleryEl) return;
+
+        if (photos.length === 0) {
+            galleryEl.innerHTML = '';
+            return;
+        }
+
+        galleryEl.innerHTML = photos.map(p => `
+            <div class="sim-photo-card" id="card_${p.id}">
+                <img src="${p.url}" class="sim-photo-img" alt="${escapeHtml(p.name)}">
+                <button type="button" class="sim-photo-delete-btn" onclick="deleteSimPhoto('${section}', '${p.id}')" title="Delete Photo">
+                    <i class="bi bi-x"></i>
+                </button>
+                <div class="sim-photo-badge" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
+            </div>
+        `).join('');
+    }
+
     // --- Live Mobile App Preview Renderer ---
     function updateLivePreview() {
         // 1. Update Title & Desc
         document.getElementById('mobilePreviewTitle').innerText = formState.form_title || "Untitled Activity Form";
         document.getElementById('mobilePreviewDesc').innerText = formState.description || "Complete all checklist items.";
 
-        // 2. Photo Section Preview
+        // 2. Photo Section Preview (Separate Before & After Maintenance)
         const photoPreviewSec = document.getElementById('mobilePhotoSectionPreview');
         const p = formState.photo_settings;
         if (p.enable_photo_capture) {
             photoPreviewSec.style.display = 'block';
-            document.getElementById('mobilePhotoInstructions').innerText = p.photo_instructions || "Direct camera capture required for proof.";
+            document.getElementById('mobilePhotoInstructions').innerText = p.photo_instructions || "Direct camera capture required for verification evidence.";
 
-            let buttonsHtml = '';
-            if (p.before_photo_required && p.after_photo_required) {
-                buttonsHtml = `
-                    <div class="col-6">
-                        <div class="mobile-camera-box">
-                            <i class="bi bi-camera-fill d-block mb-1 fs-5 text-warning"></i>
-                            <strong>Before Photo</strong>
-                            <small class="d-block text-muted" style="font-size:0.65rem;">Tap to Capture</small>
+            const isBoth = (p.before_photo_required && p.after_photo_required);
+            const isBeforeOnly = (p.before_photo_required && !p.after_photo_required);
+            const isAfterOnly = (!p.before_photo_required && p.after_photo_required);
+
+            let sectionsHtml = '';
+
+            // Before Maintenance Photos Section
+            if (p.before_photo_required || isBoth || (!p.before_photo_required && !p.after_photo_required)) {
+                const isReq = p.before_photo_required;
+                sectionsHtml += `
+                    <div class="photo-section-box" id="simBeforePhotoSection">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-bold text-dark small">
+                                <i class="bi bi-camera-fill text-warning me-1"></i>Before Maintenance Photos
+                            </span>
+                            <span class="badge ${isReq ? 'bg-danger-subtle text-danger' : 'bg-secondary-subtle text-secondary'}" style="font-size:0.62rem;">
+                                ${isReq ? 'Required *' : 'Optional'}
+                            </span>
                         </div>
-                    </div>
-                    <div class="col-6">
-                        <div class="mobile-camera-box">
-                            <i class="bi bi-camera-fill d-block mb-1 fs-5 text-success"></i>
-                            <strong>After Photo</strong>
-                            <small class="d-block text-muted" style="font-size:0.65rem;">Tap to Capture</small>
+                        <input type="file" multiple accept="image/*" capture="environment" id="fileInput_before" style="display:none;" onchange="handleSimPhotoSelect(event, 'before')">
+                        <div class="mobile-camera-box py-2" onclick="document.getElementById('fileInput_before').click()">
+                            <i class="bi bi-camera-fill text-warning fs-5 d-block mb-1"></i>
+                            <strong>Take / Upload Before Photos</strong>
+                            <small class="d-block text-muted" style="font-size:0.65rem;">Tap to add multiple photos • Preview &amp; delete available</small>
                         </div>
-                    </div>
-                `;
-            } else if (p.before_photo_required) {
-                buttonsHtml = `
-                    <div class="col-12">
-                        <div class="mobile-camera-box">
-                            <i class="bi bi-camera-fill d-block mb-1 fs-5 text-warning"></i>
-                            <strong>Before Photo Required</strong>
-                            <small class="d-block text-muted" style="font-size:0.65rem;">Direct camera capture</small>
-                        </div>
-                    </div>
-                `;
-            } else {
-                buttonsHtml = `
-                    <div class="col-12">
-                        <div class="mobile-camera-box">
-                            <i class="bi bi-camera-fill d-block mb-1 fs-5 text-success"></i>
-                            <strong>After Photo Required</strong>
-                            <small class="d-block text-muted" style="font-size:0.65rem;">Direct camera capture</small>
-                        </div>
+                        <div id="gallery_before" class="sim-photo-gallery"></div>
                     </div>
                 `;
             }
-            document.getElementById('mobilePhotoButtonsRow').innerHTML = buttonsHtml;
+
+            // After Maintenance Photos Section
+            if (p.after_photo_required || isBoth || (!p.before_photo_required && !p.after_photo_required)) {
+                const isReq = p.after_photo_required;
+                sectionsHtml += `
+                    <div class="photo-section-box" id="simAfterPhotoSection">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-bold text-dark small">
+                                <i class="bi bi-camera-fill text-success me-1"></i>After Maintenance Photos
+                            </span>
+                            <span class="badge ${isReq ? 'bg-danger-subtle text-danger' : 'bg-secondary-subtle text-secondary'}" style="font-size:0.62rem;">
+                                ${isReq ? 'Required *' : 'Optional'}
+                            </span>
+                        </div>
+                        <input type="file" multiple accept="image/*" capture="environment" id="fileInput_after" style="display:none;" onchange="handleSimPhotoSelect(event, 'after')">
+                        <div class="mobile-camera-box py-2" onclick="document.getElementById('fileInput_after').click()">
+                            <i class="bi bi-camera-fill text-success fs-5 d-block mb-1"></i>
+                            <strong>Take / Upload After Photos</strong>
+                            <small class="d-block text-muted" style="font-size:0.65rem;">Tap to add multiple photos • Preview &amp; delete available</small>
+                        </div>
+                        <div id="gallery_after" class="sim-photo-gallery"></div>
+                    </div>
+                `;
+            }
+
+            document.getElementById('mobilePhotoSectionsContainer').innerHTML = sectionsHtml;
+
+            // Re-render any existing photo thumbnails in the galleries
+            renderSimPhotoGallery('before');
+            renderSimPhotoGallery('after');
 
             document.getElementById('mobileGpsMeta').style.display = p.gps_coordinates_required ? 'inline' : 'none';
             document.getElementById('mobileTimeMeta').style.display = p.capture_timestamp_required ? 'inline' : 'none';
@@ -1404,6 +1626,13 @@
         });
 
         fieldsContainer.innerHTML = fieldsHtml;
+
+        // Re-render photo galleries for any single photo fields
+        formState.fields.forEach(f => {
+            if (f.field_type === 'photo_capture') {
+                renderSimPhotoGallery(`field_${f.id}`);
+            }
+        });
 
         // Re-attach live interactive listeners to preview inputs
         attachPreviewInputListeners();
@@ -1468,14 +1697,22 @@
             return `<input type="time" class="form-control form-control-sm sim-field-input" id="${id}" data-fid="${field.id}">`;
         }
         if (field.field_type === 'photo_capture') {
+            const fKey = `field_${field.id}`;
             return `
-                <div class="mobile-camera-box">
-                    <i class="bi bi-camera text-primary fs-5 d-block mb-1"></i>
-                    <strong>Take Photo</strong>
-                    <small class="d-block text-muted" style="font-size:0.65rem;">Direct camera capture</small>
+                <div class="photo-section-box py-2" id="simFieldPhotoSection_${field.id}">
+                    <input type="file" multiple accept="image/*" capture="environment" id="fileInput_${fKey}" style="display:none;" onchange="handleSimPhotoSelect(event, '${fKey}')">
+                    <div class="mobile-camera-box py-2" onclick="document.getElementById('fileInput_${fKey}').click()">
+                        <i class="bi bi-camera text-primary fs-5 d-block mb-1"></i>
+                        <strong>Take / Upload Photos</strong>
+                        <small class="d-block text-muted" style="font-size:0.65rem;">Multiple photos supported • Direct camera</small>
+                    </div>
+                    <div id="gallery_${fKey}" class="sim-photo-gallery"></div>
                 </div>
             `;
         }
+
+        return '';
+    }
 
         return '';
     }
@@ -1593,12 +1830,41 @@
             if (i.type === 'radio' || i.type === 'checkbox') i.checked = false;
             else i.value = '';
         });
+        simPhotos = { before: [], after: [], fields: {} };
+        renderSimPhotoGallery('before');
+        renderSimPhotoGallery('after');
+        formState.fields.forEach(f => {
+            if (f.field_type === 'photo_capture') renderSimPhotoGallery(`field_${f.id}`);
+        });
+        document.querySelectorAll('.photo-section-box').forEach(b => b.classList.remove('required-missing'));
         document.querySelectorAll('[id^="liveFeedback_"]').forEach(el => el.innerHTML = '');
         document.getElementById('mobileEvaluationResultBox').style.display = 'none';
     }
 
-    // --- Full Test Simulation Submission ---
+    // --- Full Test Simulation Submission & Verification ---
     async function testSimulateSubmission() {
+        const p = formState.photo_settings;
+        const resultBox = document.getElementById('mobileEvaluationResultBox');
+        resultBox.style.display = 'block';
+
+        // 1. Mandatory Photo Checks
+        let photoErrors = [];
+        if (p.enable_photo_capture) {
+            if (p.before_photo_required && simPhotos.before.length === 0) {
+                document.getElementById('simBeforePhotoSection')?.classList.add('required-missing');
+                photoErrors.push("Before Maintenance photo is required. Please capture or upload evidence before maintenance.");
+            } else {
+                document.getElementById('simBeforePhotoSection')?.classList.remove('required-missing');
+            }
+
+            if (p.after_photo_required && simPhotos.after.length === 0) {
+                document.getElementById('simAfterPhotoSection')?.classList.add('required-missing');
+                photoErrors.push("After Maintenance photo is required. Please capture or upload evidence after maintenance.");
+            } else {
+                document.getElementById('simAfterPhotoSection')?.classList.remove('required-missing');
+            }
+        }
+
         const submittedValues = {};
         formState.fields.forEach(f => {
             const id = f.id;
@@ -1611,6 +1877,15 @@
             }
         });
 
+        // Photo data payload
+        const photoDataPayload = {
+            before_photos: simPhotos.before.map(p => p.url),
+            after_photos: simPhotos.after.map(p => p.url),
+            field_photos: Object.fromEntries(
+                Object.entries(simPhotos.fields).map(([k, v]) => [k, v.map(p => p.url)])
+            )
+        };
+
         try {
             const res = await fetch("{% url 'admin_activity_form_evaluate_preview' %}", {
                 method: 'POST',
@@ -1620,18 +1895,26 @@
                 },
                 body: JSON.stringify({
                     fields: formState.fields,
-                    values: submittedValues
+                    values: submittedValues,
+                    photo_settings: formState.photo_settings,
+                    photo_data: photoDataPayload
                 })
             });
 
             const data = await res.json();
-            const resultBox = document.getElementById('mobileEvaluationResultBox');
             resultBox.style.display = 'block';
 
-            let resultHtml = '';
-            if (!data.is_valid) {
-                const errList = Object.values(data.validation_errors).map(e => `<li>${escapeHtml(e)}</li>`).join('');
-                resultHtml = `
+            let allErrors = [];
+            if (photoErrors.length > 0) {
+                allErrors = allErrors.concat(photoErrors);
+            }
+            if (!data.is_valid && data.validation_errors) {
+                allErrors = allErrors.concat(Object.values(data.validation_errors));
+            }
+
+            if (allErrors.length > 0) {
+                const errList = allErrors.map(e => `<li>${escapeHtml(e)}</li>`).join('');
+                resultBox.innerHTML = `
                     <div class="alert alert-danger py-2 px-3 small rounded-3 border-0 shadow-sm">
                         <div class="fw-bold mb-1"><i class="bi bi-x-circle-fill me-1"></i>Validation Failed:</div>
                         <ul class="mb-0 ps-3">${errList}</ul>
@@ -1643,27 +1926,173 @@
                         <strong>${escapeHtml(e.field_label)}:</strong> ${escapeHtml(e.message)}
                     </div>
                 `).join('');
-                resultHtml = `
+                resultBox.innerHTML = `
                     <div class="alert alert-warning py-2 px-3 small rounded-3 border-0 shadow-sm" style="background:#FEF3C7; color:#92400E;">
                         <div class="fw-bold mb-1"><i class="bi bi-shield-exclamation me-1"></i>Business Exceptions Flagged (${data.exceptions.length}):</div>
                         ${excList}
                         <div class="mt-2 text-muted fst-italic" style="font-size:0.68rem;">
-                            * Form would be successfully submitted by worker, and exceptions logged to the Exception Report for engineering review.
+                            * Form is valid for worker submission. Exceptions will be automatically logged in the Exception Report.
                         </div>
                     </div>
                 `;
             } else {
-                resultHtml = `
+                resultBox.innerHTML = `
                     <div class="alert alert-success py-2 px-3 small rounded-3 border-0 shadow-sm">
-                        <i class="bi bi-check-circle-fill me-1"></i><strong>All Parameters Normal:</strong> 100% compliant with operating standards.
+                        <i class="bi bi-check-circle-fill me-1"></i><strong>All Parameters &amp; Photo Evidence Valid:</strong> 100% compliant with operating standards.
                     </div>
                 `;
             }
 
-            resultBox.innerHTML = resultHtml;
             resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         } catch (e) {
             console.error(e);
+        }
+    }
+
+    // --- Submit Form & Save to Database ---
+    async function submitLiveTestForm() {
+        const p = formState.photo_settings;
+        const resultBox = document.getElementById('mobileEvaluationResultBox');
+        resultBox.style.display = 'block';
+
+        // 1. Mandatory Photo Checks
+        if (p.enable_photo_capture) {
+            if (p.before_photo_required && simPhotos.before.length === 0) {
+                document.getElementById('simBeforePhotoSection')?.classList.add('required-missing');
+                resultBox.innerHTML = `
+                    <div class="alert alert-danger py-2 px-3 small rounded-3 border-0 shadow-sm">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        <strong>Before Maintenance Photo Required:</strong> Please capture or upload at least one Before Maintenance photo before submitting.
+                    </div>
+                `;
+                resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                return;
+            } else {
+                document.getElementById('simBeforePhotoSection')?.classList.remove('required-missing');
+            }
+
+            if (p.after_photo_required && simPhotos.after.length === 0) {
+                document.getElementById('simAfterPhotoSection')?.classList.add('required-missing');
+                resultBox.innerHTML = `
+                    <div class="alert alert-danger py-2 px-3 small rounded-3 border-0 shadow-sm">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        <strong>After Maintenance Photo Required:</strong> Please capture or upload at least one After Maintenance photo before submitting.
+                    </div>
+                `;
+                resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                return;
+            } else {
+                document.getElementById('simAfterPhotoSection')?.classList.remove('required-missing');
+            }
+        }
+
+        // 2. Gather values
+        const submittedValues = {};
+        let missingRequired = [];
+        formState.fields.forEach(f => {
+            const id = f.id;
+            const input = document.getElementById(`simInput_${id}`);
+            let val = '';
+            if (input) {
+                val = input.value.trim();
+                submittedValues[id] = val;
+            } else {
+                const radio = document.querySelector(`input[name="simRadio_${id}"]:checked`);
+                if (radio) {
+                    val = radio.value;
+                    submittedValues[id] = val;
+                }
+            }
+            if (f.field_type === 'photo_capture' && f.is_required) {
+                const fieldPhotos = simPhotos.fields[id] || [];
+                if (fieldPhotos.length === 0 && !val) {
+                    missingRequired.push(f.field_label);
+                }
+            } else if (f.is_required && !val) {
+                missingRequired.push(f.field_label);
+            }
+        });
+
+        if (missingRequired.length > 0) {
+            resultBox.innerHTML = `
+                <div class="alert alert-danger py-2 px-3 small rounded-3 border-0 shadow-sm">
+                    <i class="bi bi-x-circle-fill me-1"></i>
+                    <strong>Required Fields Missing:</strong>
+                    <ul class="mb-0 ps-3">${missingRequired.map(r => `<li>${escapeHtml(r)} is required.</li>`).join('')}</ul>
+                </div>
+            `;
+            resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return;
+        }
+
+        resultBox.innerHTML = `
+            <div class="alert alert-info py-2 px-3 small rounded-3 border-0 shadow-sm text-center">
+                <span class="spinner-border spinner-border-sm me-2"></span>Saving submission and writing photos to storage...
+            </div>
+        `;
+
+        try {
+            const payload = {
+                values: submittedValues,
+                photo_data: {
+                    before_photos: simPhotos.before.map(p => p.url),
+                    after_photos: simPhotos.after.map(p => p.url),
+                    field_photos: Object.fromEntries(
+                        Object.entries(simPhotos.fields).map(([k, v]) => [k, v.map(p => p.url)])
+                    )
+                },
+                gps_coordinates: {
+                    latitude: 19.0760,
+                    longitude: 72.8777,
+                    accuracy: 5.0
+                },
+                timestamps: {
+                    submission_time: new Date().toLocaleString(),
+                    iso_timestamp: new Date().toISOString()
+                },
+                inspection_details: {
+                    status: 'Completed',
+                    remarks: 'Submitted via Form Builder Live Simulator'
+                }
+            };
+
+            const res = await fetch(`/admin/activities/${activityId}/form-builder/submit-test`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                resultBox.innerHTML = `
+                    <div class="alert alert-success py-2 px-3 small rounded-3 border-0 shadow-sm">
+                        <div class="fw-bold mb-1"><i class="bi bi-check-circle-fill me-1"></i>Form Submitted Successfully!</div>
+                        <div>Submission ID: <strong>#${data.submission_id}</strong></div>
+                        <div class="small text-muted mt-1">All Before &amp; After photos and fields saved in database and file storage.</div>
+                        <div class="mt-2">
+                            <a href="${data.view_url}" target="_blank" class="btn btn-sm btn-outline-success bg-white fw-bold text-decoration-none">
+                                <i class="bi bi-eye-fill me-1"></i>View in Form Submissions
+                            </a>
+                        </div>
+                    </div>
+                `;
+            } else {
+                resultBox.innerHTML = `
+                    <div class="alert alert-danger py-2 px-3 small rounded-3 border-0 shadow-sm">
+                        <i class="bi bi-x-circle-fill me-1"></i><strong>Submission Error:</strong> ${escapeHtml(data.message)}
+                    </div>
+                `;
+            }
+            resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (err) {
+            resultBox.innerHTML = `
+                <div class="alert alert-danger py-2 px-3 small rounded-3 border-0 shadow-sm">
+                    <i class="bi bi-x-circle-fill me-1"></i>Network or server error: ${escapeHtml(err.message)}
+                </div>
+            `;
         }
     }
 

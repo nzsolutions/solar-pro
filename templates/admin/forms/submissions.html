@@ -61,6 +61,7 @@
                     <th>Project</th>
                     <th>Employee Name</th>
                     <th>Form Name</th>
+                    <th>Photo Evidence &amp; GPS</th>
                     <th>Submitted On</th>
                     <th class="text-end">Action</th>
                 </tr>
@@ -72,6 +73,29 @@
                         <td>{{ submission.project_name|default:'—' }}</td>
                         <td>{{ submission.employee_name|default:'—' }}</td>
                         <td>{{ submission.form_name }}</td>
+                        <td>
+                            {% if submission.before_photos_count > 0 or submission.after_photos_count > 0 %}
+                                <div class="d-flex flex-wrap gap-1 align-items-center">
+                                    {% if submission.before_photos_count > 0 %}
+                                        <span class="badge bg-warning-subtle text-dark border border-warning-subtle" title="Before Maintenance Photos">
+                                            <i class="bi bi-camera me-1"></i>Before ({{ submission.before_photos_count }})
+                                        </span>
+                                    {% endif %}
+                                    {% if submission.after_photos_count > 0 %}
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle" title="After Maintenance Photos">
+                                            <i class="bi bi-camera me-1"></i>After ({{ submission.after_photos_count }})
+                                        </span>
+                                    {% endif %}
+                                    {% if submission.has_gps %}
+                                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="GPS Captured">
+                                            <i class="bi bi-geo-alt"></i> GPS
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
                         <td>{{ submission.created_at|date:"d M Y, h:i A" }}</td>
                         <td class="text-end">
                             <a href="{% url 'admin_form_submissions_edit' submission.id %}" class="btn btn-sm btn-outline-primary">
@@ -81,7 +105,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">No submissions found.</td>
+                        <td colspan="7" class="text-center text-muted py-4">No submissions found.</td>
                     </tr>
                 {% endfor %}
             </tbody>
