@@ -350,3 +350,205 @@ class ActivityFormValidationRule(models.Model):
         return f"Rule '{self.rule_name}' ({self.get_rule_type_display()}) for field #{self.field_id}"
 
 
+class ActivitySchedule(models.Model):
+    """
+    Scheduled maintenance or inspection activity configuration.
+    Supports recurring schedules (Daily, Weekly, Monthly) and automatic task generation.
+    """
+    PRIORITY_CHOICES = [
+        ('Low', 'Low'),
+        ('Medium', 'Medium'),
+        ('High', 'High'),
+        ('Urgent', 'Urgent'),
+    ]
+
+    RECURRING_CHOICES = [
+        ('one_time', 'One-Time'),
+        ('daily', 'Daily'),
+        ('weekly', 'Weekly'),
+        ('monthly', 'Monthly'),
+    ]
+
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Scheduled', 'Scheduled'),
+        ('In Progress', 'In Progress'),
+        ('Completed', 'Completed'),
+        ('Cancelled', 'Cancelled'),
+    ]
+
+    id = models.BigAutoField(primary_key=True)
+    schedule_code = models.CharField(max_length=50, unique=True, blank=True)
+    title = models.CharField(max_length=255)
+    activity = models.ForeignKey(
+        'masters.ActivityMaster',
+        on_delete=models.CASCADE,
+        related_name='schedules',
+        db_column='activity_id'
+    )
+    project = models.ForeignKey(
+        'operations.Project',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='activity_schedules',
+        db_column='project_id'
+    )
+    assigned_to = models.ForeignKey(
+        'employees.Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_schedules',
+        db_column='assigned_to_id'
+    )
+    assigned_staff = models.JSONField(default=list, blank=True)
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='Medium')
+    recurring_type = models.CharField(max_length=20, choices=RECURRING_CHOICES, default='one_time')
+    start_date = models.DateField()
+    start_time = models.TimeField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    deadline = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Scheduled')
+    auto_generate_tasks = models.BooleanField(default=True)
+    last_generated_date = models.DateField(null=True, blank=True)
+    remind_upcoming = models.BooleanField(default=True)
+    notes = models.TextField(blank=True, null=True)
+    company_id = models.IntegerField(default=1)
+    created_by = models.CharField(max_length=100, default='Admin')
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+
+    class Meta:
+        db_table = 'activity_schedules'
+        managed = True
+        ordering = ['-id']
+
+    def __str__(self):
+        return f"{self.schedule_code or self.id} - {self.title}"
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if not self.schedule_code:
+            self.schedule_code = f"SCH-{self.id:04d}"
+            ActivitySchedule.objects.filter(pk=self.pk).update(schedule_code=self.schedule_code)
+
+    @property
+    def is_overdue(self):
+        from django.utils import timezone
+        if self.status in ['Completed', 'Cancelled']:
+            return False
+        if self.deadline:
+            deadline = self.deadline
+            if timezone.is_naive(deadline):
+                deadline = timezone.make_aware(deadline)
+            return timezone.now() > deadline
+        today = timezone.localdate()
+        return self.start_date < today
+
+    @property
+    def tasks(self):
+        return self.generated_tasks
+
+
+class ActivityTask(models.Model):
+    """
+    Concrete execution instance of an activity generated automatically
+    or manually according to schedule.
+    """
+    PRIORITY_CHOICES = [
+        ('Low', 'Low'),
+        ('Medium', 'Medium'),
+        ('High', 'High'),
+        ('Urgent', 'Urgent'),
+    ]
+
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Scheduled', 'Scheduled'),
+        ('In Progress', 'In Progress'),
+        ('Completed', 'Completed'),
+        ('Cancelled', 'Cancelled'),
+    ]
+
+    id = models.BigAutoField(primary_key=True)
+    task_code = models.CharField(max_length=50, unique=True, blank=True)
+    schedule = models.ForeignKey(
+        'masters.ActivitySchedule',
+        on_delete=models.CASCADE,
+        related_name='generated_tasks',
+        db_column='schedule_id'
+    )
+    activity = models.ForeignKey(
+        'masters.ActivityMaster',
+        on_delete=models.CASCADE,
+        related_name='activity_tasks',
+        db_column='activity_id'
+    )
+    project = models.ForeignKey(
+        'operations.Project',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='activity_tasks',
+        db_column='project_id'
+    )
+    task_title = models.CharField(max_length=255)
+    task_date = models.DateField()
+    due_datetime = models.DateTimeField(null=True, blank=True)
+    assigned_to = models.ForeignKey(
+        'employees.Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_activity_tasks',
+        db_column='assigned_to_id'
+    )
+    assigned_staff = models.JSONField(default=list, blank=True)
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='Medium')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    completion_remarks = models.TextField(blank=True, null=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    generated_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    company_id = models.IntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+
+    class Meta:
+        db_table = 'activity_tasks'
+        managed = True
+        ordering = ['task_date', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['schedule', 'task_date'],
+                name='unique_schedule_task_per_date'
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.task_code or self.id} - {self.task_title} ({self.task_date})"
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if not self.task_code:
+            dt_str = self.task_date.strftime('%Y%m%d') if self.task_date else '00000000'
+            self.task_code = f"TSK-{dt_str}-{self.id:04d}"
+            ActivityTask.objects.filter(pk=self.pk).update(task_code=self.task_code)
+
+    @property
+    def is_overdue(self):
+        from django.utils import timezone
+        if self.status in ['Completed', 'Cancelled']:
+            return False
+        if self.due_datetime:
+            due_dt = self.due_datetime
+            if timezone.is_naive(due_dt):
+                due_dt = timezone.make_aware(due_dt)
+            return timezone.now() > due_dt
+        today = timezone.localdate()
+        return self.task_date < today
+
+
+

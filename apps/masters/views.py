@@ -12,9 +12,13 @@ from apps.masters.models import (
     DepartmentMaster, DesignationMaster, DocumentTypeMaster,
     SiteMaster, AttendanceMaster, SMTPConfiguration, AccessControl, ActivityMaster,
     ActivityFormConfiguration, ActivityFormField, ActivityFormFieldOption,
-    ActivityFormPhotoSetting, ActivityFormValidationRule
+    ActivityFormPhotoSetting, ActivityFormValidationRule,
+    ActivitySchedule, ActivityTask
 )
 from apps.masters.form_builder_service import ActivityFormService
+from apps.masters.schedule_service import ActivityScheduleService
+from apps.employees.models import Employee
+from apps.operations.models import Project
 
 # ==========================================
 # 1. DEPARTMENT MASTER
@@ -390,6 +394,7 @@ MODULE_TREE = {
         'document-type-master': 'Document Type Master',
         'attendance-master': 'Attendance Master',
         'activity-master': 'Activity Master',
+        'activity-scheduling': 'Activity Scheduling',
     },
     'Reports': {
         'project-reports': 'Project Reports',
@@ -839,5 +844,373 @@ def activity_form_submit_test(request, activity_id):
             'success': False,
             'message': f'Submission failed: {str(e)}'
         }, status=400)
+
+
+# ==============================================================================
+# 9. ACTIVITY SCHEDULING & AUTOMATIC TASK GENERATION
+# ==============================================================================
+
+@admin_required
+def activity_schedules_index(request):
+    """
+    Main listing, calendar, and task management dashboard for Activity Scheduling.
+    Supports filtering by search query, status, priority, frequency, employee, and project.
+    """
+    company_id = request.session.get('company_id', 1)
+    
+    # Query parameters
+    search = request.GET.get('search', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    priority_filter = request.GET.get('priority', '').strip()
+    freq_filter = request.GET.get('frequency', '').strip()
+    emp_filter = request.GET.get('employee_id', '').strip()
+    proj_filter = request.GET.get('project_id', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    active_tab = request.GET.get('tab', 'schedules').strip()
+
+    # Base querysets
+    schedules_qs = ActivitySchedule.objects.filter(
+        company_id=company_id
+    ).select_related('activity', 'project', 'assigned_to').order_by('-id')
+
+    tasks_qs = ActivityTask.objects.filter(
+        company_id=company_id
+    ).select_related('schedule', 'activity', 'project', 'assigned_to').order_by('-task_date', '-id')
+
+    # Apply filters to Schedules
+    if search:
+        schedules_qs = schedules_qs.filter(
+            Q(title__icontains=search) |
+            Q(schedule_code__icontains=search) |
+            Q(activity__activity_title__icontains=search) |
+            Q(project__project_name__icontains=search) |
+            Q(assigned_to__name__icontains=search)
+        )
+        tasks_qs = tasks_qs.filter(
+            Q(task_title__icontains=search) |
+            Q(task_code__icontains=search) |
+            Q(activity__activity_title__icontains=search) |
+            Q(project__project_name__icontains=search) |
+            Q(assigned_to__name__icontains=search)
+        )
+
+    if status_filter:
+        schedules_qs = schedules_qs.filter(status=status_filter)
+        tasks_qs = tasks_qs.filter(status=status_filter)
+
+    if priority_filter:
+        schedules_qs = schedules_qs.filter(priority=priority_filter)
+        tasks_qs = tasks_qs.filter(priority=priority_filter)
+
+    if freq_filter:
+        schedules_qs = schedules_qs.filter(recurring_type=freq_filter)
+
+    if emp_filter and emp_filter.isdigit():
+        schedules_qs = schedules_qs.filter(assigned_to_id=int(emp_filter))
+        tasks_qs = tasks_qs.filter(assigned_to_id=int(emp_filter))
+
+    if proj_filter and proj_filter.isdigit():
+        schedules_qs = schedules_qs.filter(project_id=int(proj_filter))
+        tasks_qs = tasks_qs.filter(project_id=int(proj_filter))
+
+    if date_from:
+        schedules_qs = schedules_qs.filter(start_date__gte=date_from)
+        tasks_qs = tasks_qs.filter(task_date__gte=date_from)
+
+    if date_to:
+        schedules_qs = schedules_qs.filter(start_date__lte=date_to)
+        tasks_qs = tasks_qs.filter(task_date__lte=date_to)
+
+    # Calculate KPIs using service
+    kpis = ActivityScheduleService.get_kpis(company_id=company_id)
+
+    # Master options for dropdowns & modals
+    activities = ActivityMaster.objects.filter(
+        company_id=company_id, status='active'
+    ).order_by('activity_title')
+    projects = Project.objects.filter(company_id=company_id).order_by('project_name')
+    employees = Employee.objects.filter(company_id=company_id, status='active').order_by('name')
+
+    context = {
+        'schedules': schedules_qs,
+        'tasks': tasks_qs[:100],  # Limit to 100 recent for performance
+        'activities': activities,
+        'projects': projects,
+        'employees': employees,
+        'kpis': kpis,
+        'active_tab': active_tab,
+        'filters': {
+            'search': search,
+            'status': status_filter,
+            'priority': priority_filter,
+            'frequency': freq_filter,
+            'employee_id': emp_filter,
+            'project_id': proj_filter,
+            'date_from': date_from,
+            'date_to': date_to,
+        },
+        'priority_choices': ActivitySchedule.PRIORITY_CHOICES,
+        'recurring_choices': ActivitySchedule.RECURRING_CHOICES,
+        'status_choices': ActivitySchedule.STATUS_CHOICES,
+        'task_status_choices': ActivityTask.STATUS_CHOICES,
+    }
+    return render(request, 'admin/master/activity_schedules.html', context)
+
+
+@admin_required
+def activity_schedule_store(request):
+    """
+    Store a new activity schedule and automatically generate tasks according to schedule recurrence.
+    """
+    if request.method != 'POST':
+        return redirect('admin_activity_schedules_index')
+
+    company_id = request.session.get('company_id', 1)
+    
+    title = request.POST.get('title', '').strip()
+    activity_id = request.POST.get('activity_id')
+    project_id = request.POST.get('project_id') or None
+    assigned_to_id = request.POST.get('assigned_to_id') or None
+    assigned_staff_raw = request.POST.getlist('assigned_staff')
+    priority = request.POST.get('priority', 'Medium')
+    recurring_type = request.POST.get('recurring_type', 'one_time')
+    start_date = request.POST.get('start_date')
+    start_time = request.POST.get('start_time') or None
+    end_date = request.POST.get('end_date') or None
+    deadline = request.POST.get('deadline') or None
+    status = request.POST.get('status', 'Scheduled')
+    auto_generate = request.POST.get('auto_generate_tasks') in ['1', 'on', 'true', True]
+    remind_upcoming = request.POST.get('remind_upcoming') in ['1', 'on', 'true', True]
+    notes = request.POST.get('notes', '').strip()
+
+    if not title:
+        messages.error(request, 'Schedule Title is required.')
+        return redirect('admin_activity_schedules_index')
+
+    if not activity_id:
+        messages.error(request, 'Please select an Activity.')
+        return redirect('admin_activity_schedules_index')
+
+    if not start_date:
+        messages.error(request, 'Start Date is required.')
+        return redirect('admin_activity_schedules_index')
+
+    activity = get_object_or_404(ActivityMaster, id=activity_id)
+
+    # Process assigned staff IDs
+    assigned_staff = []
+    for s in assigned_staff_raw:
+        if s and str(s).isdigit():
+            assigned_staff.append(int(s))
+
+    schedule = ActivitySchedule.objects.create(
+        company_id=company_id,
+        title=title,
+        activity=activity,
+        project_id=project_id,
+        assigned_to_id=assigned_to_id,
+        assigned_staff=assigned_staff,
+        priority=priority,
+        recurring_type=recurring_type,
+        start_date=start_date,
+        start_time=start_time if start_time else None,
+        end_date=end_date if end_date else None,
+        deadline=deadline if deadline else None,
+        status=status,
+        auto_generate_tasks=auto_generate,
+        remind_upcoming=remind_upcoming,
+        notes=notes,
+        created_by='Admin'
+    )
+
+    # Automatic Task Generation
+    created_tasks_count = 0
+    if auto_generate and schedule.status in ['Scheduled', 'Pending', 'In Progress']:
+        created_tasks_count = ActivityScheduleService.generate_tasks_for_schedule(schedule, horizon_days=60)
+
+    # Send Notification to Primary Assignee if configured
+    if assigned_to_id:
+        try:
+            from apps.expenses.views import send_fcm_notification
+            emp = Employee.objects.filter(id=assigned_to_id).first()
+            if emp and emp.fcm_token:
+                send_fcm_notification(
+                    emp.fcm_token,
+                    f"New Activity Scheduled: {schedule.title}",
+                    f"Priority: {schedule.priority} | Scheduled for: {schedule.start_date}"
+                )
+        except Exception:
+            pass
+
+    messages.success(
+        request,
+        f'Activity Schedule "{schedule.title}" created successfully! Generated {created_tasks_count} automatic task(s).'
+    )
+    return redirect('admin_activity_schedules_index')
+
+
+@admin_required
+def activity_schedule_update(request, id):
+    """
+    Update an existing activity schedule and synchronize pending future tasks.
+    """
+    if request.method != 'POST':
+        return redirect('admin_activity_schedules_index')
+
+    company_id = request.session.get('company_id', 1)
+    schedule = get_object_or_404(ActivitySchedule, id=id, company_id=company_id)
+
+    title = request.POST.get('title', '').strip()
+    activity_id = request.POST.get('activity_id')
+    project_id = request.POST.get('project_id') or None
+    assigned_to_id = request.POST.get('assigned_to_id') or None
+    assigned_staff_raw = request.POST.getlist('assigned_staff')
+    priority = request.POST.get('priority', schedule.priority)
+    recurring_type = request.POST.get('recurring_type', schedule.recurring_type)
+    start_date = request.POST.get('start_date', str(schedule.start_date))
+    start_time = request.POST.get('start_time') or None
+    end_date = request.POST.get('end_date') or None
+    deadline = request.POST.get('deadline') or None
+    status = request.POST.get('status', schedule.status)
+    auto_generate = request.POST.get('auto_generate_tasks') in ['1', 'on', 'true', True]
+    remind_upcoming = request.POST.get('remind_upcoming') in ['1', 'on', 'true', True]
+    notes = request.POST.get('notes', '').strip()
+
+    if not title:
+        messages.error(request, 'Schedule Title cannot be empty.')
+        return redirect('admin_activity_schedules_index')
+
+    if activity_id:
+        schedule.activity_id = activity_id
+
+    # Process assigned staff IDs
+    assigned_staff = []
+    for s in assigned_staff_raw:
+        if s and str(s).isdigit():
+            assigned_staff.append(int(s))
+
+    schedule.title = title
+    schedule.project_id = project_id
+    schedule.assigned_to_id = assigned_to_id
+    schedule.assigned_staff = assigned_staff
+    schedule.priority = priority
+    schedule.recurring_type = recurring_type
+    schedule.start_date = start_date
+    schedule.start_time = start_time if start_time else None
+    schedule.end_date = end_date if end_date else None
+    schedule.deadline = deadline if deadline else None
+    schedule.status = status
+    schedule.auto_generate_tasks = auto_generate
+    schedule.remind_upcoming = remind_upcoming
+    schedule.notes = notes
+    schedule.save()
+
+    # Synchronize future pending tasks
+    ActivityScheduleService.sync_schedule_update(schedule)
+
+    messages.success(request, f'Schedule "{schedule.schedule_code}" updated successfully!')
+    return redirect('admin_activity_schedules_index')
+
+
+@admin_required
+def activity_schedule_destroy(request, id):
+    """
+    Delete an activity schedule and all its associated tasks.
+    """
+    company_id = request.session.get('company_id', 1)
+    schedule = get_object_or_404(ActivitySchedule, id=id, company_id=company_id)
+    title = schedule.title
+    code = schedule.schedule_code
+    schedule.delete()
+
+    messages.success(request, f'Schedule "{code} - {title}" and its generated tasks deleted successfully.')
+    return redirect('admin_activity_schedules_index')
+
+
+@admin_required
+def activity_schedule_generate_tasks(request):
+    """
+    Manual trigger to run automatic task generation across all active recurring schedules.
+    """
+    company_id = request.session.get('company_id', 1)
+    horizon_days = int(request.GET.get('days', 60))
+
+    result = ActivityScheduleService.generate_all_active_schedules(
+        horizon_days=horizon_days, company_id=company_id
+    )
+
+    tasks_created = result.get('tasks_created', 0)
+    schedules_processed = result.get('schedules_processed', 0)
+
+    messages.success(
+        request,
+        f'Automatic Task Generation finished: {tasks_created} new task(s) generated across {schedules_processed} active schedule(s).'
+    )
+    return redirect(f"{redirect('admin_activity_schedules_index').url}?tab=tasks")
+
+
+@admin_required
+def activity_task_update_status(request, id):
+    """
+    Update the status and completion remarks of an individual generated ActivityTask.
+    Supports both standard form POST and JSON/AJAX requests.
+    """
+    company_id = request.session.get('company_id', 1)
+    task = get_object_or_404(ActivityTask, id=id, company_id=company_id)
+
+    if request.method == 'POST':
+        new_status = request.POST.get('status', '').strip()
+        remarks = request.POST.get('completion_remarks', '').strip()
+
+        if new_status and new_status in dict(ActivityTask.STATUS_CHOICES):
+            task.status = new_status
+            if new_status == 'Completed':
+                from django.utils import timezone
+                task.completed_at = timezone.now()
+            else:
+                task.completed_at = None
+
+        if remarks:
+            task.completion_remarks = remarks
+
+        task.save()
+
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.content_type == 'application/json':
+            return JsonResponse({
+                'success': True,
+                'message': f'Task {task.task_code} updated to {task.status}',
+                'task_code': task.task_code,
+                'status': task.status
+            })
+
+        messages.success(request, f'Task {task.task_code} status updated to "{task.status}".')
+
+    return redirect(f"{redirect('admin_activity_schedules_index').url}?tab=tasks")
+
+
+@admin_required
+def activity_calendar_events_json(request):
+    """
+    API endpoint that returns FullCalendar / JSON formatted schedule and task events.
+    """
+    company_id = request.session.get('company_id', 1)
+    start_str = request.GET.get('start', '').split('T')[0]
+    end_str = request.GET.get('end', '').split('T')[0]
+    employee_id = request.GET.get('employee_id')
+    project_id = request.GET.get('project_id')
+    status = request.GET.get('status')
+
+    events = ActivityScheduleService.get_calendar_events(
+        company_id=company_id,
+        start_date=start_str or None,
+        end_date=end_str or None,
+        employee_id=employee_id if employee_id and employee_id.isdigit() else None,
+        project_id=project_id if project_id and project_id.isdigit() else None,
+        status=status or None
+    )
+
+    return JsonResponse(events, safe=False)
+
 
 

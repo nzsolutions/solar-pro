@@ -56,4 +56,13 @@ urlpatterns = [
     path('admin/activities/<int:activity_id>/form-builder/save', views.activity_form_builder_save, name='admin_activity_form_builder_save'),
     path('admin/activities/<int:activity_id>/form-builder/submit-test', views.activity_form_submit_test, name='admin_activity_form_submit_test'),
     path('admin/activities/<int:activity_id>/form-builder/json', views.activity_form_get_json, name='admin_activity_form_get_json'),
+
+    # Activity Scheduling & Automatic Task Generation
+    path('admin/activity-schedules', views.activity_schedules_index, name='admin_activity_schedules_index'),
+    path('admin/activity-schedules/store', views.activity_schedule_store, name='admin_activity_schedules_store'),
+    path('admin/activity-schedules/<int:id>/update', views.activity_schedule_update, name='admin_activity_schedules_update'),
+    path('admin/activity-schedules/<int:id>/destroy', views.activity_schedule_destroy, name='admin_activity_schedules_destroy'),
+    path('admin/activity-schedules/generate', views.activity_schedule_generate_tasks, name='admin_activity_schedules_generate'),
+    path('admin/activity-tasks/<int:id>/update-status', views.activity_task_update_status, name='admin_activity_tasks_update_status'),
+    path('admin/activity-schedules/calendar-events', views.activity_calendar_events_json, name='admin_activity_schedules_calendar_events'),
 ]

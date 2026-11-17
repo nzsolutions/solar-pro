@@ -1,0 +1,1096 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+    .page-subtitle { color: #6B7280; margin-top: -0.25rem; margin-bottom: 1.5rem; }
+
+    .breadcrumb-nav { font-size: 0.9rem; color: #9CA3AF; margin-bottom: 0.75rem; }
+    .breadcrumb-nav a { color: #9CA3AF; text-decoration: none; }
+    .breadcrumb-nav a:hover { color: var(--accent-orange, #F59E0B); }
+    .breadcrumb-nav .current { color: #111827; font-weight: 600; }
+    .breadcrumb-nav i { font-size: 0.8rem; margin: 0 0.4rem; }
+
+    /* Form Card */
+    .form-card { background: #fff; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+    .form-card h5 { color: #111827; font-weight: 700; margin-bottom: 1rem; }
+    .form-card h5 i { color: var(--accent-orange, #F59E0B); margin-right: 0.4rem; }
+
+    .form-label { font-weight: 700; color: #111827; margin-bottom: 0.4rem; font-size: 0.88rem; }
+    .form-label .required { color: #EF4444; }
+
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 1px solid #E5E7EB;
+        padding: 0.55rem 0.85rem;
+        background-color: #FAFAFA;
+        font-size: 0.88rem;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--accent-orange, #F59E0B);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+        background-color: #fff;
+    }
+
+    /* KPI Stat Cards */
+    .stat-card {
+        background: #fff;
+        border: 1px solid #F3F4F6;
+        border-radius: 12px;
+        padding: 1.1rem 1.25rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 14px rgba(0,0,0,0.05);
+    }
+    .stat-card .stat-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    .stat-card .stat-val {
+        font-size: 1.5rem;
+        font-weight: 800;
+        line-height: 1.1;
+        color: #111827;
+    }
+    .stat-card .stat-label {
+        font-size: 0.76rem;
+        color: #6B7280;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+    }
+
+    /* Badges */
+    .badge-count {
+        background: #FEF3E2;
+        color: var(--accent-orange, #F59E0B);
+        font-weight: 700;
+        font-size: 0.8rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+    }
+    .badge-priority-urgent { background: #FEE2E2; color: #DC2626; font-weight: 700; font-size: 0.72rem; padding: 0.25rem 0.6rem; border-radius: 6px; }
+    .badge-priority-high { background: #FFEDD5; color: #EA580C; font-weight: 700; font-size: 0.72rem; padding: 0.25rem 0.6rem; border-radius: 6px; }
+    .badge-priority-medium { background: #FEF3C7; color: #D97706; font-weight: 700; font-size: 0.72rem; padding: 0.25rem 0.6rem; border-radius: 6px; }
+    .badge-priority-low { background: #F3F4F6; color: #4B5563; font-weight: 700; font-size: 0.72rem; padding: 0.25rem 0.6rem; border-radius: 6px; }
+
+    .badge-status-scheduled { background: #EFF6FF; color: #2563EB; font-weight: 700; font-size: 0.75rem; padding: 0.28rem 0.75rem; border-radius: 999px; }
+    .badge-status-inprogress { background: #FEF3C7; color: #B45309; font-weight: 700; font-size: 0.75rem; padding: 0.28rem 0.75rem; border-radius: 999px; }
+    .badge-status-completed { background: #ECFDF5; color: #059669; font-weight: 700; font-size: 0.75rem; padding: 0.28rem 0.75rem; border-radius: 999px; }
+    .badge-status-cancelled { background: #F3F4F6; color: #6B7280; font-weight: 700; font-size: 0.75rem; padding: 0.28rem 0.75rem; border-radius: 999px; }
+    .badge-status-pending { background: #FFFBEB; color: #D97706; font-weight: 700; font-size: 0.75rem; padding: 0.28rem 0.75rem; border-radius: 999px; }
+
+    .badge-frequency { background: #F1F5F9; color: #334155; font-weight: 600; font-size: 0.74rem; padding: 0.25rem 0.65rem; border-radius: 6px; }
+    .badge-overdue { background: #FEE2E2; color: #DC2626; font-weight: 800; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; animation: pulse 2s infinite; }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.65; }
+    }
+
+    /* Modern Table */
+    .modern-table { margin-bottom: 0; width: 100%; }
+    .modern-table thead th {
+        border: none;
+        color: #9CA3AF;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 700;
+        padding: 0.75rem 0.65rem;
+        background-color: #FAFAFA;
+    }
+    .modern-table tbody tr { border-top: 1px solid #F3F4F6; transition: background-color 0.15s ease; }
+    .modern-table tbody tr:hover { background-color: #FAFAFA; }
+    .modern-table tbody td { padding: 0.85rem 0.65rem; vertical-align: middle; color: #374151; font-size: 0.87rem; }
+
+    .btn-icon {
+        border: 1px solid #E5E7EB;
+        background: #fff;
+        border-radius: 8px;
+        width: 32px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #6B7280;
+        margin-left: 0.2rem;
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+    .btn-icon:hover { border-color: var(--accent-orange, #F59E0B); color: var(--accent-orange, #F59E0B); }
+    .btn-icon.text-danger:hover { border-color: #EF4444; color: #EF4444; }
+    .btn-icon.text-success:hover { border-color: #10B981; color: #10B981; }
+
+    /* Nav Tabs */
+    .nav-tabs-custom {
+        border-bottom: 2px solid #E5E7EB;
+        gap: 0.5rem;
+    }
+    .nav-tabs-custom .nav-link {
+        border: none;
+        color: #6B7280;
+        font-weight: 600;
+        font-size: 0.92rem;
+        padding: 0.65rem 1.15rem;
+        border-radius: 8px 8px 0 0;
+        position: relative;
+        background: transparent;
+        transition: all 0.15s ease;
+    }
+    .nav-tabs-custom .nav-link:hover {
+        color: var(--accent-orange, #F59E0B);
+    }
+    .nav-tabs-custom .nav-link.active {
+        color: var(--accent-orange, #F59E0B);
+        font-weight: 700;
+        background: #fff;
+        border-bottom: 3px solid var(--accent-orange, #F59E0B);
+    }
+
+    /* Filter Toolbar */
+    .filter-box {
+        background: #F9FAFB;
+        border: 1px solid #E5E7EB;
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1.25rem;
+    }
+
+    #calendar {
+        background: #fff;
+        border-radius: 10px;
+        padding: 0.75rem;
+        min-height: 600px;
+    }
+    .fc-theme-standard td, .fc-theme-standard th {
+        border-color: #F3F4F6 !important;
+    }
+    .fc .fc-toolbar-title {
+        font-size: 1.25rem !important;
+        font-weight: 700 !important;
+        color: #111827;
+    }
+    .fc .fc-button-primary {
+        background-color: var(--accent-orange, #F59E0B) !important;
+        border-color: var(--accent-orange, #F59E0B) !important;
+        box-shadow: none !important;
+    }
+    .fc .fc-button-primary:disabled {
+        opacity: 0.6;
+    }
+</style>
+
+<!-- FullCalendar CDN Styles -->
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+
+<!-- Breadcrumb -->
+<div class="breadcrumb-nav">
+    <a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Dashboard</a>
+    <i class="bi bi-chevron-right"></i>
+    <span>Master</span>
+    <i class="bi bi-chevron-right"></i>
+    <span class="current">Activity Scheduling</span>
+</div>
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h2 class="page-title mb-1">Activity Scheduling &amp; Task Generation</h2>
+        <div class="text-muted" style="font-size:0.9rem;">
+            Plan recurring solar maintenance activities, automate task creation, and monitor employee assignments.
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'admin_activity_schedules_generate' %}" class="btn btn-outline-secondary hover-lift"
+           title="Process all active schedules and generate upcoming tasks"
+           style="border-radius: 10px; padding: 0.6rem 1rem; font-weight: 500; font-size: 0.88rem;">
+            <i class="bi bi-arrow-repeat me-1"></i> Generate Tasks Now
+        </a>
+        <button type="button" class="btn hover-lift" data-bs-toggle="modal" data-bs-target="#addScheduleModal"
+                style="background-color: var(--accent-orange, #F59E0B); color: white; font-weight: 500; border-radius: 10px; padding: 0.6rem 1.25rem;">
+            <i class="bi bi-plus-lg me-1"></i> Schedule Activity
+        </button>
+    </div>
+</div>
+
+<!-- KPI Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="stat-card">
+            <div>
+                <div class="stat-val">{{ kpis.total_schedules }}</div>
+                <div class="stat-label">Schedules</div>
+            </div>
+            <div class="stat-icon" style="background:#EFF6FF; color:#3B82F6;">
+                <i class="bi bi-calendar3"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="stat-card">
+            <div>
+                <div class="stat-val text-primary">{{ kpis.scheduled_schedules }}</div>
+                <div class="stat-label">Scheduled</div>
+            </div>
+            <div class="stat-icon" style="background:#EFF6FF; color:#2563EB;">
+                <i class="bi bi-clock"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="stat-card">
+            <div>
+                <div class="stat-val text-warning">{{ kpis.in_progress_tasks }}</div>
+                <div class="stat-label">In Progress</div>
+            </div>
+            <div class="stat-icon" style="background:#FFFBEB; color:#D97706;">
+                <i class="bi bi-lightning-charge"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="stat-card">
+            <div>
+                <div class="stat-val text-success">{{ kpis.completed_tasks }}</div>
+                <div class="stat-label">Tasks Done</div>
+            </div>
+            <div class="stat-icon" style="background:#ECFDF5; color:#10B981;">
+                <i class="bi bi-check-circle"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="stat-card">
+            <div>
+                <div class="stat-val {% if kpis.overdue_tasks > 0 or kpis.overdue_schedules > 0 %}text-danger{% else %}text-muted{% endif %}">
+                    {{ kpis.overdue_tasks|add:kpis.overdue_schedules }}
+                </div>
+                <div class="stat-label">Overdue</div>
+            </div>
+            <div class="stat-icon" style="background:#FEE2E2; color:#DC2626;">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="stat-card">
+            <div>
+                <div class="stat-val text-info">{{ kpis.today_tasks }}</div>
+                <div class="stat-label">Today's Tasks</div>
+            </div>
+            <div class="stat-icon" style="background:#F0FDF4; color:#059669;">
+                <i class="bi bi-calendar-event"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Section with Tabs -->
+<div class="form-card">
+    <!-- Filter Toolbar -->
+    <form method="GET" action="{% url 'admin_activity_schedules_index' %}" class="filter-box">
+        <input type="hidden" name="tab" id="activeTabInput" value="{{ active_tab }}">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label" style="font-size:0.78rem;">Search</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search" class="form-control" placeholder="Code, title, activity, employee..." value="{{ filters.search }}">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" style="font-size:0.78rem;">Status</label>
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">All Statuses</option>
+                    {% for code, label in status_choices %}
+                        <option value="{{ code }}" {% if filters.status == code %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" style="font-size:0.78rem;">Priority</label>
+                <select name="priority" class="form-select form-select-sm">
+                    <option value="">All Priorities</option>
+                    {% for code, label in priority_choices %}
+                        <option value="{{ code }}" {% if filters.priority == code %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" style="font-size:0.78rem;">Frequency</label>
+                <select name="frequency" class="form-select form-select-sm">
+                    <option value="">All Frequencies</option>
+                    {% for code, label in recurring_choices %}
+                        <option value="{{ code }}" {% if filters.frequency == code %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" style="font-size:0.78rem;">Employee</label>
+                <select name="employee_id" class="form-select form-select-sm">
+                    <option value="">All Employees</option>
+                    {% for emp in employees %}
+                        <option value="{{ emp.id }}" {% if filters.employee_id == emp.id|stringformat:"i" %}selected{% endif %}>{{ emp.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-1 d-flex gap-1">
+                <button type="submit" class="btn btn-sm btn-primary w-100" style="background:var(--accent-orange,#F59E0B); border-color:var(--accent-orange,#F59E0B);">
+                    <i class="bi bi-funnel"></i>
+                </button>
+                <a href="{% url 'admin_activity_schedules_index' %}?tab={{ active_tab }}" class="btn btn-sm btn-light border" title="Reset Filters">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </a>
+            </div>
+        </div>
+    </form>
+
+    <!-- Nav Tabs -->
+    <ul class="nav nav-tabs nav-tabs-custom mb-3" id="schedTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if active_tab == 'schedules' %}active{% endif %}" id="schedules-tab"
+                    data-bs-toggle="tab" data-bs-target="#tab-schedules" type="button" role="tab" onclick="setTab('schedules')">
+                <i class="bi bi-calendar3 me-1"></i> Schedules <span class="badge bg-light text-dark ms-1">{{ schedules|length }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if active_tab == 'tasks' %}active{% endif %}" id="tasks-tab"
+                    data-bs-toggle="tab" data-bs-target="#tab-tasks" type="button" role="tab" onclick="setTab('tasks')">
+                <i class="bi bi-list-check me-1"></i> Generated Tasks <span class="badge bg-light text-dark ms-1">{{ tasks|length }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if active_tab == 'calendar' %}active{% endif %}" id="calendar-tab"
+                    data-bs-toggle="tab" data-bs-target="#tab-calendar" type="button" role="tab" onclick="setTab('calendar'); renderCalendar();">
+                <i class="bi bi-calendar-week me-1"></i> Calendar View
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Contents -->
+    <div class="tab-content" id="schedTabContent">
+        
+        <!-- ================= TAB 1: SCHEDULES ================= -->
+        <div class="tab-pane fade {% if active_tab == 'schedules' %}show active{% endif %}" id="tab-schedules" role="tabpanel">
+            <div class="table-responsive">
+                <table class="table modern-table" id="schedulesTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 100px;">Schedule ID</th>
+                            <th>Schedule Title</th>
+                            <th>Activity Master</th>
+                            <th>Project / Site</th>
+                            <th>Assignee</th>
+                            <th>Frequency</th>
+                            <th>Start Date</th>
+                            <th>Deadline</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th class="text-end" style="min-width: 120px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in schedules %}
+                        <tr>
+                            <td>
+                                <span class="fw-bold text-muted">{{ s.schedule_code }}</span>
+                                {% if s.is_overdue %}
+                                    <span class="badge-overdue d-block mt-1">OVERDUE</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark">{{ s.title }}</div>
+                                {% if s.auto_generate_tasks %}
+                                    <small class="text-muted"><i class="bi bi-magic text-primary"></i> Auto-Gen On ({{ s.tasks.count }} tasks)</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="text-dark fw-semibold">{{ s.activity.activity_title }}</span>
+                                <small class="d-block text-muted">{{ s.activity.activity_category }}</small>
+                            </td>
+                            <td>
+                                {% if s.project %}
+                                    <span>{{ s.project.project_name }}</span>
+                                {% else %}
+                                    <span class="text-muted">— General —</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if s.assigned_to %}
+                                    <div class="fw-semibold">{{ s.assigned_to.name }}</div>
+                                    {% if s.assigned_staff %}
+                                        <small class="text-muted">+{{ s.assigned_staff|length }} staff</small>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">Unassigned</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge-frequency">
+                                    {% if s.recurring_type == 'daily' %}<i class="bi bi-arrow-repeat"></i> Daily
+                                    {% elif s.recurring_type == 'weekly' %}<i class="bi bi-calendar-week"></i> Weekly
+                                    {% elif s.recurring_type == 'monthly' %}<i class="bi bi-calendar-month"></i> Monthly
+                                    {% else %}<i class="bi bi-pin-angle"></i> One-Time{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <div>{{ s.start_date|date:"d M Y" }}</div>
+                                {% if s.start_time %}
+                                    <small class="text-muted"><i class="bi bi-clock"></i> {{ s.start_time|time:"H:i" }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if s.deadline %}
+                                    <span {% if s.is_overdue %}class="text-danger fw-bold"{% endif %}>
+                                        {{ s.deadline|date:"d M Y" }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if s.priority == 'Urgent' %}
+                                    <span class="badge-priority-urgent">Urgent</span>
+                                {% elif s.priority == 'High' %}
+                                    <span class="badge-priority-high">High</span>
+                                {% elif s.priority == 'Medium' %}
+                                    <span class="badge-priority-medium">Medium</span>
+                                {% else %}
+                                    <span class="badge-priority-low">Low</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if s.status == 'Scheduled' %}
+                                    <span class="badge-status-scheduled">Scheduled</span>
+                                {% elif s.status == 'In Progress' %}
+                                    <span class="badge-status-inprogress">In Progress</span>
+                                {% elif s.status == 'Completed' %}
+                                    <span class="badge-status-completed">Completed</span>
+                                {% elif s.status == 'Cancelled' %}
+                                    <span class="badge-status-cancelled">Cancelled</span>
+                                {% else %}
+                                    <span class="badge-status-pending">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <!-- View Details -->
+                                <button type="button" class="btn-icon" title="View Schedule Details"
+                                        data-bs-toggle="modal" data-bs-target="#viewScheduleModal{{ s.id }}">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <!-- Edit Schedule -->
+                                <button type="button" class="btn-icon" title="Edit Schedule"
+                                        data-bs-toggle="modal" data-bs-target="#editScheduleModal{{ s.id }}">
+                                    <i class="bi bi-pencil-square"></i>
+                                </button>
+                                <!-- Delete Schedule -->
+                                <form action="{% url 'admin_activity_schedules_destroy' s.id %}" method="POST"
+                                      class="d-inline" onsubmit="return confirm('Delete this schedule ({{ s.schedule_code }}) and all its pending tasks?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-icon text-danger" title="Delete Schedule">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ================= TAB 2: GENERATED TASKS ================= -->
+        <div class="tab-pane fade {% if active_tab == 'tasks' %}show active{% endif %}" id="tab-tasks" role="tabpanel">
+            <div class="table-responsive">
+                <table class="table modern-table" id="tasksTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 100px;">Task Code</th>
+                            <th>Schedule Ref</th>
+                            <th>Task Date</th>
+                            <th>Activity &amp; Project</th>
+                            <th>Assigned Staff</th>
+                            <th>Priority</th>
+                            <th>Due Time</th>
+                            <th>Status</th>
+                            <th>Completion Info</th>
+                            <th class="text-end" style="min-width: 90px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in tasks %}
+                        <tr>
+                            <td>
+                                <span class="fw-bold text-dark">{{ t.task_code }}</span>
+                                {% if t.is_overdue %}
+                                    <span class="badge-overdue d-block mt-1">OVERDUE</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark border">{{ t.schedule.schedule_code }}</span>
+                                <small class="d-block text-muted">{{ t.schedule.title|truncatechars:25 }}</small>
+                            </td>
+                            <td>
+                                <div class="fw-semibold">{{ t.task_date|date:"d M Y" }}</div>
+                                <small class="text-muted">{{ t.task_date|date:"l" }}</small>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark">{{ t.activity.activity_title }}</div>
+                                <small class="text-muted">
+                                    {% if t.project %}<i class="bi bi-geo-alt"></i> {{ t.project.project_name }}{% else %}—{% endif %}
+                                </small>
+                            </td>
+                            <td>
+                                {% if t.assigned_to %}
+                                    <div><i class="bi bi-person text-muted"></i> {{ t.assigned_to.name }}</div>
+                                {% else %}
+                                    <span class="text-muted">Unassigned</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if t.priority == 'Urgent' %}
+                                    <span class="badge-priority-urgent">Urgent</span>
+                                {% elif t.priority == 'High' %}
+                                    <span class="badge-priority-high">High</span>
+                                {% elif t.priority == 'Medium' %}
+                                    <span class="badge-priority-medium">Medium</span>
+                                {% else %}
+                                    <span class="badge-priority-low">Low</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if t.due_datetime %}
+                                    <span {% if t.is_overdue %}class="text-danger fw-bold"{% endif %}>
+                                        {{ t.due_datetime|date:"d M, H:i" }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if t.status == 'Scheduled' %}
+                                    <span class="badge-status-scheduled">Scheduled</span>
+                                {% elif t.status == 'In Progress' %}
+                                    <span class="badge-status-inprogress">In Progress</span>
+                                {% elif t.status == 'Completed' %}
+                                    <span class="badge-status-completed"><i class="bi bi-check2"></i> Completed</span>
+                                {% elif t.status == 'Cancelled' %}
+                                    <span class="badge-status-cancelled">Cancelled</span>
+                                {% else %}
+                                    <span class="badge-status-pending">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if t.completed_at %}
+                                    <small class="text-success d-block"><i class="bi bi-check-circle"></i> {{ t.completed_at|date:"d M, H:i" }}</small>
+                                    <small class="text-muted">{{ t.completion_remarks|truncatechars:30 }}</small>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-light border px-2 py-1"
+                                        data-bs-toggle="modal" data-bs-target="#updateTaskModal{{ t.id }}"
+                                        title="Update Status & Remarks">
+                                    <i class="bi bi-pencil-square text-primary"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ================= TAB 3: CALENDAR VIEW ================= -->
+        <div class="tab-pane fade {% if active_tab == 'calendar' %}show active{% endif %}" id="tab-calendar" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="text-muted small">
+                    <span class="me-3"><span class="badge" style="background:#EF4444;">&nbsp;</span> Urgent</span>
+                    <span class="me-3"><span class="badge" style="background:#F97316;">&nbsp;</span> High</span>
+                    <span class="me-3"><span class="badge" style="background:#3B82F6;">&nbsp;</span> Medium</span>
+                    <span class="me-3"><span class="badge" style="background:#6B7280;">&nbsp;</span> Low</span>
+                    <span><span class="badge" style="background:#10B981;">&nbsp;</span> Completed</span>
+                </div>
+            </div>
+            <div id="calendar"></div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ================= MODALS ================= -->
+
+<!-- Add Schedule Modal -->
+<div class="modal fade" id="addScheduleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 14px; border: none;">
+            <div class="modal-header" style="border-bottom: 1px solid #F3F4F6;">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-calendar-plus text-primary me-2"></i>Create Activity Schedule
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'admin_activity_schedules_store' %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label" for="add_title">Schedule Title <span class="required">*</span></label>
+                            <input type="text" class="form-control" id="add_title" name="title" required
+                                   placeholder="e.g. Monthly Inverter & Battery Inspection">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="add_activity_id">Activity Master <span class="required">*</span></label>
+                            <select class="form-select" id="add_activity_id" name="activity_id" required>
+                                <option value="">-- Select Activity --</option>
+                                {% for act in activities %}
+                                    <option value="{{ act.id }}">{{ act.activity_title }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="add_project_id">Project / Site</label>
+                            <select class="form-select" id="add_project_id" name="project_id">
+                                <option value="">-- General / No Project --</option>
+                                {% for proj in projects %}
+                                    <option value="{{ proj.id }}">{{ proj.project_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="add_assigned_to_id">Primary Assigned Employee</label>
+                            <select class="form-select" id="add_assigned_to_id" name="assigned_to_id">
+                                <option value="">-- Select Employee --</option>
+                                {% for emp in employees %}
+                                    <option value="{{ emp.id }}">{{ emp.name }} ({{ emp.role|default:'Staff' }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label" for="add_recurring_type">Recurring Frequency <span class="required">*</span></label>
+                            <select class="form-select" id="add_recurring_type" name="recurring_type" required>
+                                {% for code, label in recurring_choices %}
+                                    <option value="{{ code }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="add_priority">Priority <span class="required">*</span></label>
+                            <select class="form-select" id="add_priority" name="priority" required>
+                                {% for code, label in priority_choices %}
+                                    <option value="{{ code }}" {% if code == 'Medium' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="add_status">Initial Status <span class="required">*</span></label>
+                            <select class="form-select" id="add_status" name="status" required>
+                                {% for code, label in status_choices %}
+                                    <option value="{{ code }}" {% if code == 'Scheduled' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label" for="add_start_date">Start Date <span class="required">*</span></label>
+                            <input type="date" class="form-control" id="add_start_date" name="start_date" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="add_start_time">Start Time</label>
+                            <input type="time" class="form-control" id="add_start_time" name="start_time" value="09:00">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="add_deadline">Deadline / Due Date</label>
+                            <input type="date" class="form-control" id="add_deadline" name="deadline">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="add_end_date">Schedule End Date (Optional)</label>
+                            <input type="date" class="form-control" id="add_end_date" name="end_date">
+                            <small class="text-muted">For recurring schedules, stops generating tasks after this date.</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Additional Staff (Multi-assign)</label>
+                            <select class="form-select" name="assigned_staff" multiple size="3">
+                                {% for emp in employees %}
+                                    <option value="{{ emp.id }}">{{ emp.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label" for="add_notes">Instructions &amp; Notes</label>
+                            <textarea class="form-control" id="add_notes" name="notes" rows="2"
+                                      placeholder="Specific safety instructions, required tools or site clearance..."></textarea>
+                        </div>
+
+                        <div class="col-12 d-flex gap-4 pt-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="add_auto_gen" name="auto_generate_tasks" checked>
+                                <label class="form-check-label fw-bold" for="add_auto_gen">
+                                    <i class="bi bi-magic text-primary"></i> Automatically Generate Tasks
+                                </label>
+                                <small class="d-block text-muted">Generates upcoming concrete task instances according to schedule recurrence.</small>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="add_remind" name="remind_upcoming" checked>
+                                <label class="form-check-label fw-bold" for="add_remind">
+                                    <i class="bi bi-bell text-warning"></i> Push Reminders
+                                </label>
+                                <small class="d-block text-muted">Send mobile notifications to assigned employees for upcoming activities.</small>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid #F3F4F6;">
+                    <button type="button" class="btn btn-light border px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn hover-lift px-4"
+                            style="background-color: var(--accent-orange, #F59E0B); color: white; font-weight: 500;">
+                        <i class="bi bi-check-lg"></i> Save &amp; Generate Tasks
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit and View Modals for Schedules -->
+{% for s in schedules %}
+<!-- View Modal -->
+<div class="modal fade" id="viewScheduleModal{{ s.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 14px; border: none;">
+            <div class="modal-header" style="border-bottom: 1px solid #F3F4F6;">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-info-circle text-primary me-2"></i>Schedule {{ s.schedule_code }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <small class="text-muted text-uppercase fw-bold" style="font-size:0.75rem;">Title</small>
+                    <div class="fw-bold fs-5 text-dark">{{ s.title }}</div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Activity Master</small>
+                        <div class="fw-semibold">{{ s.activity.activity_title }}</div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Project</small>
+                        <div>{{ s.project.project_name|default:"General / None" }}</div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Frequency</small>
+                        <div><span class="badge-frequency">{{ s.recurring_type|title }}</span></div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Priority</small>
+                        <div><span class="badge-priority-{{ s.priority|lower }}">{{ s.priority }}</span></div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Start Date &amp; Time</small>
+                        <div>{{ s.start_date|date:"d M Y" }} {% if s.start_time %}at {{ s.start_time|time:"H:i" }}{% endif %}</div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Deadline</small>
+                        <div>{{ s.deadline|date:"d M Y"|default:"None" }}</div>
+                    </div>
+                    <div class="col-12">
+                        <small class="text-muted text-uppercase fw-bold" style="font-size:0.72rem;">Primary Assignee</small>
+                        <div>{{ s.assigned_to.name|default:"Unassigned" }} {% if s.assigned_to %}({{ s.assigned_to.email }}){% endif %}</div>
+                    </div>
+                </div>
+                {% if s.notes %}
+                <div class="p-3 bg-light rounded-3 mb-3">
+                    <small class="text-muted text-uppercase fw-bold d-block mb-1" style="font-size:0.72rem;">Notes</small>
+                    <div style="font-size: 0.88rem;">{{ s.notes }}</div>
+                </div>
+                {% endif %}
+                <div class="d-flex justify-content-between align-items-center text-muted" style="font-size:0.75rem;">
+                    <span>Created: {{ s.created_at|date:"d M Y, H:i" }} by {{ s.created_by }}</span>
+                    <span>Tasks Created: {{ s.tasks.count }}</span>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid #F3F4F6;">
+                <button type="button" class="btn btn-light border px-3" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Schedule Modal -->
+<div class="modal fade" id="editScheduleModal{{ s.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 14px; border: none;">
+            <div class="modal-header" style="border-bottom: 1px solid #F3F4F6;">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-pencil-square text-primary me-2"></i>Edit Schedule {{ s.schedule_code }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'admin_activity_schedules_update' s.id %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label" for="edit_title_{{ s.id }}">Schedule Title <span class="required">*</span></label>
+                            <input type="text" class="form-control" id="edit_title_{{ s.id }}" name="title" value="{{ s.title }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="edit_activity_id_{{ s.id }}">Activity Master <span class="required">*</span></label>
+                            <select class="form-select" id="edit_activity_id_{{ s.id }}" name="activity_id" required>
+                                {% for act in activities %}
+                                    <option value="{{ act.id }}" {% if act.id == s.activity_id %}selected{% endif %}>{{ act.activity_title }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="edit_project_id_{{ s.id }}">Project / Site</label>
+                            <select class="form-select" id="edit_project_id_{{ s.id }}" name="project_id">
+                                <option value="">-- General / No Project --</option>
+                                {% for proj in projects %}
+                                    <option value="{{ proj.id }}" {% if proj.id == s.project_id %}selected{% endif %}>{{ proj.project_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="edit_assigned_to_id_{{ s.id }}">Primary Assigned Employee</label>
+                            <select class="form-select" id="edit_assigned_to_id_{{ s.id }}" name="assigned_to_id">
+                                <option value="">-- Select Employee --</option>
+                                {% for emp in employees %}
+                                    <option value="{{ emp.id }}" {% if emp.id == s.assigned_to_id %}selected{% endif %}>{{ emp.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label" for="edit_recurring_type_{{ s.id }}">Recurring Frequency <span class="required">*</span></label>
+                            <select class="form-select" id="edit_recurring_type_{{ s.id }}" name="recurring_type" required>
+                                {% for code, label in recurring_choices %}
+                                    <option value="{{ code }}" {% if code == s.recurring_type %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="edit_priority_{{ s.id }}">Priority <span class="required">*</span></label>
+                            <select class="form-select" id="edit_priority_{{ s.id }}" name="priority" required>
+                                {% for code, label in priority_choices %}
+                                    <option value="{{ code }}" {% if code == s.priority %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="edit_status_{{ s.id }}">Status <span class="required">*</span></label>
+                            <select class="form-select" id="edit_status_{{ s.id }}" name="status" required>
+                                {% for code, label in status_choices %}
+                                    <option value="{{ code }}" {% if code == s.status %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label" for="edit_start_date_{{ s.id }}">Start Date <span class="required">*</span></label>
+                            <input type="date" class="form-control" id="edit_start_date_{{ s.id }}" name="start_date" value="{{ s.start_date|date:'Y-m-d' }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="edit_start_time_{{ s.id }}">Start Time</label>
+                            <input type="time" class="form-control" id="edit_start_time_{{ s.id }}" name="start_time" value="{{ s.start_time|time:'H:i'|default:'' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="edit_deadline_{{ s.id }}">Deadline</label>
+                            <input type="date" class="form-control" id="edit_deadline_{{ s.id }}" name="deadline" value="{{ s.deadline|date:'Y-m-d'|default:'' }}">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label" for="edit_notes_{{ s.id }}">Notes</label>
+                            <textarea class="form-control" id="edit_notes_{{ s.id }}" name="notes" rows="2">{{ s.notes }}</textarea>
+                        </div>
+
+                        <div class="col-12 d-flex gap-4 pt-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit_auto_gen_{{ s.id }}" name="auto_generate_tasks" {% if s.auto_generate_tasks %}checked{% endif %}>
+                                <label class="form-check-label fw-bold" for="edit_auto_gen_{{ s.id }}">
+                                    Automatically Generate Tasks
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit_remind_{{ s.id }}" name="remind_upcoming" {% if s.remind_upcoming %}checked{% endif %}>
+                                <label class="form-check-label fw-bold" for="edit_remind_{{ s.id }}">
+                                    Push Reminders
+                                </label>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid #F3F4F6;">
+                    <button type="button" class="btn btn-light border px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn hover-lift px-4"
+                            style="background-color: var(--accent-orange, #F59E0B); color: white; font-weight: 500;">
+                        <i class="bi bi-check-lg"></i> Update Schedule
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Quick Update Task Status Modals -->
+{% for t in tasks %}
+<div class="modal fade" id="updateTaskModal{{ t.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 14px; border: none;">
+            <div class="modal-header" style="border-bottom: 1px solid #F3F4F6;">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-check2-circle text-primary me-2"></i>Update Task {{ t.task_code }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'admin_activity_tasks_update_status' t.id %}" method="POST">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <div class="fw-bold fs-6 text-dark">{{ t.task_title }}</div>
+                        <small class="text-muted">Date: {{ t.task_date|date:"d M Y" }} | Schedule: {{ t.schedule.schedule_code }}</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="task_status_{{ t.id }}">Task Status <span class="required">*</span></label>
+                        <select class="form-select" id="task_status_{{ t.id }}" name="status" required>
+                            {% for code, label in task_status_choices %}
+                                <option value="{{ code }}" {% if code == t.status %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="task_remarks_{{ t.id }}">Completion Remarks / Notes</label>
+                        <textarea class="form-control" id="task_remarks_{{ t.id }}" name="completion_remarks" rows="3"
+                                  placeholder="Enter inspection summary, maintenance actions taken, or reason for delay...">{{ t.completion_remarks }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid #F3F4F6;">
+                    <button type="button" class="btn btn-light border px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn hover-lift px-4"
+                            style="background-color: var(--accent-orange, #F59E0B); color: white; font-weight: 500;">
+                        <i class="bi bi-check-lg"></i> Update Task Status
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+
+<script>
+    function setTab(tab) {
+        document.getElementById('activeTabInput').value = tab;
+        const url = new URL(window.location);
+        url.searchParams.set('tab', tab);
+        window.history.replaceState({}, '', url);
+    }
+
+    let calendarInstance = null;
+    function renderCalendar() {
+        const calEl = document.getElementById('calendar');
+        if (!calEl) return;
+
+        if (calendarInstance) {
+            calendarInstance.render();
+            return;
+        }
+
+        calendarInstance = new FullCalendar.Calendar(calEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,listWeek'
+            },
+            themeSystem: 'bootstrap5',
+            events: '{% url "admin_activity_schedules_calendar_events" %}',
+            eventClick: function(info) {
+                if (info.event.extendedProps && info.event.extendedProps.description) {
+                    alert(info.event.title + "\n\n" + info.event.extendedProps.description);
+                }
+            }
+        });
+        calendarInstance.render();
+    }
+
+    $(document).ready(function () {
+        if ($.fn.dataTable) {
+            $.fn.dataTable.ext.errMode = 'none';
+        }
+
+        // Initialize Schedules DataTable
+        $('#schedulesTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [5, 10, 25, 50, 100],
+            columnDefs: [{ orderable: false, targets: -1 }],
+            order: [[0, 'desc']],
+            dom: 'B lfrtip',
+            buttons: [],
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search schedules...",
+                lengthMenu: "Show _MENU_ entries",
+                emptyTable: "No activity schedules created yet. Click '+ Schedule Activity' above to add one.",
+                zeroRecords: "No matching activity schedules found"
+            }
+        });
+
+        // Initialize Tasks DataTable
+        $('#tasksTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [5, 10, 25, 50, 100],
+            columnDefs: [{ orderable: false, targets: -1 }],
+            order: [[2, 'desc']],
+            dom: 'B lfrtip',
+            buttons: [],
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search tasks...",
+                lengthMenu: "Show _MENU_ entries",
+                emptyTable: "No tasks generated yet. Click 'Generate Tasks Now' to generate tasks for active schedules.",
+                zeroRecords: "No matching tasks found"
+            }
+        });
+
+        // Render calendar if active on initial load
+        if ('{{ active_tab }}' === 'calendar') {
+            renderCalendar();
+        }
+    });
+</script>
+{% endblock %}
