@@ -32,7 +32,23 @@ def run_tests():
     employee = Employee.objects.filter(status='active').first()
     site = SiteMaster.objects.first()
     act_daily = ActivityMaster.objects.filter(default_frequency='Daily', status='active').first()
+    if not act_daily:
+        act_daily = ActivityMaster.objects.create(
+            activity_title='Daily Solar Array Inspection',
+            activity_category='Daily Inspection',
+            default_frequency='Daily',
+            status='active',
+            company_id=1
+        )
     act_monthly = ActivityMaster.objects.filter(default_frequency='Monthly', status='active').first()
+    if not act_monthly:
+        act_monthly = ActivityMaster.objects.create(
+            activity_title='Monthly Inverter Maintenance',
+            activity_category='Preventive Maintenance',
+            default_frequency='Monthly',
+            status='active',
+            company_id=1
+        )
     form = DynamicForm.objects.filter(is_active=1).first()
 
     assert employee, "Active employee fixture required"
