@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('dynamic_forms', '0001_initial'),
         ('employees', '0001_initial'),
-        ('masters', '0004_leaverequest'),
+        ('masters', '0005_leaverequest'),
         ('operations', '0002_add_project_name_to_project'),
     ]
 

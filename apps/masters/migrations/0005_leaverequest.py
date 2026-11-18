@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('employees', '0001_initial'),
-        ('masters', '0003_activityformconfiguration_activityformfield_and_more'),
+        ('masters', '0004_activityschedule_activitytask'),
     ]
 
     operations = [
