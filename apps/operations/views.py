@@ -1,10 +1,12 @@
 import os
 import uuid
 import json
+import calendar
 from django.shortcuts import render, redirect, get_object_or_404
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
-from django.db.models import Sum, F, DecimalField, ExpressionWrapper, Count
+from django.db.models import Sum, F, DecimalField, ExpressionWrapper, Count, Q
 from django.contrib import messages
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
@@ -13,7 +15,18 @@ from apps.operations.models import Project, ProjectDocument, Lead
 from apps.employees.models import Employee, EmployeeAttendance
 from apps.inventory.models import OpeningStock, StockCategory, AssignedStock
 from apps.expenses.models import Expense
-from apps.masters.models import SiteMaster, DocumentTypeMaster, DesignationMaster
+from apps.masters.models import SiteMaster, DocumentTypeMaster, DesignationMaster, ActivityMaster
+from apps.dynamic_forms.models import DynamicForm
+from apps.operations.models import (
+    Project,
+    ProjectDocument,
+    Lead,
+    ProjectActivity,
+    ProjectActivityInstance,
+    ProjectActivityPhoto,
+    ProjectActivityIssue,
+)
+from apps.operations.activity_service import ProjectActivityService
 import openpyxl
 
 
@@ -249,6 +262,11 @@ def project_create(request):
     sites = SiteMaster.objects.order_by('site_name')
     document_types = DocumentTypeMaster.objects.filter(status='active').order_by('type_name')
 
+    # Available master activities & forms for Step 3: Add Activity
+    master_activities = ActivityMaster.objects.filter(status='active').select_related('form').order_by('activity_title')
+    available_forms = DynamicForm.objects.filter(is_active=1).order_by('form_name')
+    frequency_choices = [f[0] for f in ActivityMaster.FREQUENCY_CHOICES]
+
     status_options = ['planning', 'in_progress', 'completed', 'on_hold', 'maintenance']
     reporting_frequencies = ['Hourly', 'Daily', 'Weekly', 'As Required', 'Monthly']
 
@@ -258,6 +276,9 @@ def project_create(request):
         'stockCategories': stock_categories,
         'sites': sites,
         'documentTypes': document_types,
+        'masterActivities': master_activities,
+        'availableForms': available_forms,
+        'frequencyChoices': frequency_choices,
         'statusOptions': status_options,
         'reportingFrequencies': reporting_frequencies,
     })
@@ -301,6 +322,24 @@ def project_store(request):
                     item_id=int(item_id),
                     qty=float(qty),
                 )
+
+        # Handle Project Activities & Automatic Instance Generation (Step 3)
+        activity_ids = request.POST.getlist('selected_activities[]')
+        activities_data = []
+        for a_id in activity_ids:
+            if a_id.isdigit():
+                form_id = request.POST.get(f'activity_form_{a_id}')
+                freq = request.POST.get(f'activity_frequency_{a_id}')
+                duration = request.POST.get(f'activity_duration_{a_id}', '')
+                activities_data.append({
+                    'activity_id': int(a_id),
+                    'form_id': int(form_id) if form_id and form_id.isdigit() else None,
+                    'frequency': freq,
+                    'estimated_duration': duration,
+                })
+
+        added_by = request.session.get('name') or ('Admin' if request.session.get('is_admin') == 1 else 'Staff')
+        ProjectActivityService.sync_project_activities(project, activities_data, user_name=added_by)
 
         # Handle Multi-Document Uploads
         upload_dir = os.path.join(settings.MEDIA_ROOT, 'project_documents')
@@ -436,6 +475,13 @@ def project_update(request, id):
         project.reporting_frequency = request.POST.get('reporting_frequency', project.reporting_frequency)
         project.notes = request.POST.get('notes', project.notes)
         project.save()
+
+        # Reconcile project activities instances on date changes
+        for pa in project.project_activities.filter(status='active'):
+            pa.start_date = project.start_date
+            pa.end_date = project.end_date
+            pa.save(update_fields=['start_date', 'end_date', 'updated_at'])
+            ProjectActivityService.generate_instances_for_activity(pa)
 
         messages.success(request, f'Project "{client_name}" updated successfully.')
         return redirect('admin_projects_index')
@@ -739,4 +785,177 @@ def staff_destroy(request, id):
         messages.success(request, 'Staff member removed successfully.')
         return redirect('admin_staff_index')
     return redirect('admin_staff_index')
+
+
+# ==========================================
+# 6. PROJECT ACTIVITY MANAGEMENT
+# ==========================================
+@admin_required
+def project_activities_index(request):
+    """
+    Project Activity Management screen: displays project-specific activities
+    and their generated instances, supporting:
+    - Search & Filter bar: Search input, Project, Activity, Frequency, Status, Filter button, Reset button
+    - Frequency filter: Display activity occurrences according to their frequency (Daily, Weekly, Monthly, Quarterly, Yearly)
+    - Ascending sort by scheduled_date (earliest first), secondary by id
+    - Server-side pagination (20 per page)
+    """
+    project_id = request.GET.get('project', '').strip()
+    activity_id = request.GET.get('activity', '').strip()
+    employee_id = request.GET.get('employee', '').strip()
+    frequency = request.GET.get('frequency', '').strip()
+    status = request.GET.get('status', '').strip()
+    search = request.GET.get('search', '').strip()
+
+    qs = ProjectActivityInstance.objects.select_related(
+        'project',
+        'activity',
+        'project_activity',
+        'project_activity__form',
+        'assigned_employee',
+        'submitted_by'
+    ).prefetch_related('photos', 'issues').all()
+
+    # Search and Filter criteria
+    if project_id and project_id.isdigit():
+        qs = qs.filter(project_id=int(project_id))
+    if activity_id and activity_id.isdigit():
+        qs = qs.filter(activity_id=int(activity_id))
+    if employee_id and employee_id.isdigit():
+        qs = qs.filter(assigned_employee_id=int(employee_id))
+    if frequency:
+        # Match frequency on instance, parent project activity, or activity master
+        qs = qs.filter(
+            Q(frequency__iexact=frequency) |
+            Q(project_activity__frequency__iexact=frequency) |
+            Q(activity__default_frequency__iexact=frequency)
+        )
+    if status:
+        qs = qs.filter(status=status)
+    if search:
+        qs = qs.filter(
+            Q(activity__activity_title__icontains=search) |
+            Q(project__client_name__icontains=search) |
+            Q(project__project_name__icontains=search) |
+            Q(assigned_employee__name__icontains=search)
+        )
+
+    # Sort in ascending order by scheduled_date (earliest first), secondary by id
+    qs = qs.order_by('scheduled_date', 'id')
+
+    # Server-side pagination (20 per page)
+    paginator = Paginator(qs, 20)
+    page_number = request.GET.get('page', 1)
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    # Summary metrics
+    all_instances = ProjectActivityInstance.objects.all()
+    metrics = {
+        'total_instances': all_instances.count(),
+        'pending': all_instances.filter(status='Pending').count(),
+        'in_progress': all_instances.filter(status='In Progress').count(),
+        'completed': all_instances.filter(status='Completed').count(),
+        'exceptions': all_instances.filter(status__in=['Unable to Complete', 'Exception Reported']).count(),
+    }
+
+    projects_list = Project.objects.order_by('project_name', 'client_name')
+    activities_list = ActivityMaster.objects.order_by('activity_title')
+    employees_list = Employee.objects.filter(status='active').order_by('name')
+    frequency_choices = [f[0] for f in ActivityMaster.FREQUENCY_CHOICES]
+    status_choices = [s[0] for s in ProjectActivityInstance.STATUS_CHOICES]
+
+    return render(request, 'admin/operation/project_activities.html', {
+        'page_obj': page_obj,
+        'instances': page_obj.object_list,
+        'metrics': metrics,
+        'projects': projects_list,
+        'activities': activities_list,
+        'employees': employees_list,
+        'frequencyChoices': frequency_choices,
+        'statusChoices': status_choices,
+        'filters': {
+            'project': project_id,
+            'activity': activity_id,
+            'employee': employee_id,
+            'frequency': frequency,
+            'status': status,
+            'search': search,
+        }
+    })
+
+
+@admin_required
+def project_activity_instance_detail(request, instance_id):
+    """
+    Returns full modal detail HTML or JSON for an individual activity instance:
+    Activity information, project info, attached form, submitted form answers,
+    before/after photos, employee remarks, and issue/exception details.
+    """
+    instance = get_object_or_404(
+        ProjectActivityInstance.objects.select_related(
+            'project',
+            'activity',
+            'project_activity',
+            'project_activity__form',
+            'assigned_employee',
+            'submitted_by',
+            'form_submission'
+        ).prefetch_related('photos', 'issues'),
+        id=instance_id
+    )
+
+    before_photos = [p for p in instance.photos.all() if p.photo_stage == 'Before']
+    after_photos = [p for p in instance.photos.all() if p.photo_stage == 'After']
+    intermediate_photos = [p for p in instance.photos.all() if p.photo_stage == 'Intermediate']
+    issues = list(instance.issues.all().order_by('-created_at'))
+
+    attached_form = instance.project_activity.form
+
+    return render(request, 'admin/operation/project_activity_detail_modal.html', {
+        'instance': instance,
+        'beforePhotos': before_photos,
+        'afterPhotos': after_photos,
+        'intermediatePhotos': intermediate_photos,
+        'issues': issues,
+        'attachedForm': attached_form,
+    })
+
+
+@admin_required
+def project_activity_review_issue(request, instance_id):
+    """
+    Allows Admin to review and update status/remarks on reported activity exceptions.
+    """
+    instance = get_object_or_404(ProjectActivityInstance, id=instance_id)
+    if request.method == 'POST':
+        issue_id = request.POST.get('issue_id')
+        new_status = request.POST.get('status', 'Under Review')
+        admin_remarks = request.POST.get('admin_remarks', '').strip()
+
+        issue = None
+        if issue_id and issue_id.isdigit():
+            issue = ProjectActivityIssue.objects.filter(id=int(issue_id), instance=instance).first()
+
+        if issue:
+            issue.status = new_status
+            issue.admin_remarks = admin_remarks
+            issue.action_by = request.session.get('name') or 'Admin'
+            issue.action_at = timezone.now()
+            issue.save()
+
+            if new_status == 'Resolved':
+                instance.status = 'Pending'
+                instance.save(update_fields=['status', 'updated_at'])
+            elif new_status == 'Under Review':
+                instance.status = 'Under Review'
+                instance.save(update_fields=['status', 'updated_at'])
+
+            messages.success(request, f'Issue #{issue.id} updated successfully.')
+        return redirect('admin_project_activities_index')
+    return redirect('admin_project_activities_index')
 

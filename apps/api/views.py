@@ -1,3 +1,5 @@
+import os
+import uuid
 import json
 import math
 import random
@@ -21,8 +23,16 @@ from apps.dynamic_forms.models import DynamicForm, FormSubmission
 from apps.employees.models import Employee, EmployeeAttendance, EmployeeOTP
 from apps.expenses.models import Expense, ExpenseCategory
 from apps.inventory.models import AssignedStock, OpeningStock, StockCategory
-from apps.masters.models import AttendanceMaster, DocumentTypeMaster, SiteMaster, SMTPConfiguration, LeaveRequest, DesignationMaster, DepartmentMaster
-from apps.operations.models import Project, ProjectDocument
+from apps.masters.models import AttendanceMaster, DocumentTypeMaster, SiteMaster, SMTPConfiguration, LeaveRequest, DesignationMaster, DepartmentMaster, ActivityMaster, ActivityFormConfiguration
+from apps.operations.models import (
+    Project,
+    ProjectDocument,
+    ProjectActivity,
+    ProjectActivityInstance,
+    ProjectActivityPhoto,
+    ProjectActivityIssue,
+)
+from apps.masters.form_builder_service import ActivityFormService
 
 laravel_hasher = LaravelBcryptPasswordHasher()
 
@@ -1665,4 +1675,698 @@ def get_employee_leaves(request):
             'message': 'An error occurred while retrieving employee leaves.',
             'error': str(e)
         }, status=500)
+
+
+# -------------------------------------------------------------
+# 11. Project Activity Management (Mobile APIs)
+# -------------------------------------------------------------
+
+def authenticate_employee_request(request):
+    """
+    Helper to authenticate employee from session or request parameters (emp_id / employee_id).
+    Ensures employee exists and is active.
+    """
+    data = get_request_data(request)
+    emp_id = (
+        request.session.get('user_id')
+        or data.get('emp_id')
+        or data.get('employee_id')
+        or request.GET.get('emp_id')
+        or request.GET.get('employee_id')
+    )
+    if not emp_id:
+        return None, "Employee ID is required."
+    try:
+        emp = Employee.objects.filter(id=int(emp_id)).first()
+        if not emp:
+            return None, "Employee not registered."
+        if emp.status != 'active':
+            return None, "Employee account is inactive."
+        return emp, None
+    except Exception as e:
+        return None, str(e)
+
+
+@csrf_exempt
+def get_employee_activities(request):
+    """
+    1. Fetch activities assigned to the authenticated employee.
+    Filters instances where assigned_employee = employee, or employee is part of project field_staff.
+    """
+    employee, err = authenticate_employee_request(request)
+    if err:
+        return JsonResponse({'success': False, 'message': err}, status=401 if 'inactive' in err else 400)
+
+    try:
+        data = get_request_data(request)
+        project_id = data.get('project_id') or request.GET.get('project_id')
+        status = data.get('status') or request.GET.get('status')
+        date_str = data.get('date') or request.GET.get('date')
+
+        # Permitted projects: employee is site_manager or in field_staff
+        accessible_project_ids = []
+        for p in Project.objects.all():
+            staff = p.field_staff if isinstance(p.field_staff, list) else []
+            if p.site_manager == employee.id or str(employee.id) in [str(x) for x in staff]:
+                accessible_project_ids.append(p.id)
+
+        qs = ProjectActivityInstance.objects.filter(
+            Q(assigned_employee=employee) | Q(project_id__in=accessible_project_ids)
+        ).select_related('project', 'activity', 'project_activity', 'project_activity__form')
+
+        if project_id and str(project_id).isdigit():
+            qs = qs.filter(project_id=int(project_id))
+        if status:
+            qs = qs.filter(status=status)
+        if date_str:
+            qs = qs.filter(scheduled_date=date_str)
+
+        instances = qs.order_by('scheduled_date', 'id')
+
+        result = []
+        for inst in instances:
+            form = inst.project_activity.form
+            photo_count = inst.photos.count()
+            has_issues = inst.issues.exists()
+
+            result.append({
+                'id': inst.id,
+                'project_id': inst.project_id,
+                'project_name': inst.project.project_name or inst.project.client_name,
+                'client_name': inst.project.client_name,
+                'activity_id': inst.activity_id,
+                'activity_title': inst.activity.activity_title,
+                'activity_category': inst.activity.activity_category,
+                'scheduled_date': str(inst.scheduled_date),
+                'due_date': str(inst.due_date) if inst.due_date else None,
+                'frequency': inst.frequency,
+                'status': inst.status,
+                'estimated_duration': inst.project_activity.estimated_duration or inst.activity.estimated_duration or '',
+                'photo_required': inst.activity.photo_required,
+                'photos_uploaded': photo_count,
+                'has_issues': has_issues,
+                'form_id': form.id if form else None,
+                'form_name': form.form_name if form else None,
+                'actual_start_time': inst.actual_start_time.isoformat() if inst.actual_start_time else None,
+                'actual_completion_time': inst.actual_completion_time.isoformat() if inst.actual_completion_time else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Assigned activities retrieved successfully.',
+            'employee_id': employee.id,
+            'count': len(result),
+            'data': result
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'Error retrieving employee activities.',
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+def get_activity_instance_detail(request):
+    """
+    2. Fetch detailed record for an individual activity instance.
+    """
+    employee, err = authenticate_employee_request(request)
+    if err:
+        return JsonResponse({'success': False, 'message': err}, status=400)
+
+    data = get_request_data(request)
+    instance_id = data.get('instance_id') or request.GET.get('instance_id')
+    if not instance_id:
+        return JsonResponse({'success': False, 'message': 'instance_id is required.'}, status=422)
+
+    try:
+        inst = ProjectActivityInstance.objects.filter(id=int(instance_id)).select_related(
+            'project', 'activity', 'project_activity', 'project_activity__form', 'assigned_employee', 'submitted_by'
+        ).first()
+
+        if not inst:
+            return JsonResponse({'success': False, 'message': 'Activity instance not found.'}, status=404)
+
+        # Check authorization: assigned employee or project staff
+        p = inst.project
+        staff = p.field_staff if isinstance(p.field_staff, list) else []
+        if inst.assigned_employee_id != employee.id and p.site_manager != employee.id and str(employee.id) not in [str(x) for x in staff]:
+            return JsonResponse({'success': False, 'message': 'You are not authorized to view this activity.'}, status=403)
+
+        form = inst.project_activity.form
+        photos = [
+            {
+                'id': ph.id,
+                'stage': ph.photo_stage,
+                'file_url': f"/media/{ph.photo_file}",
+                'latitude': float(ph.latitude) if ph.latitude else None,
+                'longitude': float(ph.longitude) if ph.longitude else None,
+                'capture_timestamp': ph.capture_timestamp.isoformat() if ph.capture_timestamp else None,
+                'created_at': ph.created_at.isoformat() if ph.created_at else None,
+            }
+            for ph in inst.photos.all()
+        ]
+
+        issues = [
+            {
+                'id': iss.id,
+                'category': iss.issue_category,
+                'short_description': iss.short_description,
+                'detailed_explanation': iss.detailed_explanation,
+                'supporting_photo': f"/media/{iss.supporting_photo}" if iss.supporting_photo else None,
+                'status': iss.status,
+                'reported_at': iss.created_at.isoformat() if iss.created_at else None,
+            }
+            for iss in inst.issues.all()
+        ]
+
+        # Activity Form Configuration & Photo Settings (if defined via Activity Form Builder)
+        form_config = ActivityFormConfiguration.objects.filter(activity=inst.activity).first()
+        photo_rules = {}
+        if form_config and hasattr(form_config, 'photo_settings'):
+            ps = form_config.photo_settings
+            photo_rules = {
+                'enable_photo_capture': ps.enable_photo_capture,
+                'before_photo_required': ps.before_photo_required,
+                'after_photo_required': ps.after_photo_required,
+                'optional_photo': ps.optional_photo,
+                'photo_instructions': ps.photo_instructions,
+                'gps_required': ps.gps_coordinates_required,
+            }
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Activity instance details retrieved successfully.',
+            'data': {
+                'id': inst.id,
+                'project_id': inst.project_id,
+                'project_name': inst.project.project_name or inst.project.client_name,
+                'client_name': inst.project.client_name,
+                'activity_id': inst.activity_id,
+                'activity_title': inst.activity.activity_title,
+                'activity_category': inst.activity.activity_category,
+                'description': inst.activity.description,
+                'scheduled_date': str(inst.scheduled_date),
+                'due_date': str(inst.due_date) if inst.due_date else None,
+                'frequency': inst.frequency,
+                'status': inst.status,
+                'assigned_employee_id': inst.assigned_employee_id,
+                'assigned_employee_name': inst.assigned_employee.name if inst.assigned_employee else None,
+                'form_id': form.id if form else None,
+                'form_name': form.form_name if form else None,
+                'photo_rules': photo_rules,
+                'photos': photos,
+                'issues': issues,
+                'submission_data': inst.submission_data,
+                'validation_result': inst.validation_result,
+                'completion_remarks': inst.completion_remarks,
+                'actual_start_time': inst.actual_start_time.isoformat() if inst.actual_start_time else None,
+                'actual_completion_time': inst.actual_completion_time.isoformat() if inst.actual_completion_time else None,
+            }
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'Error retrieving activity instance details.',
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+def get_activity_form_schema(request):
+    """
+    3. Fetch attached form configuration schema for rendering dynamically on mobile.
+    """
+    employee, err = authenticate_employee_request(request)
+    if err:
+        return JsonResponse({'success': False, 'message': err}, status=400)
+
+    data = get_request_data(request)
+    instance_id = data.get('instance_id') or request.GET.get('instance_id')
+    form_id = data.get('form_id') or request.GET.get('form_id')
+
+    try:
+        form = None
+        activity = None
+        if instance_id and str(instance_id).isdigit():
+            inst = ProjectActivityInstance.objects.filter(id=int(instance_id)).select_related('project_activity', 'activity').first()
+            if inst:
+                activity = inst.activity
+                form = inst.project_activity.form
+
+        if not form and form_id and str(form_id).isdigit():
+            form = DynamicForm.objects.filter(id=int(form_id)).first()
+
+        if not form:
+            return JsonResponse({'success': False, 'message': 'No form attached or form not found.'}, status=404)
+
+        # Retrieve rich field definitions if available from ActivityFormConfiguration
+        builder_config = None
+        if activity:
+            builder_config = ActivityFormConfiguration.objects.filter(activity=activity).first()
+
+        fields_data = []
+        if builder_config:
+            dict_rep = ActivityFormService.form_to_dict(builder_config)
+            fields_data = dict_rep.get('fields', [])
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Form configuration schema retrieved.',
+            'form': {
+                'id': form.id,
+                'form_name': form.form_name,
+                'description': form.description,
+                'form_schema': form.form_schema,
+                'builder_fields': fields_data,
+            }
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'Error fetching activity form schema.',
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+def start_activity_instance(request):
+    """
+    4. Start activity execution: transitions status to 'In Progress' and logs start time.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
+
+    employee, err = authenticate_employee_request(request)
+    if err:
+        return JsonResponse({'success': False, 'message': err}, status=400)
+
+    data = get_request_data(request)
+    instance_id = data.get('instance_id')
+    if not instance_id:
+        return JsonResponse({'success': False, 'message': 'instance_id is required.'}, status=422)
+
+    try:
+        inst = ProjectActivityInstance.objects.filter(id=int(instance_id)).first()
+        if not inst:
+            return JsonResponse({'success': False, 'message': 'Activity instance not found.'}, status=404)
+
+        if inst.status == 'Completed':
+            return JsonResponse({'success': False, 'message': 'Activity is already completed.'}, status=400)
+
+        inst.status = 'In Progress'
+        if not inst.actual_start_time:
+            inst.actual_start_time = timezone.now()
+        if not inst.assigned_employee_id:
+            inst.assigned_employee = employee
+        inst.save(update_fields=['status', 'actual_start_time', 'assigned_employee', 'updated_at'])
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Activity started successfully.',
+            'instance_id': inst.id,
+            'status': inst.status,
+            'actual_start_time': inst.actual_start_time.isoformat(),
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'Error starting activity.',
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+def upload_activity_photo(request):
+    """
+    6. Upload photo evidence (Before, After, or Intermediate).
+    Supports multipart image upload with GPS and capture timestamp.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
+
+    employee, err = authenticate_employee_request(request)
+    if err:
+        return JsonResponse({'success': False, 'message': err}, status=400)
+
+    instance_id = request.POST.get('instance_id')
+    photo_stage = request.POST.get('photo_stage', 'Before').capitalize()
+    latitude = request.POST.get('latitude')
+    longitude = request.POST.get('longitude')
+    capture_time = request.POST.get('capture_timestamp')
+
+    if not instance_id:
+        return JsonResponse({'success': False, 'message': 'instance_id is required.'}, status=422)
+
+    if 'photo' not in request.FILES:
+        return JsonResponse({'success': False, 'message': 'Photo file is required.'}, status=422)
+
+    try:
+        inst = ProjectActivityInstance.objects.filter(id=int(instance_id)).first()
+        if not inst:
+            return JsonResponse({'success': False, 'message': 'Activity instance not found.'}, status=404)
+
+        uploaded_file = request.FILES['photo']
+        upload_dir = os.path.join(settings.MEDIA_ROOT, 'activity_photos')
+        os.makedirs(upload_dir, exist_ok=True)
+
+        ext = os.path.splitext(uploaded_file.name)[1] or '.jpg'
+        filename = f"act_{inst.id}_{photo_stage.lower()}_{uuid.uuid4().hex[:10]}{ext}"
+        filepath = os.path.join(upload_dir, filename)
+
+        with open(filepath, 'wb+') as dest:
+            for chunk in uploaded_file.chunks():
+                dest.write(chunk)
+
+        cap_dt = None
+        if capture_time:
+            try:
+                cap_dt = datetime.fromisoformat(capture_time.replace('Z', '+00:00'))
+            except Exception:
+                cap_dt = timezone.now()
+        else:
+            cap_dt = timezone.now()
+
+        photo = ProjectActivityPhoto.objects.create(
+            instance=inst,
+            photo_stage=photo_stage if photo_stage in ['Before', 'After', 'Intermediate'] else 'Before',
+            photo_file=f"activity_photos/{filename}",
+            uploaded_by=employee,
+            latitude=latitude or None,
+            longitude=longitude or None,
+            capture_timestamp=cap_dt,
+            verification_status='Verified'
+        )
+
+        # Advance status to In Progress if currently Pending
+        if inst.status == 'Pending':
+            inst.status = 'In Progress'
+            if not inst.actual_start_time:
+                inst.actual_start_time = timezone.now()
+            inst.save(update_fields=['status', 'actual_start_time', 'updated_at'])
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{photo_stage} photo uploaded successfully.',
+            'photo': {
+                'id': photo.id,
+                'stage': photo.photo_stage,
+                'file_url': f"/media/{photo.photo_file}",
+                'created_at': photo.created_at.isoformat(),
+            }
+        }, status=201)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'Error uploading activity photo.',
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+def submit_activity_form(request):
+    """
+    5. Submitting activity form answers using dynamic form submission architecture.
+    Validates form answers against rules and persists into FormSubmission and ProjectActivityInstance.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
+
+    employee, err = authenticate_employee_request(request)
+    if err:
+        return JsonResponse({'success': False, 'message': err}, status=400)
+
+    data = get_request_data(request)
+    instance_id = data.get('instance_id')
+    submission_data = data.get('submission_data')
+
+    if not instance_id or submission_data is None:
+        return JsonResponse({
+            'success': False,
+            'message': 'instance_id and submission_data are required.'
+        }, status=422)
+
+    try:
+        inst = ProjectActivityInstance.objects.filter(id=int(instance_id)).select_related('project_activity', 'activity').first()
+        if not inst:
+            return JsonResponse({'success': False, 'message': 'Activity instance not found.'}, status=404)
+
+        form = inst.project_activity.form
+        form_submission = None
+
+        if form:
+            form_submission = FormSubmission.objects.create(
+                company_id=employee.company_id,
+                form_id=form.id,
+                project_id=inst.project_id,
+                emp_id=employee.id,
+                submission_data=submission_data
+            )
+
+        # Business exception rule check if ActivityFormConfiguration exists
+        builder_config = ActivityFormConfiguration.objects.filter(activity=inst.activity).first()
+        validation_result = {'status': 'valid', 'exceptions': []}
+        if builder_config:
+            dict_rep = ActivityFormService.form_to_dict(builder_config)
+            fields_config = dict_rep.get('fields', [])
+            eval_res = ActivityFormService.evaluate_submission(fields_config, submission_data if isinstance(submission_data, dict) else {})
+            validation_result = {
+                'status': 'error' if not eval_res.get('is_valid') else ('exception' if eval_res.get('has_exceptions') else 'valid'),
+                'errors': eval_res.get('validation_errors', {}),
+                'exceptions': eval_res.get('exceptions', []),
+            }
+
+        inst.form_submission = form_submission
+        inst.submission_data = submission_data if isinstance(submission_data, dict) else {}
+        inst.validation_result = validation_result
+        inst.save(update_fields=['form_submission', 'submission_data', 'validation_result', 'updated_at'])
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Form answers submitted and saved successfully.',
+            'submission_id': form_submission.id if form_submission else None,
+            'validation_result': validation_result
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'Error submitting activity form answers.',
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+def complete_activity_instance(request):
+    """
+    7. Completes an activity occurrence: verifies photo evidence requirements and marks status as Completed.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
+
+    employee, err = authenticate_employee_request(request)
+    if err:
+        return JsonResponse({'success': False, 'message': err}, status=400)
+
+    data = get_request_data(request)
+    instance_id = data.get('instance_id')
+    remarks = data.get('remarks', '').strip()
+
+    if not instance_id:
+        return JsonResponse({'success': False, 'message': 'instance_id is required.'}, status=422)
+
+    try:
+        inst = ProjectActivityInstance.objects.filter(id=int(instance_id)).select_related('activity').first()
+        if not inst:
+            return JsonResponse({'success': False, 'message': 'Activity instance not found.'}, status=404)
+
+        # Enforce photo requirements if configured
+        form_config = ActivityFormConfiguration.objects.filter(activity=inst.activity).first()
+        if form_config and hasattr(form_config, 'photo_settings'):
+            ps = form_config.photo_settings
+            if ps.before_photo_required:
+                if not inst.photos.filter(photo_stage='Before').exists():
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'Mandatory Before Photo is required before completing this activity.'
+                    }, status=422)
+            if ps.after_photo_required:
+                if not inst.photos.filter(photo_stage='After').exists():
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'Mandatory After Photo is required before completing this activity.'
+                    }, status=422)
+
+        inst.status = 'Completed'
+        inst.submitted_by = employee
+        inst.submitted_at = timezone.now()
+        inst.actual_completion_time = timezone.now()
+        if remarks:
+            inst.completion_remarks = remarks
+        inst.save(update_fields=['status', 'submitted_by', 'submitted_at', 'actual_completion_time', 'completion_remarks', 'updated_at'])
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Activity marked as completed successfully.',
+            'instance_id': inst.id,
+            'status': inst.status,
+            'completed_at': inst.actual_completion_time.isoformat()
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'Error completing activity instance.',
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+def report_activity_issue(request):
+    """
+    8. Reporting an inability to complete an activity (operational exception).
+    Collects issue category, description, explanation, GPS, and optional photo without marking completed.
+    Sets instance status to 'Unable to Complete' or 'Exception Reported'.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
+
+    employee, err = authenticate_employee_request(request)
+    if err:
+        return JsonResponse({'success': False, 'message': err}, status=400)
+
+    data = get_request_data(request)
+    instance_id = data.get('instance_id') or request.POST.get('instance_id')
+    issue_category = data.get('issue_category') or request.POST.get('issue_category')
+    short_description = data.get('short_description') or request.POST.get('short_description', '').strip()
+    detailed_explanation = data.get('detailed_explanation') or request.POST.get('detailed_explanation', '').strip()
+    latitude = data.get('latitude') or request.POST.get('latitude')
+    longitude = data.get('longitude') or request.POST.get('longitude')
+
+    if not instance_id or not issue_category or not short_description or not detailed_explanation:
+        return JsonResponse({
+            'success': False,
+            'message': 'Validation failed.',
+            'errors': {
+                'instance_id': ['Instance ID is required.'] if not instance_id else [],
+                'issue_category': ['Issue category is required.'] if not issue_category else [],
+                'short_description': ['Short description is required.'] if not short_description else [],
+                'detailed_explanation': ['Detailed explanation is required.'] if not detailed_explanation else []
+            }
+        }, status=422)
+
+    try:
+        inst = ProjectActivityInstance.objects.filter(id=int(instance_id)).first()
+        if not inst:
+            return JsonResponse({'success': False, 'message': 'Activity instance not found.'}, status=404)
+
+        saved_photo_path = None
+        if 'supporting_photo' in request.FILES:
+            uploaded = request.FILES['supporting_photo']
+            upload_dir = os.path.join(settings.MEDIA_ROOT, 'activity_issues')
+            os.makedirs(upload_dir, exist_ok=True)
+            ext = os.path.splitext(uploaded.name)[1] or '.jpg'
+            filename = f"issue_{inst.id}_{uuid.uuid4().hex[:10]}{ext}"
+            filepath = os.path.join(upload_dir, filename)
+            with open(filepath, 'wb+') as dest:
+                for chunk in uploaded.chunks():
+                    dest.write(chunk)
+            saved_photo_path = f"activity_issues/{filename}"
+
+        issue = ProjectActivityIssue.objects.create(
+            instance=inst,
+            issue_category=issue_category,
+            short_description=short_description,
+            detailed_explanation=detailed_explanation,
+            supporting_photo=saved_photo_path,
+            reported_by=employee,
+            latitude=latitude or None,
+            longitude=longitude or None,
+            status='Reported'
+        )
+
+        # Update activity occurrence status to 'Unable to Complete'
+        inst.status = 'Unable to Complete'
+        inst.save(update_fields=['status', 'updated_at'])
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Inability to complete activity reported successfully. Your report is under review.',
+            'issue_id': issue.id,
+            'status': inst.status
+        }, status=201)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'Error reporting activity exception.',
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+def get_employee_activity_history(request):
+    """
+    9. Viewing the employee's submitted activity and exception history.
+    """
+    employee, err = authenticate_employee_request(request)
+    if err:
+        return JsonResponse({'success': False, 'message': err}, status=400)
+
+    try:
+        completed_instances = ProjectActivityInstance.objects.filter(
+            submitted_by=employee
+        ).select_related('project', 'activity').order_by('-actual_completion_time')
+
+        reported_issues = ProjectActivityIssue.objects.filter(
+            reported_by=employee
+        ).select_related('instance', 'instance__project', 'instance__activity').order_by('-created_at')
+
+        history_items = []
+        for c in completed_instances:
+            history_items.append({
+                'type': 'execution',
+                'instance_id': c.id,
+                'activity_title': c.activity.activity_title,
+                'project_name': c.project.project_name or c.project.client_name,
+                'scheduled_date': str(c.scheduled_date),
+                'completed_at': c.actual_completion_time.isoformat() if c.actual_completion_time else None,
+                'status': c.status,
+                'remarks': c.completion_remarks,
+            })
+
+        for iss in reported_issues:
+            history_items.append({
+                'type': 'issue',
+                'issue_id': iss.id,
+                'instance_id': iss.instance_id,
+                'activity_title': iss.instance.activity.activity_title,
+                'project_name': iss.instance.project.project_name or iss.instance.project.client_name,
+                'issue_category': iss.issue_category,
+                'short_description': iss.short_description,
+                'reported_at': iss.created_at.isoformat() if iss.created_at else None,
+                'issue_status': iss.status,
+                'admin_remarks': iss.admin_remarks,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Activity history retrieved successfully.',
+            'employee_id': employee.id,
+            'data': history_items
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'Error retrieving activity history.',
+            'error': str(e)
+        }, status=500)
+
 

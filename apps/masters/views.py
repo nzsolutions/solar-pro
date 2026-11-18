@@ -403,6 +403,7 @@ MODULE_TREE = {
     },
     'Operations': {
         'all-projects': 'All Projects',
+        'project-activities': 'Project Activities',
         'add-project': 'Add Project',
         'maintenance-charts': 'Maintenance Charts',
     },

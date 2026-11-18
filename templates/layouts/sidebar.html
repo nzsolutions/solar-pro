@@ -276,11 +276,16 @@
         {% endif %}
 
         <!-- Operations Section -->
-        {% if allowedModules|has_any:'all-projects,add-project' %}
+        {% if allowedModules|has_any:'all-projects,add-project,project-activities' %}
         <li class="menu-section">Operations</li>
         {% if allowedModules|can_see:'all-projects' %}
         {% route_is 'admin_projects_index,admin_projects_show,admin_projects_edit' as is_all_proj_active %}
         <li><a href="{% url 'admin_projects_index' %}" class="menu-item {% if is_all_proj_active %}active{% endif %}"><i class="bi bi-briefcase"></i> All Projects</a></li>
+        {% endif %}
+
+        {% if allowedModules|can_see:'project-activities' %}
+        {% route_is 'admin_project_activities_*' as is_proj_act_active %}
+        <li><a href="{% url 'admin_project_activities_index' %}" class="menu-item {% if is_proj_act_active %}active{% endif %}"><i class="bi bi-calendar-check"></i> Project Activities</a></li>
         {% endif %}
 
         {% if allowedModules|can_see:'add-project' %}
