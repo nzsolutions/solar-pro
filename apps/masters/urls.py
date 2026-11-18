@@ -57,6 +57,12 @@ urlpatterns = [
     path('admin/activities/<int:activity_id>/form-builder/submit-test', views.activity_form_submit_test, name='admin_activity_form_submit_test'),
     path('admin/activities/<int:activity_id>/form-builder/json', views.activity_form_get_json, name='admin_activity_form_get_json'),
 
+    # Leave Management (Master)
+    path('admin/leave-management', views.leave_management_index, name='admin_leave_management_index'),
+    path('admin/leave-management/<int:id>/detail', views.leave_request_detail, name='admin_leave_request_detail'),
+    path('admin/leave-management/<int:id>/approve', views.leave_request_approve, name='admin_leave_request_approve'),
+    path('admin/leave-management/<int:id>/reject', views.leave_request_reject, name='admin_leave_request_reject'),
+
     # Activity Scheduling & Automatic Task Generation
     path('admin/activity-schedules', views.activity_schedules_index, name='admin_activity_schedules_index'),
     path('admin/activity-schedules/store', views.activity_schedule_store, name='admin_activity_schedules_store'),

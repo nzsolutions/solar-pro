@@ -18,6 +18,11 @@ urlpatterns = [
     path('admin/projects/<int:id>/destroy', views.project_destroy, name='admin_projects_destroy'),
     path('admin/projects/<int:id>/documents/remove', views.remove_project_document, name='admin_projects_documents_remove'),
 
+    # Project Activity Management Module
+    path('admin/project-activities', views.project_activities_index, name='admin_project_activities_index'),
+    path('admin/project-activities/instance/<int:instance_id>', views.project_activity_instance_detail, name='admin_project_activity_instance_detail'),
+    path('admin/project-activities/instance/<int:instance_id>/review-issue', views.project_activity_review_issue, name='admin_project_activity_review_issue'),
+
     # Maintenance
     path('admin/maintenance', views.maintenance_charts_view, name='admin_maintenance_index'),
 

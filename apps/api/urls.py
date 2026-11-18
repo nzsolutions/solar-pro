@@ -41,4 +41,19 @@ urlpatterns = [
 
     # Analytics
     path('employee-graph-analytics', views.employee_graph_analytics, name='api_employee_graph_analytics'),
+
+    # Leave Management (Mobile API)
+    path('apply-leave', views.apply_leave, name='api_apply_leave'),
+    path('get-employee-leaves', views.get_employee_leaves, name='api_get_employee_leaves'),
+
+    # Project Activity Management (Mobile API)
+    path('get-employee-activities', views.get_employee_activities, name='api_get_employee_activities'),
+    path('get-activity-instance-detail', views.get_activity_instance_detail, name='api_get_activity_instance_detail'),
+    path('get-activity-form-schema', views.get_activity_form_schema, name='api_get_activity_form_schema'),
+    path('start-activity-instance', views.start_activity_instance, name='api_start_activity_instance'),
+    path('upload-activity-photo', views.upload_activity_photo, name='api_upload_activity_photo'),
+    path('submit-activity-form', views.submit_activity_form, name='api_submit_activity_form'),
+    path('complete-activity-instance', views.complete_activity_instance, name='api_complete_activity_instance'),
+    path('report-activity-issue', views.report_activity_issue, name='api_report_activity_issue'),
+    path('get-employee-activity-history', views.get_employee_activity_history, name='api_get_employee_activity_history'),
 ]

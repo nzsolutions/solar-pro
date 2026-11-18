@@ -13,8 +13,10 @@ from apps.masters.models import (
     SiteMaster, AttendanceMaster, SMTPConfiguration, AccessControl, ActivityMaster,
     ActivityFormConfiguration, ActivityFormField, ActivityFormFieldOption,
     ActivityFormPhotoSetting, ActivityFormValidationRule,
-    ActivitySchedule, ActivityTask
+    LeaveRequest, ActivitySchedule, ActivityTask
 )
+from apps.employees.models import Employee
+from django.utils import timezone
 from apps.masters.form_builder_service import ActivityFormService
 from apps.masters.schedule_service import ActivityScheduleService
 from apps.employees.models import Employee
@@ -394,6 +396,7 @@ MODULE_TREE = {
         'document-type-master': 'Document Type Master',
         'attendance-master': 'Attendance Master',
         'activity-master': 'Activity Master',
+        'leave-management': 'Leave Management',
         'activity-scheduling': 'Activity Scheduling',
     },
     'Reports': {
@@ -405,6 +408,7 @@ MODULE_TREE = {
     },
     'Operations': {
         'all-projects': 'All Projects',
+        'project-activities': 'Project Activities',
         'add-project': 'Add Project',
         'maintenance-charts': 'Maintenance Charts',
     },
@@ -1237,5 +1241,237 @@ def activity_calendar_events_json(request):
 
     return JsonResponse(events, safe=False)
 
+
+# ==========================================
+# 10. LEAVE MANAGEMENT (MASTER)
+# ==========================================
+@admin_required
+def leave_management_index(request):
+    """
+    Admin Leave Management dashboard and review console.
+    Provides KPI summary cards, multi-facet filtering, and full request history.
+    """
+    company_id = request.session.get('company_id', 1)
+
+    employee_filter = request.GET.get('employee', '').strip()
+    department_filter = request.GET.get('department', '').strip()
+    leave_type_filter = request.GET.get('leave_type', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    start_date_filter = request.GET.get('start_date', '').strip()
+    end_date_filter = request.GET.get('end_date', '').strip()
+
+    qs = LeaveRequest.objects.select_related('employee').all()
+
+    # Pre-calculate counts before dynamic filters for dashboard KPIs
+    total_count = qs.count()
+    pending_count = qs.filter(status='pending').count()
+    approved_count = qs.filter(status='approved').count()
+    rejected_count = qs.filter(status='rejected').count()
+
+    # Apply filters
+    if employee_filter and employee_filter.isdigit():
+        qs = qs.filter(employee_id=int(employee_filter))
+
+    if leave_type_filter:
+        qs = qs.filter(leave_type=leave_type_filter)
+
+    if status_filter in ['pending', 'approved', 'rejected']:
+        qs = qs.filter(status=status_filter)
+
+    if start_date_filter:
+        qs = qs.filter(start_date__gte=start_date_filter)
+
+    if end_date_filter:
+        qs = qs.filter(end_date__lte=end_date_filter)
+
+    # Department filter requires joining employee designation -> department
+    desig_map = {d.id: d for d in DesignationMaster.objects.all()}
+    dept_map = {d.id: d.department_name for d in DepartmentMaster.objects.all()}
+
+    leaves_list = []
+    for leave in qs:
+        emp = leave.employee
+        desig_obj = desig_map.get(emp.role) if emp and emp.role else None
+        desig_name = desig_obj.designation_name if desig_obj else '—'
+        dept_id = desig_obj.department_id if desig_obj else None
+        dept_name = dept_map.get(dept_id, '—') if dept_id else '—'
+
+        if department_filter and str(dept_id) != str(department_filter):
+            continue
+
+        leaves_list.append({
+            'id': leave.id,
+            'employee_id': emp.id if emp else None,
+            'employee_name': emp.name if emp else 'Unknown',
+            'employee_code': f"EMP-{emp.id:04d}" if emp else '—',
+            'designation': desig_name,
+            'department': dept_name,
+            'leave_type': leave.leave_type,
+            'start_date': leave.start_date,
+            'end_date': leave.end_date,
+            'days_count': leave.days_count,
+            'reason': leave.reason,
+            'attachment': leave.attachment,
+            'status': leave.status,
+            'rejection_reason': leave.rejection_reason,
+            'admin_remarks': leave.admin_remarks,
+            'action_by': leave.action_by,
+            'action_at': leave.action_at,
+            'created_at': leave.created_at,
+        })
+
+    all_employees = Employee.objects.filter(status='active').order_by('name')
+    all_departments = DepartmentMaster.objects.all().order_by('department_name')
+    leave_types = [c[0] for c in LeaveRequest.LEAVE_TYPE_CHOICES]
+
+    return render(request, 'admin/master/leavemanagement.html', {
+        'leaves': leaves_list,
+        'total_count': total_count,
+        'pending_count': pending_count,
+        'approved_count': approved_count,
+        'rejected_count': rejected_count,
+        'employees': all_employees,
+        'departments': all_departments,
+        'leave_types': leave_types,
+        'employee_filter': employee_filter,
+        'department_filter': department_filter,
+        'leave_type_filter': leave_type_filter,
+        'status_filter': status_filter,
+        'start_date_filter': start_date_filter,
+        'end_date_filter': end_date_filter,
+    })
+
+
+@admin_required
+def leave_request_detail(request, id):
+    """
+    JSON detail endpoint for viewing the complete leave request in review modal.
+    """
+    leave = get_object_or_404(LeaveRequest.objects.select_related('employee'), id=id)
+    emp = leave.employee
+    desig = DesignationMaster.objects.filter(id=emp.role).first() if emp and emp.role else None
+    dept = DepartmentMaster.objects.filter(id=desig.department_id).first() if desig and desig.department_id else None
+
+    return JsonResponse({
+        'success': True,
+        'data': {
+            'id': leave.id,
+            'employee_id': emp.id if emp else None,
+            'employee_name': emp.name if emp else 'Unknown',
+            'employee_code': f"EMP-{emp.id:04d}" if emp else '—',
+            'email': emp.email if emp else '',
+            'phone': emp.phone if emp else '',
+            'designation': desig.designation_name if desig else '—',
+            'department': dept.department_name if dept else '—',
+            'leave_type': leave.leave_type,
+            'start_date': leave.start_date.strftime('%Y-%m-%d'),
+            'end_date': leave.end_date.strftime('%Y-%m-%d'),
+            'days_count': str(leave.days_count),
+            'reason': leave.reason,
+            'attachment': leave.attachment,
+            'status': leave.status,
+            'rejection_reason': leave.rejection_reason or '',
+            'admin_remarks': leave.admin_remarks or '',
+            'action_by': leave.action_by or '',
+            'action_at': leave.action_at.strftime('%Y-%m-%d %H:%M:%S') if leave.action_at else '',
+            'created_at': leave.created_at.strftime('%Y-%m-%d %H:%M:%S') if leave.created_at else '',
+        }
+    })
+
+
+@admin_required
+def leave_request_approve(request, id):
+    """
+    Admin action to approve a pending leave request.
+    Records approver and timestamp, updates status to approved, and notifies employee.
+    """
+    leave = get_object_or_404(LeaveRequest.objects.select_related('employee'), id=id)
+    if request.method == 'POST':
+        admin_remarks = request.POST.get('admin_remarks', '').strip()
+        approver = request.session.get('name') or ('Admin' if request.session.get('is_admin') == 1 else 'Administrator')
+
+        leave.status = 'approved'
+        leave.admin_remarks = admin_remarks
+        leave.rejection_reason = None
+        leave.action_by = approver
+        leave.action_at = timezone.now()
+        leave.save()
+
+        # Notify employee via dynamic SMTP / FCM if configured
+        emp = leave.employee
+        if emp and emp.email:
+            try:
+                smtp = SMTPConfiguration.objects.first()
+                from_name = smtp.from_name if smtp else 'SolarPro Leave Portal'
+                subject = f"Leave Request Approved - {leave.leave_type}"
+                body = (
+                    f"Dear {emp.name},\n\n"
+                    f"Your leave application for {leave.leave_type} from {leave.start_date} to {leave.end_date} "
+                    f"({leave.days_count} days) has been APPROVED by {approver}.\n\n"
+                    f"Remarks: {admin_remarks or 'None'}\n\n"
+                    f"Regards,\nSolarPro Management"
+                )
+                from apps.api.views import send_dynamic_smtp_email
+                send_dynamic_smtp_email(emp.email, subject, body)
+            except Exception:
+                pass
+
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('format') == 'json':
+            return JsonResponse({'success': True, 'message': f'Leave request #{leave.id} approved successfully.'})
+
+        messages.success(request, f'Leave request #{leave.id} for {emp.name} has been approved.')
+    return redirect('admin_leave_management_index')
+
+
+@admin_required
+def leave_request_reject(request, id):
+    """
+    Admin action to reject a leave request.
+    Requires mandatory rejection reason, records reviewer and timestamp, and notifies employee.
+    """
+    leave = get_object_or_404(LeaveRequest.objects.select_related('employee'), id=id)
+    if request.method == 'POST':
+        rejection_reason = request.POST.get('rejection_reason', '').strip()
+        admin_remarks = request.POST.get('admin_remarks', '').strip()
+        reviewer = request.session.get('name') or ('Admin' if request.session.get('is_admin') == 1 else 'Administrator')
+
+        if not rejection_reason:
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('format') == 'json':
+                return JsonResponse({'success': False, 'message': 'Rejection reason is mandatory.'}, status=422)
+            messages.error(request, 'Rejection reason is mandatory to reject a leave request.')
+            return redirect('admin_leave_management_index')
+
+        leave.status = 'rejected'
+        leave.rejection_reason = rejection_reason
+        leave.admin_remarks = admin_remarks
+        leave.action_by = reviewer
+        leave.action_at = timezone.now()
+        leave.save()
+
+        # Notify employee
+        emp = leave.employee
+        if emp and emp.email:
+            try:
+                smtp = SMTPConfiguration.objects.first()
+                from_name = smtp.from_name if smtp else 'SolarPro Leave Portal'
+                subject = f"Leave Request Rejected - {leave.leave_type}"
+                body = (
+                    f"Dear {emp.name},\n\n"
+                    f"Your leave application for {leave.leave_type} from {leave.start_date} to {leave.end_date} "
+                    f"has been REJECTED by {reviewer}.\n\n"
+                    f"Reason for rejection: {rejection_reason}\n"
+                    f"Remarks: {admin_remarks or 'None'}\n\n"
+                    f"Regards,\nSolarPro Management"
+                )
+                from apps.api.views import send_dynamic_smtp_email
+                send_dynamic_smtp_email(emp.email, subject, body)
+            except Exception:
+                pass
+
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('format') == 'json':
+            return JsonResponse({'success': True, 'message': f'Leave request #{leave.id} rejected.'})
+
+        messages.success(request, f'Leave request #{leave.id} for {emp.name} has been rejected.')
+    return redirect('admin_leave_management_index')
 
 
