@@ -223,12 +223,36 @@ def run_tests():
     assert isinstance(data, list) and len(data) > 0, "Calendar JSON endpoint returned empty list"
     print(f"[12] HTTP GET /admin/activity-schedules/calendar-events (JSON {len(data)} items): PASS")
 
+    # 13. Test HTTP POST /admin/activity-schedules/store (exact browser form submission)
+    post_data = {
+        'title': 'TEST_SCHED_POST_DAILY',
+        'activity_id': activity.id,
+        'project_id': proj.id,
+        'assigned_to_id': emp1.id,
+        'priority': 'High',
+        'recurring_type': 'daily',
+        'start_date': (today).strftime('%Y-%m-%d'),
+        'start_time': '09:30',
+        'end_date': (today + timedelta(days=14)).strftime('%Y-%m-%d'),
+        'deadline': (today + timedelta(days=20)).strftime('%Y-%m-%d'),
+        'status': 'Scheduled',
+        'auto_generate_tasks': '1',
+        'remind_upcoming': '1',
+        'notes': 'Form submission test for date string parsing.'
+    }
+    store_resp = client.post('/admin/activity-schedules/store', post_data, follow=True)
+    assert store_resp.status_code == 200, f"Expected 200 on follow after store, got {store_resp.status_code}"
+    created_post_sched = ActivitySchedule.objects.filter(title='TEST_SCHED_POST_DAILY').first()
+    assert created_post_sched is not None, "Schedule was not saved via HTTP POST"
+    assert created_post_sched.tasks.count() == 15, f"Expected 15 daily tasks generated, got {created_post_sched.tasks.count()}"
+    print(f"[13] HTTP POST /admin/activity-schedules/store (String dates parsed & {created_post_sched.tasks.count()} tasks generated): PASS")
+
     # Clean up test schedules
     ActivitySchedule.objects.filter(title__startswith='TEST_SCHED_').delete()
-    print("[13] Cleaned up temporary test schedules.")
+    print("[14] Cleaned up temporary test schedules.")
 
     print("\n" + "=" * 70)
-    print("ALL 13 ACTIVITY SCHEDULING VERIFICATION TESTS PASSED SUCCESSFULLY!")
+    print("ALL 14 ACTIVITY SCHEDULING VERIFICATION TESTS PASSED SUCCESSFULLY!")
     print("=" * 70)
 
 

@@ -9,6 +9,48 @@ from apps.employees.models import Employee
 from apps.operations.models import Project
 
 
+def _to_date(val):
+    if not val:
+        return None
+    if isinstance(val, datetime.date) and not isinstance(val, datetime.datetime):
+        return val
+    if isinstance(val, datetime.datetime):
+        return val.date()
+    if isinstance(val, str):
+        val = val.strip()
+        if not val:
+            return None
+        val = val.split('T')[0].split(' ')[0]
+        try:
+            return datetime.date.fromisoformat(val)
+        except Exception:
+            return None
+    return None
+
+
+def _to_time(val):
+    if not val:
+        return datetime.time(10, 0)
+    if isinstance(val, datetime.time):
+        return val
+    if isinstance(val, str):
+        val = val.strip()
+        if not val:
+            return datetime.time(10, 0)
+        try:
+            # Handle HH:MM or HH:MM:SS
+            parts = val.split(':')
+            if len(parts) >= 2:
+                h = int(parts[0])
+                m = int(parts[1])
+                s = int(parts[2]) if len(parts) > 2 else 0
+                return datetime.time(h, m, s)
+            return datetime.time.fromisoformat(val)
+        except Exception:
+            return datetime.time(10, 0)
+    return datetime.time(10, 0)
+
+
 class ActivityScheduleService:
     """
     Business service handling Activity Scheduling, Recurring Rules,
@@ -25,8 +67,9 @@ class ActivityScheduleService:
             return 0
 
         today = timezone.localdate()
-        start = schedule.start_date
-        max_end = schedule.end_date if schedule.end_date else (today + timedelta(days=horizon_days))
+        start = _to_date(schedule.start_date) or today
+        end = _to_date(schedule.end_date)
+        max_end = end if end else (today + timedelta(days=horizon_days))
         
         # Don't look past the horizon
         limit_date = min(max_end, today + timedelta(days=horizon_days))
@@ -46,7 +89,6 @@ class ActivityScheduleService:
                 target_dates.append(curr)
                 curr += timedelta(weeks=1)
         elif schedule.recurring_type == 'monthly':
-            curr = start
             month_idx = 0
             while True:
                 next_date = start + relativedelta(months=month_idx)
@@ -63,12 +105,7 @@ class ActivityScheduleService:
         )
 
         # Base due time
-        time_part = schedule.start_time or datetime.time(10, 0)
-        if isinstance(time_part, str):
-            try:
-                time_part = datetime.time.fromisoformat(time_part)
-            except Exception:
-                time_part = datetime.time(10, 0)
+        time_part = _to_time(schedule.start_time)
 
         for t_date in target_dates:
             if t_date in existing_dates:

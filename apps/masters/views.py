@@ -850,6 +850,21 @@ def activity_form_submit_test(request, activity_id):
 # 9. ACTIVITY SCHEDULING & AUTOMATIC TASK GENERATION
 # ==============================================================================
 
+def _parse_date(val):
+    if not val:
+        return None
+    import datetime
+    if isinstance(val, datetime.date) and not isinstance(val, datetime.datetime):
+        return val
+    if isinstance(val, datetime.datetime):
+        return val.date()
+    try:
+        val_clean = str(val).strip().split('T')[0].split(' ')[0]
+        return datetime.date.fromisoformat(val_clean)
+    except Exception:
+        return None
+
+
 @admin_required
 def activity_schedules_index(request):
     """
@@ -1004,6 +1019,14 @@ def activity_schedule_store(request):
         if s and str(s).isdigit():
             assigned_staff.append(int(s))
 
+    start_date_parsed = _parse_date(start_date)
+    if not start_date_parsed:
+        messages.error(request, 'Valid Start Date is required (YYYY-MM-DD).')
+        return redirect('admin_activity_schedules_index')
+
+    end_date_parsed = _parse_date(end_date)
+    deadline_parsed = _parse_date(deadline)
+
     schedule = ActivitySchedule.objects.create(
         company_id=company_id,
         title=title,
@@ -1013,16 +1036,17 @@ def activity_schedule_store(request):
         assigned_staff=assigned_staff,
         priority=priority,
         recurring_type=recurring_type,
-        start_date=start_date,
+        start_date=start_date_parsed,
         start_time=start_time if start_time else None,
-        end_date=end_date if end_date else None,
-        deadline=deadline if deadline else None,
+        end_date=end_date_parsed,
+        deadline=deadline_parsed,
         status=status,
         auto_generate_tasks=auto_generate,
         remind_upcoming=remind_upcoming,
         notes=notes,
         created_by='Admin'
     )
+    schedule.refresh_from_db()
 
     # Automatic Task Generation
     created_tasks_count = 0
@@ -1096,15 +1120,16 @@ def activity_schedule_update(request, id):
     schedule.assigned_staff = assigned_staff
     schedule.priority = priority
     schedule.recurring_type = recurring_type
-    schedule.start_date = start_date
+    schedule.start_date = _parse_date(start_date) or schedule.start_date
     schedule.start_time = start_time if start_time else None
-    schedule.end_date = end_date if end_date else None
-    schedule.deadline = deadline if deadline else None
+    schedule.end_date = _parse_date(end_date)
+    schedule.deadline = _parse_date(deadline)
     schedule.status = status
     schedule.auto_generate_tasks = auto_generate
     schedule.remind_upcoming = remind_upcoming
     schedule.notes = notes
     schedule.save()
+    schedule.refresh_from_db()
 
     # Synchronize future pending tasks
     ActivityScheduleService.sync_schedule_update(schedule)

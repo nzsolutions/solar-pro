@@ -436,16 +436,35 @@ class ActivitySchedule(models.Model):
 
     @property
     def is_overdue(self):
+        import datetime
         from django.utils import timezone
         if self.status in ['Completed', 'Cancelled']:
             return False
-        if self.deadline:
-            deadline = self.deadline
-            if timezone.is_naive(deadline):
-                deadline = timezone.make_aware(deadline)
-            return timezone.now() > deadline
         today = timezone.localdate()
-        return self.start_date < today
+        if self.deadline:
+            dl = self.deadline
+            if isinstance(dl, str):
+                try:
+                    dl = datetime.date.fromisoformat(dl.split('T')[0].split(' ')[0])
+                except Exception:
+                    dl = None
+            if isinstance(dl, datetime.datetime):
+                if timezone.is_naive(dl):
+                    dl = timezone.make_aware(dl)
+                return timezone.now() > dl
+            elif isinstance(dl, datetime.date):
+                return today > dl
+        start = self.start_date
+        if isinstance(start, str):
+            try:
+                start = datetime.date.fromisoformat(start.split('T')[0].split(' ')[0])
+            except Exception:
+                start = None
+        if isinstance(start, datetime.datetime):
+            start = start.date()
+        if isinstance(start, datetime.date):
+            return start < today
+        return False
 
     @property
     def tasks(self):
@@ -539,16 +558,35 @@ class ActivityTask(models.Model):
 
     @property
     def is_overdue(self):
+        import datetime
         from django.utils import timezone
         if self.status in ['Completed', 'Cancelled']:
             return False
+        today = timezone.localdate()
         if self.due_datetime:
             due_dt = self.due_datetime
-            if timezone.is_naive(due_dt):
-                due_dt = timezone.make_aware(due_dt)
-            return timezone.now() > due_dt
-        today = timezone.localdate()
-        return self.task_date < today
+            if isinstance(due_dt, str):
+                try:
+                    due_dt = datetime.datetime.fromisoformat(due_dt)
+                except Exception:
+                    due_dt = None
+            if isinstance(due_dt, datetime.datetime):
+                if timezone.is_naive(due_dt):
+                    due_dt = timezone.make_aware(due_dt)
+                return timezone.now() > due_dt
+            elif isinstance(due_dt, datetime.date):
+                return today > due_dt
+        t_date = self.task_date
+        if isinstance(t_date, str):
+            try:
+                t_date = datetime.date.fromisoformat(t_date.split('T')[0].split(' ')[0])
+            except Exception:
+                t_date = None
+        if isinstance(t_date, datetime.datetime):
+            t_date = t_date.date()
+        if isinstance(t_date, datetime.date):
+            return t_date < today
+        return False
 
 
 
