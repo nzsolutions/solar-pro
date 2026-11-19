@@ -20,6 +20,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from apps.authentication.hashers import LaravelBcryptPasswordHasher
 from apps.dynamic_forms.models import DynamicForm, FormSubmission
+from apps.dynamic_forms.flag_service import evaluate_form_submission
 from apps.employees.models import Employee, EmployeeAttendance, EmployeeOTP
 from apps.expenses.models import Expense, ExpenseCategory
 from apps.inventory.models import AssignedStock, OpeningStock, StockCategory
@@ -1224,12 +1225,16 @@ def submit_form(request):
                 'iso_timestamp': timezone.now().isoformat()
             }
 
+        is_flg, flg_dets = evaluate_form_submission(form.form_schema, sub_dict)
+
         submission = FormSubmission.objects.create(
             company_id=employee.company_id,
             form_id=form_id,
             project_id=project_id,
             emp_id=emp_id,
-            submission_data=sub_dict
+            submission_data=sub_dict,
+            is_flagged=is_flg,
+            flagged_details=flg_dets
         )
 
         return JsonResponse({
@@ -2216,12 +2221,15 @@ def submit_activity_form(request):
         form_submission = None
 
         if form:
+            is_flg, flg_dets = evaluate_form_submission(form.form_schema, submission_data)
             form_submission = FormSubmission.objects.create(
                 company_id=employee.company_id,
                 form_id=form.id,
                 project_id=inst.project_id,
                 emp_id=employee.id,
-                submission_data=submission_data
+                submission_data=submission_data,
+                is_flagged=is_flg,
+                flagged_details=flg_dets
             )
 
         # Business exception rule check if ActivityFormConfiguration exists

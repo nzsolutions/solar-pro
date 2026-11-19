@@ -17,6 +17,7 @@ from apps.masters.models import (
     ActivityFormValidationRule,
 )
 from apps.dynamic_forms.models import DynamicForm, FormSubmission
+from apps.dynamic_forms.flag_service import evaluate_form_submission
 
 
 class ActivityFormService:
@@ -647,12 +648,15 @@ class ActivityFormService:
         }
 
         # Create FormSubmission record in MySQL
+        is_flg, flg_dets = evaluate_form_submission(form.form_schema, submission_payload)
         submission = FormSubmission.objects.create(
             company_id=form.company_id,
             form_id=form_id,
             project_id=project_id,
             emp_id=emp_id,
-            submission_data=submission_payload
+            submission_data=submission_payload,
+            is_flagged=is_flg,
+            flagged_details=flg_dets
         )
 
         return submission

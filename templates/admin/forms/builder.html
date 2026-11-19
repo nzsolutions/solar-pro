@@ -112,6 +112,25 @@
         <div id="sectionsWrapper"></div>
     </div>
 
+    <!-- 4. Add Flags -->
+    <div class="form-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="mb-1">4. Add Flags</h5>
+                <p class="text-muted mb-0" style="font-size: 0.85rem;">Configure alert rules for checkpoints in this form. If an employee submits an answer matching any flag condition, the submission will be highlighted with an alert in All Form Submissions.</p>
+            </div>
+            <button type="button" class="btn btn-sm hover-lift" style="background-color: var(--accent-orange); color: white;" id="addFlagBtn">
+                <i class="bi bi-flag-fill me-1"></i> Add Flag Rule
+            </button>
+        </div>
+
+        <div id="flagsWrapper"></div>
+        <div id="noFlagsNotice" class="text-muted text-center py-4 border rounded" style="background-color: #F9FAFB; font-size: 0.85rem;">
+            <i class="bi bi-flag text-secondary fs-4 d-block mb-1"></i>
+            No flags configured yet. Click <strong>Add Flag Rule</strong> to configure an alert condition on any checkpoint.
+        </div>
+    </div>
+
     <!-- LIVE PREVIEW CARD -->
     <div class="form-card" id="previewCard" style="display: none;">
         <h5 class="mb-3"><i class="bi bi-table text-success me-2"></i>Live Excel Preview</h5>
@@ -368,6 +387,7 @@
         $(document).on('click', '.remove-section', function() {
             $(this).closest('.section-container').remove();
             renderPreview();
+            updateAllCheckpointSelects();
         });
 
         $(document).on('click', '.add-row-btn', function() {
@@ -377,6 +397,164 @@
         $(document).on('click', '.remove-row', function() {
             $(this).closest('.row-item').remove();
             renderPreview(); 
+            updateAllCheckpointSelects();
+        });
+
+        // -------------------------------------------------------------
+        // SECTION 4: ADD FLAGS LOGIC
+        // -------------------------------------------------------------
+        function getAvailableCheckpoints() {
+            let checkpoints = [];
+            $('.section-container').each(function() {
+                let secName = $(this).find('.sec-title-txt').text().trim();
+                $(this).find('.row-item').each(function() {
+                    let name = $(this).find('.checkpoint-name').val();
+                    if (name && name.trim() !== '') {
+                        name = name.trim();
+                        let type = $(this).find('.checkpoint-type').val() || 'text';
+                        let unit = $(this).find('.checkpoint-unit').val() || '';
+                        checkpoints.push({ name: name, type: type, unit: unit.trim(), section: secName });
+                    }
+                });
+            });
+            return checkpoints;
+        }
+
+        function updateAllCheckpointSelects() {
+            let cps = getAvailableCheckpoints();
+            $('.flag-checkpoint-select').each(function() {
+                let currentVal = $(this).val();
+                let optionsHtml = '<option value="">-- Choose Checkpoint --</option>';
+                let found = false;
+                cps.forEach(function(cp) {
+                    let label = cp.name + (cp.unit ? ' (' + cp.unit + ')' : '');
+                    let isSel = (currentVal && cp.name.toLowerCase() === currentVal.toLowerCase()) ? 'selected' : '';
+                    if (isSel) found = true;
+                    optionsHtml += `<option value="${cp.name}" data-type="${cp.type}" ${isSel}>${label}</option>`;
+                });
+                if (currentVal && !found) {
+                    optionsHtml += `<option value="${currentVal}" data-type="text" selected>${currentVal}</option>`;
+                }
+                $(this).html(optionsHtml);
+            });
+        }
+
+        function setOperatorsAndInputs($flagElem, qType, currentOp, currentVal) {
+            let $opSelect = $flagElem.find('.flag-operator-select');
+            let $valContainer = $flagElem.find('.flag-value-container');
+            let opOptions = '';
+
+            if (qType === 'ok_nok' || qType === 'yes_no') {
+                opOptions = `
+                    <option value="equals" ${(currentOp === 'equals' || !currentOp) ? 'selected' : ''}>Equals (==)</option>
+                    <option value="not_equals" ${currentOp === 'not_equals' ? 'selected' : ''}>Does Not Equal (!=)</option>
+                `;
+                $opSelect.html(opOptions);
+                let isNok = !currentVal || currentVal.toUpperCase() === 'NOK' || currentVal.toUpperCase() === 'NO';
+                let isOk = currentVal && (currentVal.toUpperCase() === 'OK' || currentVal.toUpperCase() === 'YES');
+                $valContainer.html(`
+                    <label class="form-label mb-1 small fw-bold text-dark">Trigger Flag Value</label>
+                    <select class="form-select form-select-sm flag-val-input">
+                        <option value="NOK" ${isNok ? 'selected' : ''}>NOK / No (Flag on NOK / No)</option>
+                        <option value="OK" ${isOk ? 'selected' : ''}>OK / Yes (Flag on OK / Yes)</option>
+                    </select>
+                `);
+            } else if (qType === 'number') {
+                opOptions = `
+                    <option value="greater_than" ${(currentOp === 'greater_than' || !currentOp) ? 'selected' : ''}>Greater Than (&gt;)</option>
+                    <option value="less_than" ${currentOp === 'less_than' ? 'selected' : ''}>Less Than (&lt;)</option>
+                    <option value="greater_than_or_equal" ${currentOp === 'greater_than_or_equal' ? 'selected' : ''}>Greater Than or Equal (&gt;=)</option>
+                    <option value="less_than_or_equal" ${currentOp === 'less_than_or_equal' ? 'selected' : ''}>Less Than or Equal (&lt;=)</option>
+                    <option value="equals" ${currentOp === 'equals' ? 'selected' : ''}>Equal To (==)</option>
+                    <option value="not_equals" ${currentOp === 'not_equals' ? 'selected' : ''}>Not Equal (!=)</option>
+                `;
+                $opSelect.html(opOptions);
+                $valContainer.html(`
+                    <label class="form-label mb-1 small fw-bold text-dark">Trigger Flag Value</label>
+                    <input type="number" step="any" class="form-control form-control-sm flag-val-input" placeholder="e.g. 80" value="${currentVal !== undefined && currentVal !== null ? currentVal : ''}">
+                `);
+            } else {
+                opOptions = `
+                    <option value="equals" ${(currentOp === 'equals' || !currentOp) ? 'selected' : ''}>Equals (==)</option>
+                    <option value="contains" ${currentOp === 'contains' ? 'selected' : ''}>Contains (text)</option>
+                    <option value="not_equals" ${currentOp === 'not_equals' ? 'selected' : ''}>Does Not Equal (!=)</option>
+                `;
+                $opSelect.html(opOptions);
+                $valContainer.html(`
+                    <label class="form-label mb-1 small fw-bold text-dark">Trigger Flag Value</label>
+                    <input type="text" class="form-control form-control-sm flag-val-input" placeholder="e.g. Damaged" value="${currentVal !== undefined && currentVal !== null ? currentVal : ''}">
+                `);
+            }
+        }
+
+        window.appendFlagRule = function(qName, op, val, qType) {
+            $('#noFlagsNotice').hide();
+            let cps = getAvailableCheckpoints();
+            let optionsHtml = '<option value="">-- Choose Checkpoint --</option>';
+            let matchedType = qType || 'text';
+
+            cps.forEach(function(cp) {
+                let label = cp.name + (cp.unit ? ' (' + cp.unit + ')' : '');
+                let isSel = (qName && cp.name.toLowerCase() === qName.toLowerCase()) ? 'selected' : '';
+                if (isSel) matchedType = cp.type;
+                optionsHtml += `<option value="${cp.name}" data-type="${cp.type}" ${isSel}>${label}</option>`;
+            });
+
+            if (qName && !cps.some(c => c.name.toLowerCase() === qName.toLowerCase())) {
+                optionsHtml += `<option value="${qName}" data-type="${matchedType}" selected>${qName}</option>`;
+            }
+
+            let flagHTML = `
+                <div class="row-item flag-item mb-2 p-3 border rounded d-flex flex-wrap align-items-center gap-3" style="background: #FFFDF7; border: 1px solid #FDE68A !important;">
+                    <div class="d-flex align-items-center text-danger me-1">
+                        <i class="bi bi-flag-fill fs-5"></i>
+                    </div>
+                    <div style="flex: 2; min-width: 200px;">
+                        <label class="form-label mb-1 small fw-bold text-dark">Checkpoint / Question</label>
+                        <select class="form-select form-select-sm flag-checkpoint-select" required>
+                            ${optionsHtml}
+                        </select>
+                    </div>
+                    <div style="flex: 1.5; min-width: 170px;">
+                        <label class="form-label mb-1 small fw-bold text-dark">Comparison Condition</label>
+                        <select class="form-select form-select-sm flag-operator-select"></select>
+                    </div>
+                    <div style="flex: 1.5; min-width: 170px;" class="flag-value-container"></div>
+                    <div class="pt-3">
+                        <button type="button" class="remove-btn remove-flag" title="Remove Flag"><i class="bi bi-trash"></i></button>
+                    </div>
+                </div>
+            `;
+
+            let $flag = $(flagHTML);
+            $('#flagsWrapper').append($flag);
+            setOperatorsAndInputs($flag, matchedType, op, val);
+        };
+
+        $('#addFlagBtn').click(function() {
+            let cps = getAvailableCheckpoints();
+            if (cps.length === 0) {
+                alert("Please add at least one checkpoint in Section 3 before configuring flags.");
+                return;
+            }
+            appendFlagRule(cps[0].name, 'equals', '', cps[0].type);
+        });
+
+        $(document).on('change', '.flag-checkpoint-select', function() {
+            let qType = $(this).find('option:selected').data('type') || 'text';
+            let $row = $(this).closest('.flag-item');
+            setOperatorsAndInputs($row, qType, '', '');
+        });
+
+        $(document).on('click', '.remove-flag', function() {
+            $(this).closest('.flag-item').remove();
+            if ($('#flagsWrapper .flag-item').length === 0) {
+                $('#noFlagsNotice').show();
+            }
+        });
+
+        $(document).on('change blur', '.checkpoint-name, .checkpoint-type', function() {
+            updateAllCheckpointSelects();
         });
 
         $('#formBuilder').submit(function(e) {
@@ -386,7 +564,7 @@
                 return;
             }
 
-            let schema = { columns: columns, sections: [] };
+            let schema = { columns: columns, sections: [], flags: [] };
             $('.section-container').each(function() {
                 let secName = $(this).find('.sec-title-txt').text();
                 let rows = [];
@@ -400,13 +578,32 @@
                 schema.sections.push({ name: secName, rows: rows });
             });
 
+            // Collect flags
+            $('#flagsWrapper .flag-item').each(function() {
+                let qName = $(this).find('.flag-checkpoint-select').val();
+                let op = $(this).find('.flag-operator-select').val() || 'equals';
+                let val = $(this).find('.flag-val-input').val();
+                let qType = $(this).find('.flag-checkpoint-select option:selected').data('type') || 'text';
+                if (qName && val !== undefined && val !== null && val.toString().trim() !== '') {
+                    schema.flags.push({
+                        question: qName.trim(),
+                        question_type: qType,
+                        operator: op,
+                        value: val.toString().trim()
+                    });
+                }
+            });
+
             $('#form_schema').val(JSON.stringify(schema));
             this.submit();
         });
 
         // Prefill existing schema
         let existingSchema = {{ schema|safe }};
-        if (existingSchema && (existingSchema.columns || existingSchema.sections)) {
+        if (typeof existingSchema === 'string') {
+            try { existingSchema = JSON.parse(existingSchema); } catch(e) {}
+        }
+        if (existingSchema && (existingSchema.columns || existingSchema.sections || existingSchema.flags)) {
             (existingSchema.columns || []).forEach(function(col) { appendColumn(col); });
             (existingSchema.sections || []).forEach(function(section) {
                 let $section = appendSection(section.name);
@@ -415,6 +612,12 @@
                 });
             });
             renderPreview();
+
+            if (existingSchema.flags && existingSchema.flags.length > 0) {
+                existingSchema.flags.forEach(function(fl) {
+                    appendFlagRule(fl.question, fl.operator, fl.value, fl.question_type);
+                });
+            }
         }
     });
 </script>

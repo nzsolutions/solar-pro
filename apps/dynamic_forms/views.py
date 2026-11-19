@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from apps.authentication.decorators import admin_required
 from apps.dynamic_forms.models import DynamicForm, FormSubmission, DashboardConfig, DynamicDashboardSectionMaster
+from apps.dynamic_forms.flag_service import evaluate_form_submission
 from apps.operations.models import Project
 from apps.employees.models import Employee
 
@@ -41,7 +42,7 @@ def forms_create(request):
     return render(request, 'admin/forms/builder.html', {
         'projects': projects,
         'form': None,
-        'schema': {'columns': [], 'sections': []},
+        'schema': json.dumps({'columns': [], 'sections': [], 'flags': []}),
         'selectedProjectIds': [],
     })
 
@@ -174,7 +175,7 @@ def forms_edit(request, id):
 
     return render(request, 'admin/forms/builder.html', {
         'form': form,
-        'schema': schema,
+        'schema': json.dumps(schema),
         'projects': projects,
         'selectedProjectIds': selected_pids,
     })
@@ -270,7 +271,9 @@ def form_submissions_index(request):
             'before_photos_count': before_cnt,
             'after_photos_count': after_cnt,
             'has_gps': has_gps,
-            'gps_info': gps_info
+            'gps_info': gps_info,
+            'is_flagged': bool(getattr(sub, 'is_flagged', False)),
+            'flagged_details': getattr(sub, 'flagged_details', []) or [],
         })
 
     projects = Project.objects.order_by('client_name')
@@ -328,6 +331,11 @@ def form_submissions_update(request, id):
             sub_json = submission.submission_data
 
         submission.submission_data = sub_json
+        form = DynamicForm.objects.filter(id=submission.form_id).first()
+        if form:
+            is_flg, flg_dets = evaluate_form_submission(form.form_schema, sub_json)
+            submission.is_flagged = is_flg
+            submission.flagged_details = flg_dets
         submission.save()
         messages.success(request, 'Submission updated successfully.')
         return redirect('admin_form_submissions_index')
