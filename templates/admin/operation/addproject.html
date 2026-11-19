@@ -345,6 +345,78 @@
             </div>
         </div>
 
+        <!-- Agreement & Billing Details -->
+        <div class="form-card">
+            <h5>Agreement &amp; Billing</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Agreement <span class="text-danger">*</span></label>
+                    <select name="agreement" class="form-select" id="agreement_select" required>
+                        <option value="No" selected>No</option>
+                        <option value="Yes">Yes</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- When Agreement = YES -->
+            <div id="agreement_yes_section" class="row g-3 mt-2" style="display: none;">
+                <div class="col-md-4">
+                    <label class="form-label">Agreement Start Date</label>
+                    <input type="date" name="agreement_start_date" id="agreement_start_date" class="form-control datepicker-click">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Agreement End Date</label>
+                    <input type="date" name="agreement_end_date" id="agreement_end_date" class="form-control datepicker-click">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Bill Date</label>
+                    <input type="date" name="bill_date" id="bill_date" class="form-control datepicker-click">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Billing Frequency</label>
+                    <select name="billing_frequency" id="billing_frequency" class="form-select">
+                        <option value="">-- Select Billing Frequency --</option>
+                        <option value="Monthly">Monthly</option>
+                        <option value="Quarterly">Quarterly</option>
+                        <option value="Yearly">Yearly</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Charge Frequency</label>
+                    <select name="charge_frequency" id="charge_frequency" class="form-select">
+                        <option value="">-- Select Charge Frequency --</option>
+                        <option value="Monthly">Monthly</option>
+                        <option value="Quarterly">Quarterly</option>
+                        <option value="Yearly">Yearly</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- When Agreement = NO -->
+            <div id="agreement_no_section" class="row g-3 mt-2">
+                <div class="col-md-4">
+                    <label class="form-label">Prepaid</label>
+                    <select name="prepaid" id="prepaid_select" class="form-select">
+                        <option value="No" selected>No</option>
+                        <option value="Yes">Yes</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label d-block">Free Period</label>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" name="free_period_check" id="free_period_check" value="1">
+                        <label class="form-check-label fw-bold" for="free_period_check">
+                            Free Period Check
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-4" id="free_period_date_group" style="display: none;">
+                    <label class="form-label">Free Period End Date</label>
+                    <input type="date" name="free_period_end_date" id="free_period_end_date" class="form-control datepicker-click">
+                </div>
+            </div>
+        </div>
+
         <div class="wizard-nav-btns">
             <button type="button" class="btn btn-outline-secondary btn-back">
                 <i class="bi bi-arrow-left"></i> Back
@@ -646,6 +718,54 @@
             }
         });
     });
+
+    // Agreement Conditional Fields Toggle Logic
+    var agreementSelect = document.getElementById('agreement_select');
+    var agreementYesSection = document.getElementById('agreement_yes_section');
+    var agreementNoSection = document.getElementById('agreement_no_section');
+    var freePeriodCheck = document.getElementById('free_period_check');
+    var freePeriodDateGroup = document.getElementById('free_period_date_group');
+
+    function toggleAgreementFields() {
+        if (!agreementSelect) return;
+        var isYes = agreementSelect.value === 'Yes';
+        if (agreementYesSection) agreementYesSection.style.display = isYes ? 'flex' : 'none';
+        if (agreementNoSection) agreementNoSection.style.display = isYes ? 'none' : 'flex';
+
+        // Clear values when switching to prevent unintended submissions
+        if (!isYes) {
+            var fieldsToClear = ['agreement_start_date', 'agreement_end_date', 'bill_date', 'billing_frequency', 'charge_frequency'];
+            fieldsToClear.forEach(function(fid) {
+                var el = document.getElementById(fid);
+                if (el) el.value = '';
+            });
+        } else {
+            var prepaidEl = document.getElementById('prepaid_select');
+            if (prepaidEl) prepaidEl.value = 'No';
+            if (freePeriodCheck) freePeriodCheck.checked = false;
+            var freeDateEl = document.getElementById('free_period_end_date');
+            if (freeDateEl) freeDateEl.value = '';
+            if (freePeriodDateGroup) freePeriodDateGroup.style.display = 'none';
+        }
+    }
+
+    function toggleFreePeriodDate() {
+        if (!freePeriodCheck || !freePeriodDateGroup) return;
+        freePeriodDateGroup.style.display = freePeriodCheck.checked ? 'block' : 'none';
+        if (!freePeriodCheck.checked) {
+            var freeDateEl = document.getElementById('free_period_end_date');
+            if (freeDateEl) freeDateEl.value = '';
+        }
+    }
+
+    if (agreementSelect) {
+        agreementSelect.addEventListener('change', toggleAgreementFields);
+        toggleAgreementFields();
+    }
+    if (freePeriodCheck) {
+        freePeriodCheck.addEventListener('change', toggleFreePeriodDate);
+        toggleFreePeriodDate();
+    }
 
     function showStep(step) {
         formSteps.forEach(function (el) {

@@ -125,6 +125,83 @@
         </div>
     </div>
 
+    <!-- Agreement & Billing -->
+    <div class="form-card">
+        <h5>Agreement &amp; Billing</h5>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Agreement <span class="text-danger">*</span></label>
+                <select name="agreement" class="form-select" id="edit_agreement_select" required>
+                    <option value="No" {% if project.agreement == 'No' or not project.agreement %}selected{% endif %}>No</option>
+                    <option value="Yes" {% if project.agreement == 'Yes' %}selected{% endif %}>Yes</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- When Agreement = YES -->
+        <div id="edit_agreement_yes_section" class="row g-3 mt-2" {% if project.agreement != 'Yes' %}style="display: none;"{% endif %}>
+            <div class="col-md-4">
+                <label class="form-label">Agreement Start Date</label>
+                <input type="date" name="agreement_start_date" id="edit_agreement_start_date"
+                       value="{{ project.agreement_start_date|date:'Y-m-d' }}" class="form-control datepicker-click">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Agreement End Date</label>
+                <input type="date" name="agreement_end_date" id="edit_agreement_end_date"
+                       value="{{ project.agreement_end_date|date:'Y-m-d' }}" class="form-control datepicker-click">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Bill Date</label>
+                <input type="date" name="bill_date" id="edit_bill_date"
+                       value="{{ project.bill_date|date:'Y-m-d' }}" class="form-control datepicker-click">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Billing Frequency</label>
+                <select name="billing_frequency" id="edit_billing_frequency" class="form-select">
+                    <option value="">-- Select Billing Frequency --</option>
+                    <option value="Monthly" {% if project.billing_frequency == 'Monthly' %}selected{% endif %}>Monthly</option>
+                    <option value="Quarterly" {% if project.billing_frequency == 'Quarterly' %}selected{% endif %}>Quarterly</option>
+                    <option value="Yearly" {% if project.billing_frequency == 'Yearly' %}selected{% endif %}>Yearly</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Charge Frequency</label>
+                <select name="charge_frequency" id="edit_charge_frequency" class="form-select">
+                    <option value="">-- Select Charge Frequency --</option>
+                    <option value="Monthly" {% if project.charge_frequency == 'Monthly' %}selected{% endif %}>Monthly</option>
+                    <option value="Quarterly" {% if project.charge_frequency == 'Quarterly' %}selected{% endif %}>Quarterly</option>
+                    <option value="Yearly" {% if project.charge_frequency == 'Yearly' %}selected{% endif %}>Yearly</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- When Agreement = NO -->
+        <div id="edit_agreement_no_section" class="row g-3 mt-2" {% if project.agreement == 'Yes' %}style="display: none;"{% endif %}>
+            <div class="col-md-4">
+                <label class="form-label">Prepaid</label>
+                <select name="prepaid" id="edit_prepaid_select" class="form-select">
+                    <option value="No" {% if project.prepaid == 'No' or not project.prepaid %}selected{% endif %}>No</option>
+                    <option value="Yes" {% if project.prepaid == 'Yes' %}selected{% endif %}>Yes</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label d-block">Free Period</label>
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" name="free_period_check" id="edit_free_period_check" value="1"
+                           {% if project.free_period_check %}checked{% endif %}>
+                    <label class="form-check-label fw-bold" for="edit_free_period_check">
+                        Free Period Check
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-4" id="edit_free_period_date_group" {% if not project.free_period_check %}style="display: none;"{% endif %}>
+                <label class="form-label">Free Period End Date</label>
+                <input type="date" name="free_period_end_date" id="edit_free_period_end_date"
+                       value="{{ project.free_period_end_date|date:'Y-m-d' }}" class="form-control datepicker-click">
+            </div>
+        </div>
+    </div>
+
     <!-- Team Assignment -->
     <div class="form-card">
         <h5>Team Assignment</h5>
@@ -273,6 +350,32 @@
                 rowsWrap.appendChild(row);
                 rowIndex++;
             });
+        }
+
+        // Agreement Conditional Fields Toggle Logic in Edit Project
+        var agreementSelect = document.getElementById('edit_agreement_select');
+        var agreementYesSection = document.getElementById('edit_agreement_yes_section');
+        var agreementNoSection = document.getElementById('edit_agreement_no_section');
+        var freePeriodCheck = document.getElementById('edit_free_period_check');
+        var freePeriodDateGroup = document.getElementById('edit_free_period_date_group');
+
+        function toggleAgreementFields() {
+            if (!agreementSelect) return;
+            var isYes = agreementSelect.value === 'Yes';
+            if (agreementYesSection) agreementYesSection.style.display = isYes ? 'flex' : 'none';
+            if (agreementNoSection) agreementNoSection.style.display = isYes ? 'none' : 'flex';
+        }
+
+        function toggleFreePeriodDate() {
+            if (!freePeriodCheck || !freePeriodDateGroup) return;
+            freePeriodDateGroup.style.display = freePeriodCheck.checked ? 'block' : 'none';
+        }
+
+        if (agreementSelect) {
+            agreementSelect.addEventListener('change', toggleAgreementFields);
+        }
+        if (freePeriodCheck) {
+            freePeriodCheck.addEventListener('change', toggleFreePeriodDate);
         }
     })();
 </script>

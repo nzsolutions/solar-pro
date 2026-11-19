@@ -202,6 +202,14 @@ def projects_index(request):
             'manager_name': emp_map.get(p.site_manager, '—'),
             'manager_role': 'Site Manager',
             'status': p.status,
+            'agreement': p.agreement,
+            'agreement_start_date': p.agreement_start_date,
+            'agreement_end_date': p.agreement_end_date,
+            'billing_frequency': p.billing_frequency,
+            'charge_frequency': p.charge_frequency,
+            'bill_date': p.bill_date,
+            'prepaid': p.prepaid,
+            'free_period_check': p.free_period_check,
             'system_size': 0,
             'generated_kwh': 0,
             'panel_type': '—',
@@ -298,6 +306,27 @@ def project_store(request):
 
         staff_list = [int(x) for x in request.POST.getlist('field_staff[]') if x.isdigit()]
 
+        agreement = request.POST.get('agreement', 'No').strip()
+        if agreement == 'Yes':
+            agreement_start_date = request.POST.get('agreement_start_date') or None
+            agreement_end_date = request.POST.get('agreement_end_date') or None
+            billing_frequency = request.POST.get('billing_frequency') or None
+            charge_frequency = request.POST.get('charge_frequency') or None
+            bill_date = request.POST.get('bill_date') or None
+            prepaid = 'No'
+            free_period_check = False
+            free_period_end_date = None
+        else:
+            agreement = 'No'
+            agreement_start_date = None
+            agreement_end_date = None
+            billing_frequency = None
+            charge_frequency = None
+            bill_date = None
+            prepaid = request.POST.get('prepaid', 'No').strip()
+            free_period_check = request.POST.get('free_period_check') in ['1', 'on', 'true', 'True', True]
+            free_period_end_date = request.POST.get('free_period_end_date') or None
+
         project = Project.objects.create(
             company_id=request.session.get('company_id', 1),
             project_name=project_name,
@@ -309,6 +338,15 @@ def project_store(request):
             start_date=request.POST.get('start_date') or None,
             end_date=request.POST.get('end_date') or None,
             reporting_frequency=request.POST.get('reporting_frequency', 'Weekly'),
+            agreement=agreement,
+            agreement_start_date=agreement_start_date,
+            agreement_end_date=agreement_end_date,
+            billing_frequency=billing_frequency,
+            charge_frequency=charge_frequency,
+            bill_date=bill_date,
+            prepaid=prepaid,
+            free_period_check=free_period_check,
+            free_period_end_date=free_period_end_date,
             notes=request.POST.get('notes', ''),
         )
 
@@ -473,6 +511,28 @@ def project_update(request, id):
         project.start_date = request.POST.get('start_date') or None
         project.end_date = request.POST.get('end_date') or None
         project.reporting_frequency = request.POST.get('reporting_frequency', project.reporting_frequency)
+        
+        agreement = request.POST.get('agreement', 'No').strip()
+        project.agreement = agreement
+        if agreement == 'Yes':
+            project.agreement_start_date = request.POST.get('agreement_start_date') or None
+            project.agreement_end_date = request.POST.get('agreement_end_date') or None
+            project.billing_frequency = request.POST.get('billing_frequency') or None
+            project.charge_frequency = request.POST.get('charge_frequency') or None
+            project.bill_date = request.POST.get('bill_date') or None
+            project.prepaid = 'No'
+            project.free_period_check = False
+            project.free_period_end_date = None
+        else:
+            project.agreement_start_date = None
+            project.agreement_end_date = None
+            project.billing_frequency = None
+            project.charge_frequency = None
+            project.bill_date = None
+            project.prepaid = request.POST.get('prepaid', 'No').strip()
+            project.free_period_check = request.POST.get('free_period_check') in ['1', 'on', 'true', 'True', True]
+            project.free_period_end_date = request.POST.get('free_period_end_date') or None
+
         project.notes = request.POST.get('notes', project.notes)
         project.save()
 

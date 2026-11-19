@@ -14,6 +14,18 @@ class Project(models.Model):
     end_date = models.DateField(null=True, blank=True)
     reporting_frequency = models.CharField(max_length=50, null=True, blank=True)
     notes = models.TextField(null=True, blank=True)
+
+    # Agreement & Billing Management
+    agreement = models.CharField(max_length=10, default='No', choices=[('Yes', 'Yes'), ('No', 'No')])
+    agreement_start_date = models.DateField(null=True, blank=True)
+    agreement_end_date = models.DateField(null=True, blank=True)
+    billing_frequency = models.CharField(max_length=50, null=True, blank=True)
+    charge_frequency = models.CharField(max_length=50, null=True, blank=True)
+    bill_date = models.DateField(null=True, blank=True)
+    prepaid = models.CharField(max_length=10, default='No', choices=[('Yes', 'Yes'), ('No', 'No')])
+    free_period_check = models.BooleanField(default=False)
+    free_period_end_date = models.DateField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 

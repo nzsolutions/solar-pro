@@ -166,9 +166,20 @@
             <div class="project-card hover-lift">
                 <div class="d-flex justify-content-between align-items-start mb-1">
                     <span class="project-code">{{ project.code }}</span>
-                    <span class="status-badge status-{{ project.status }}">
-                        {{ project.status|title }}
-                    </span>
+                    <div class="d-flex gap-1 align-items-center">
+                        {% if project.agreement == 'Yes' %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill" style="font-size: 0.72rem;">
+                                <i class="bi bi-file-earmark-check"></i> Agreement
+                            </span>
+                        {% elif project.prepaid == 'Yes' %}
+                            <span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1 rounded-pill" style="font-size: 0.72rem;">
+                                <i class="bi bi-wallet2"></i> Prepaid
+                            </span>
+                        {% endif %}
+                        <span class="status-badge status-{{ project.status }}">
+                            {{ project.status|title }}
+                        </span>
+                    </div>
                 </div>
                 <div class="project-name">{{ project.client_name }}</div>
 
