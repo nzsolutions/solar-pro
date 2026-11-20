@@ -1,0 +1,736 @@
+{% extends 'layouts/admin.html' %}
+
+{% block content %}
+<style>
+    .page-title { font-weight: 800; color: #111827; }
+    .breadcrumb-nav { font-size: 0.9rem; color: #9CA3AF; margin-bottom: 0.75rem; }
+    .breadcrumb-nav a { color: #9CA3AF; text-decoration: none; }
+    .breadcrumb-nav a:hover { color: var(--accent-orange, #F59E0B); }
+    .breadcrumb-nav .current { color: #111827; font-weight: 600; }
+    .breadcrumb-nav i { font-size: 0.8rem; margin: 0 0.4rem; }
+
+    /* Summary KPI Cards */
+    .summary-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 1.25rem 1.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.05);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .summary-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+    }
+    .summary-card .card-info h6 {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #6B7280;
+        margin-bottom: 0.35rem;
+    }
+    .summary-card .card-info .count {
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: #111827;
+        line-height: 1.2;
+    }
+    .summary-card .icon-box {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+    }
+    .icon-box.total { background: #EEF2FF; color: #4F46E5; }
+    .icon-box.pending { background: #FEF3E2; color: #F59E0B; }
+    .icon-box.approved { background: #DCFCE7; color: #16A34A; }
+    .icon-box.rejected { background: #FEE2E2; color: #DC2626; }
+
+    /* Form & Listing Card */
+    .form-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 1.75rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.05);
+        margin-bottom: 1.5rem;
+    }
+    .form-card h5 {
+        color: #111827;
+        font-weight: 700;
+        margin-bottom: 0;
+    }
+
+    .badge-count {
+        background: #FEF3E2;
+        color: var(--accent-orange, #F59E0B);
+        font-weight: 700;
+        font-size: 0.8rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+    }
+
+    /* Filter Panel */
+    .filter-card {
+        background: #FAFAFA;
+        border-radius: 10px;
+        border: 1px solid #E5E7EB;
+        padding: 1.15rem 1.25rem;
+        margin-bottom: 1.25rem;
+    }
+    .filter-label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: #4B5563;
+        margin-bottom: 0.35rem;
+    }
+    .filter-input {
+        border-radius: 8px;
+        border: 1px solid #D1D5DB;
+        padding: 0.45rem 0.7rem;
+        font-size: 0.85rem;
+        background: #fff;
+    }
+    .filter-input:focus {
+        border-color: var(--accent-orange, #F59E0B);
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15);
+    }
+
+    /* Table */
+    .modern-table { margin-bottom: 0; }
+    .modern-table thead th {
+        border: none;
+        color: #9CA3AF;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 700;
+        padding-bottom: 0.85rem;
+        background: transparent;
+        white-space: nowrap;
+    }
+    .modern-table tbody tr {
+        border-top: 1px solid #F3F4F6;
+        transition: background-color 0.15s ease;
+    }
+    .modern-table tbody tr:hover { background-color: #FAFAFA; }
+    .modern-table tbody td {
+        padding: 0.85rem 0.65rem;
+        vertical-align: middle;
+        color: #374151;
+        font-size: 0.88rem;
+    }
+
+    /* Status Badges */
+    .badge-status {
+        padding: 0.35rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        text-transform: capitalize;
+    }
+    .badge-status.pending { background: #FEF3E2; color: #B45309; border: 1px solid #FDE9C8; }
+    .badge-status.approved { background: #DCFCE7; color: #16A34A; border: 1px solid #BBF7D0; }
+    .badge-status.rejected { background: #FEE2E2; color: #DC2626; border: 1px solid #FECACA; }
+
+    .btn-action-icon {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #E5E7EB;
+        background: #fff;
+        color: #4B5563;
+        transition: all 0.15s ease;
+    }
+    .btn-action-icon:hover {
+        background: #F3F4F6;
+        color: #111827;
+        border-color: #D1D5DB;
+    }
+    .btn-action-icon.approve:hover {
+        background: #DCFCE7;
+        color: #16A34A;
+        border-color: #BBF7D0;
+    }
+    .btn-action-icon.reject:hover {
+        background: #FEE2E2;
+        color: #DC2626;
+        border-color: #FECACA;
+    }
+
+    /* Modal Styling */
+    .modal-content {
+        border-radius: 12px;
+        border: 1px solid rgba(0,0,0,0.08);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+    .modal-header {
+        border-bottom: 1px solid #F3F4F6;
+        padding: 1.25rem 1.5rem;
+    }
+    .modal-title {
+        font-weight: 700;
+        color: #111827;
+        font-size: 1.1rem;
+    }
+    .modal-body {
+        padding: 1.5rem;
+    }
+    .modal-footer {
+        border-top: 1px solid #F3F4F6;
+        padding: 1rem 1.5rem;
+    }
+
+    .detail-row {
+        margin-bottom: 0.85rem;
+    }
+    .detail-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #6B7280;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .detail-value {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #111827;
+    }
+</style>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb-nav">
+    <a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Dashboard</a>
+    <i class="bi bi-chevron-right"></i>
+    <span class="text-muted">Master</span>
+    <i class="bi bi-chevron-right"></i>
+    <span class="current">Leave Management</span>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="page-title mb-1">Leave Management</h2>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">Review and manage employee leave requests submitted via the mobile app</p>
+    </div>
+</div>
+
+<!-- Summary KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-md-6">
+        <a href="{% url 'admin_leave_management_index' %}" class="text-decoration-none">
+            <div class="summary-card">
+                <div class="card-info">
+                    <h6>Total Requests</h6>
+                    <div class="count">{{ total_count }}</div>
+                </div>
+                <div class="icon-box total">
+                    <i class="bi bi-calendar-event"></i>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <a href="{% url 'admin_leave_management_index' %}?status=pending" class="text-decoration-none">
+            <div class="summary-card">
+                <div class="card-info">
+                    <h6>Pending Requests</h6>
+                    <div class="count text-warning">{{ pending_count }}</div>
+                </div>
+                <div class="icon-box pending">
+                    <i class="bi bi-clock-history"></i>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <a href="{% url 'admin_leave_management_index' %}?status=approved" class="text-decoration-none">
+            <div class="summary-card">
+                <div class="card-info">
+                    <h6>Approved Requests</h6>
+                    <div class="count text-success">{{ approved_count }}</div>
+                </div>
+                <div class="icon-box approved">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <a href="{% url 'admin_leave_management_index' %}?status=rejected" class="text-decoration-none">
+            <div class="summary-card">
+                <div class="card-info">
+                    <h6>Rejected Requests</h6>
+                    <div class="count text-danger">{{ rejected_count }}</div>
+                </div>
+                <div class="icon-box rejected">
+                    <i class="bi bi-x-circle"></i>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- Main Listing Card -->
+<div class="form-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <h5 class="mb-0">Employee Leave Requests</h5>
+            <span class="badge-count">{{ leaves|length }} Requests</span>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="{% if employee_filter or department_filter or leave_type_filter or status_filter or start_date_filter or end_date_filter %}true{% else %}false{% endif %}">
+            <i class="bi bi-funnel"></i> Filters {% if employee_filter or department_filter or leave_type_filter or status_filter or start_date_filter or end_date_filter %}<span class="badge bg-primary ms-1">Active</span>{% endif %}
+        </button>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="collapse {% if employee_filter or department_filter or leave_type_filter or status_filter or start_date_filter or end_date_filter %}show{% endif %}" id="filterCollapse">
+        <form method="GET" action="{% url 'admin_leave_management_index' %}" class="filter-card">
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label class="filter-label">Employee</label>
+                    <select name="employee" class="form-select filter-input">
+                        <option value="">All Employees</option>
+                        {% for emp in employees %}
+                            <option value="{{ emp.id }}" {% if employee_filter == emp.id|stringformat:"s" %}selected{% endif %}>{{ emp.name }} (EMP-{{ emp.id|stringformat:"04d" }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="filter-label">Department</label>
+                    <select name="department" class="form-select filter-input">
+                        <option value="">All Departments</option>
+                        {% for dept in departments %}
+                            <option value="{{ dept.id }}" {% if department_filter == dept.id|stringformat:"s" %}selected{% endif %}>{{ dept.department_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="filter-label">Leave Type</label>
+                    <select name="leave_type" class="form-select filter-input">
+                        <option value="">All Leave Types</option>
+                        {% for lt in leave_types %}
+                            <option value="{{ lt }}" {% if leave_type_filter == lt %}selected{% endif %}>{{ lt }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="filter-label">Status</label>
+                    <select name="status" class="form-select filter-input">
+                        <option value="">All Statuses</option>
+                        <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
+                        <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="filter-label">Date Range</label>
+                    <div class="input-group">
+                        <input type="date" name="start_date" value="{{ start_date_filter }}" class="form-control filter-input" title="From Date">
+                        <span class="input-group-text bg-white px-1 border-top border-bottom">to</span>
+                        <input type="date" name="end_date" value="{{ end_date_filter }}" class="form-control filter-input" title="To Date">
+                    </div>
+                </div>
+                <div class="col-12 d-flex justify-content-end gap-2 mt-2">
+                    <a href="{% url 'admin_leave_management_index' %}" class="btn btn-sm btn-outline-secondary">Reset Filters</a>
+                    <button type="submit" class="btn btn-sm btn-primary" style="background: var(--accent-orange, #F59E0B); border-color: var(--accent-orange, #F59E0B);">Apply Filters</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Data Table -->
+    <div class="table-responsive">
+        <table class="table modern-table table-hover" id="leaveManagementTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Employee Details</th>
+                    <th>Department / Role</th>
+                    <th>Leave Type</th>
+                    <th>Duration</th>
+                    <th>Days</th>
+                    <th>Reason</th>
+                    <th>Submission Date</th>
+                    <th>Status</th>
+                    <th class="text-center" style="width: 140px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in leaves %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <div class="fw-bold text-dark">{{ item.employee_name }}</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">{{ item.employee_code }}</div>
+                    </td>
+                    <td>
+                        <div>{{ item.department }}</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">{{ item.designation }}</div>
+                    </td>
+                    <td>
+                        <span class="fw-semibold text-secondary">{{ item.leave_type }}</span>
+                    </td>
+                    <td>
+                        <div class="text-nowrap">{{ item.start_date|date:"d M Y" }}</div>
+                        <div class="text-muted text-nowrap" style="font-size: 0.75rem;">to {{ item.end_date|date:"d M Y" }}</div>
+                    </td>
+                    <td>
+                        <span class="badge bg-light text-dark border">{{ item.days_count }} day{% if item.days_count > 1 %}s{% endif %}</span>
+                    </td>
+                    <td style="max-width: 200px;">
+                        <span class="text-truncate d-inline-block" style="max-width: 190px;" title="{{ item.reason }}">{{ item.reason }}</span>
+                    </td>
+                    <td class="text-nowrap">
+                        <div>{{ item.created_at|date:"d M Y" }}</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">{{ item.created_at|date:"h:i A" }}</div>
+                    </td>
+                    <td>
+                        {% if item.status == 'approved' %}
+                            <span class="badge-status approved"><i class="bi bi-check-circle-fill"></i> Approved</span>
+                        {% elif item.status == 'rejected' %}
+                            <span class="badge-status rejected" title="Reason: {{ item.rejection_reason }}"><i class="bi bi-x-circle-fill"></i> Rejected</span>
+                        {% else %}
+                            <span class="badge-status pending"><i class="bi bi-hourglass-split"></i> Pending</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center text-nowrap">
+                        <div class="d-inline-flex gap-1 align-items-center">
+                            <!-- Review / Details Button -->
+                            <button class="btn-action-icon" type="button" title="View Full Details" onclick="openReviewModal({{ item.id }})">
+                                <i class="bi bi-eye"></i>
+                            </button>
+
+                            {% if item.status == 'pending' %}
+                            <!-- Quick Approve Button -->
+                            <button class="btn-action-icon approve" type="button" title="Approve Leave" onclick="openApproveModal({{ item.id }}, '{{ item.employee_name|escapejs }}', '{{ item.leave_type|escapejs }}', '{{ item.days_count }}')">
+                                <i class="bi bi-check-lg"></i>
+                            </button>
+
+                            <!-- Quick Reject Button -->
+                            <button class="btn-action-icon reject" type="button" title="Reject Leave" onclick="openRejectModal({{ item.id }}, '{{ item.employee_name|escapejs }}', '{{ item.leave_type|escapejs }}')">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" class="text-center py-4 text-muted">
+                        <i class="bi bi-calendar-x d-block mb-2" style="font-size: 2rem; color: #CBD5E1;"></i>
+                        No leave requests found matching the current criteria.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ================= MODALS ================= -->
+
+<!-- 1. Review Details Modal -->
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reviewModalLabel"><i class="bi bi-clipboard2-check text-primary me-2"></i> Leave Request Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="reviewModalBody">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-warning" role="status"></div>
+                    <div class="mt-2 text-muted">Loading request details...</div>
+                </div>
+            </div>
+            <div class="modal-footer" id="reviewModalFooter">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Approve Confirmation Modal -->
+<div class="modal fade" id="approveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="approveForm" method="POST" action="">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title text-success"><i class="bi bi-check-circle-fill me-2"></i> Approve Leave Request</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">Are you sure you want to approve the leave request for <strong id="approveEmpName"></strong>?</p>
+                    <div class="alert alert-light border mb-3">
+                        <div class="small text-muted">Leave Type: <span class="fw-bold text-dark" id="approveLeaveType"></span></div>
+                        <div class="small text-muted">Days: <span class="fw-bold text-dark" id="approveDays"></span></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Admin Remarks (Optional)</label>
+                        <textarea name="admin_remarks" class="form-control" rows="2" placeholder="Add approval remarks or instructions for the employee..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-check-lg"></i> Officially Approve Leave</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 3. Reject Confirmation Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="rejectForm" method="POST" action="">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger"><i class="bi bi-x-circle-fill me-2"></i> Reject Leave Request</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">You are rejecting the leave application for <strong id="rejectEmpName"></strong> (<span id="rejectLeaveType"></span>).</p>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-danger">Rejection Reason <span class="text-danger">*</span></label>
+                        <textarea name="rejection_reason" class="form-control" rows="3" required placeholder="Please provide the mandatory rejection reason. This will be sent directly to the employee's mobile app..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Internal Remarks (Optional)</label>
+                        <textarea name="admin_remarks" class="form-control" rows="2" placeholder="Optional internal notes..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-x-lg"></i> Reject Leave</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- DataTables & Export Buttons -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+
+<script>
+    $(document).ready(function () {
+        if ($.fn.dataTable) {
+            $.fn.dataTable.ext.errMode = 'none';
+        }
+
+        $('#leaveManagementTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [5, 10, 25, 50, 100],
+            columnDefs: [{ orderable: false, targets: -1 }],
+            order: [[7, 'desc']],
+            dom: 'B lfrtip',
+            buttons: [
+                {
+                    extend: 'excelHtml5',
+                    text: '<i class="bi bi-file-earmark-excel"></i> Excel',
+                    className: 'btn dt-export-btn',
+                    title: 'SolarPro Leave Management Log',
+                    exportOptions: { columns: ':not(:last-child)' }
+                },
+                {
+                    extend: 'pdfHtml5',
+                    text: '<i class="bi bi-file-earmark-pdf"></i> PDF',
+                    className: 'btn dt-export-btn',
+                    title: 'SolarPro Leave Management Log',
+                    orientation: 'landscape',
+                    exportOptions: { columns: ':not(:last-child)' }
+                },
+                {
+                    extend: 'print',
+                    text: '<i class="bi bi-printer"></i> Print',
+                    className: 'btn dt-export-btn',
+                    title: 'SolarPro Leave Management Log',
+                    exportOptions: { columns: ':not(:last-child)' }
+                }
+            ],
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search leave records...",
+                lengthMenu: "Show _MENU_ entries"
+            }
+        });
+    });
+
+    function openReviewModal(leaveId) {
+        const modal = new bootstrap.Modal(document.getElementById('reviewModal'));
+        modal.show();
+
+        const body = document.getElementById('reviewModalBody');
+        const footer = document.getElementById('reviewModalFooter');
+
+        body.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-warning" role="status"></div>
+                <div class="mt-2 text-muted">Loading request details...</div>
+            </div>`;
+
+        fetch(`/admin/leave-management/${leaveId}/detail`)
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    body.innerHTML = `<div class="alert alert-danger">${data.message || 'Error loading details.'}</div>`;
+                    return;
+                }
+                const l = data.data;
+
+                let statusBadge = '';
+                if (l.status === 'approved') {
+                    statusBadge = '<span class="badge-status approved"><i class="bi bi-check-circle-fill"></i> Approved</span>';
+                } else if (l.status === 'rejected') {
+                    statusBadge = '<span class="badge-status rejected"><i class="bi bi-x-circle-fill"></i> Rejected</span>';
+                } else {
+                    statusBadge = '<span class="badge-status pending"><i class="bi bi-hourglass-split"></i> Pending Review</span>';
+                }
+
+                let attachmentHtml = '—';
+                if (l.attachment) {
+                    attachmentHtml = `<a href="/media/${l.attachment}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-paperclip"></i> View Supporting Document</a>`;
+                }
+
+                let decisionDetails = '';
+                if (l.status === 'approved') {
+                    decisionDetails = `
+                        <div class="alert alert-success border mt-3">
+                            <h6 class="fw-bold mb-1"><i class="bi bi-check-circle"></i> Officially Approved</h6>
+                            <div class="small">Approved by: <strong>${l.action_by || 'Admin'}</strong> on ${l.action_at || '—'}</div>
+                            ${l.admin_remarks ? `<div class="small mt-1">Remarks: ${l.admin_remarks}</div>` : ''}
+                        </div>`;
+                } else if (l.status === 'rejected') {
+                    decisionDetails = `
+                        <div class="alert alert-danger border mt-3">
+                            <h6 class="fw-bold mb-1"><i class="bi bi-x-circle"></i> Rejected Application</h6>
+                            <div class="small">Rejected by: <strong>${l.action_by || 'Admin'}</strong> on ${l.action_at || '—'}</div>
+                            <div class="small mt-1 text-danger"><strong>Reason:</strong> ${l.rejection_reason || 'No reason provided'}</div>
+                            ${l.admin_remarks ? `<div class="small mt-1 text-muted">Remarks: ${l.admin_remarks}</div>` : ''}
+                        </div>`;
+                }
+
+                body.innerHTML = `
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="detail-row">
+                                <div class="detail-label">Employee</div>
+                                <div class="detail-value">${l.employee_name} (${l.employee_code})</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="detail-row">
+                                <div class="detail-label">Department & Role</div>
+                                <div class="detail-value">${l.department} / ${l.designation}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="detail-row">
+                                <div class="detail-label">Leave Type</div>
+                                <div class="detail-value text-primary">${l.leave_type}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="detail-row">
+                                <div class="detail-label">Duration</div>
+                                <div class="detail-value">${l.start_date} to ${l.end_date}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="detail-row">
+                                <div class="detail-label">Days Count</div>
+                                <div class="detail-value">${l.days_count} day(s)</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="detail-row">
+                                <div class="detail-label">Current Status</div>
+                                <div>${statusBadge}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="detail-row">
+                                <div class="detail-label">Submission Date</div>
+                                <div class="detail-value">${l.created_at}</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="detail-row">
+                                <div class="detail-label">Employee Reason</div>
+                                <div class="p-3 bg-light rounded text-dark mt-1" style="white-space: pre-wrap;">${l.reason}</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="detail-row">
+                                <div class="detail-label">Supporting Document</div>
+                                <div class="mt-1">${attachmentHtml}</div>
+                            </div>
+                        </div>
+                    </div>
+                    ${decisionDetails}`;
+
+                if (l.status === 'pending') {
+                    footer.innerHTML = `
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-danger" onclick="bootstrap.Modal.getInstance(document.getElementById('reviewModal')).hide(); openRejectModal(${l.id}, '${escapeHtml(l.employee_name)}', '${escapeHtml(l.leave_type)}');"><i class="bi bi-x-lg"></i> Reject</button>
+                        <button type="button" class="btn btn-success" onclick="bootstrap.Modal.getInstance(document.getElementById('reviewModal')).hide(); openApproveModal(${l.id}, '${escapeHtml(l.employee_name)}', '${escapeHtml(l.leave_type)}', '${l.days_count}');"><i class="bi bi-check-lg"></i> Approve</button>
+                    `;
+                } else {
+                    footer.innerHTML = `<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>`;
+                }
+            })
+            .catch(err => {
+                body.innerHTML = `<div class="alert alert-danger">Network error: ${err.message}</div>`;
+            });
+    }
+
+    function openApproveModal(id, empName, leaveType, days) {
+        document.getElementById('approveForm').action = `/admin/leave-management/${id}/approve`;
+        document.getElementById('approveEmpName').textContent = empName;
+        document.getElementById('approveLeaveType').textContent = leaveType;
+        document.getElementById('approveDays').textContent = `${days} day(s)`;
+        new bootstrap.Modal(document.getElementById('approveModal')).show();
+    }
+
+    function openRejectModal(id, empName, leaveType) {
+        document.getElementById('rejectForm').action = `/admin/leave-management/${id}/reject`;
+        document.getElementById('rejectEmpName').textContent = empName;
+        document.getElementById('rejectLeaveType').textContent = leaveType;
+        new bootstrap.Modal(document.getElementById('rejectModal')).show();
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text.replace(/'/g, "\\'");
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,244 @@
+<div class="modal-header">
+    <div>
+        <h5 class="modal-title fw-bold text-dark mb-0">
+            {{ instance.activity.activity_title }}
+        </h5>
+        <div class="text-muted small">
+            Project: <strong class="text-dark">{{ instance.project.project_name|default:instance.project.client_name }}</strong>
+            &bull; Scheduled: {{ instance.scheduled_date|date:"d M Y" }}
+        </div>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+
+<div class="modal-body p-4">
+    <!-- Status & Basic Info Banner -->
+    <div class="d-flex justify-content-between align-items-center p-3 rounded mb-3 border bg-light">
+        <div>
+            <div class="text-muted small">Current Status</div>
+            <div class="fw-bold fs-6">
+                {% if instance.status == 'Pending' %}
+                    <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i> Pending Execution</span>
+                {% elif instance.status == 'In Progress' %}
+                    <span class="badge bg-primary"><i class="bi bi-arrow-repeat me-1"></i> In Progress</span>
+                {% elif instance.status == 'Completed' %}
+                    <span class="badge bg-success"><i class="bi bi-check2-circle me-1"></i> Completed</span>
+                {% elif instance.status == 'Unable to Complete' %}
+                    <span class="badge bg-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i> Unable to Complete</span>
+                {% elif instance.status == 'Exception Reported' %}
+                    <span class="badge bg-danger"><i class="bi bi-shield-exclamation me-1"></i> Exception Reported</span>
+                {% elif instance.status == 'Under Review' %}
+                    <span class="badge bg-info text-dark"><i class="bi bi-eye me-1"></i> Under Review</span>
+                {% else %}
+                    <span class="badge bg-secondary">{{ instance.status }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            <div class="text-muted small">Frequency</div>
+            <div class="fw-semibold text-dark">{{ instance.frequency }}</div>
+        </div>
+        <div>
+            <div class="text-muted small">Assigned Staff</div>
+            <div class="fw-semibold text-dark">{{ instance.assigned_employee.name|default:"Unassigned" }}</div>
+        </div>
+        <div>
+            <div class="text-muted small">Submitted By</div>
+            <div class="fw-semibold text-dark">
+                {% if instance.submitted_by %}
+                    {{ instance.submitted_by.name }} ({{ instance.submitted_at|date:"d M H:i" }})
+                {% else %}
+                    —
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Execution Timing & Remarks -->
+    {% if instance.actual_start_time or instance.actual_completion_time or instance.completion_remarks %}
+    <div class="card mb-3 border-0 bg-light">
+        <div class="card-body p-3">
+            <h6 class="fw-bold mb-2 text-dark"><i class="bi bi-stopwatch me-1 text-primary"></i> Execution Details</h6>
+            <div class="row g-2 small">
+                <div class="col-sm-6">
+                    <strong>Started:</strong> {{ instance.actual_start_time|default:"—" }}
+                </div>
+                <div class="col-sm-6">
+                    <strong>Completed:</strong> {{ instance.actual_completion_time|default:"—" }}
+                </div>
+                {% if instance.completion_remarks %}
+                <div class="col-12 mt-2">
+                    <strong>Completion Remarks:</strong>
+                    <div class="p-2 border rounded bg-white mt-1">{{ instance.completion_remarks }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Photo Evidence Section -->
+    <div class="mb-4">
+        <h6 class="fw-bold mb-2 text-dark"><i class="bi bi-camera me-1 text-warning"></i> Photo Evidence</h6>
+        <div class="row g-3">
+            <!-- Before Photos -->
+            <div class="col-md-6">
+                <div class="p-3 border rounded h-100 bg-white">
+                    <div class="fw-bold small text-muted text-uppercase mb-2">Before Photos</div>
+                    {% if beforePhotos %}
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for photo in beforePhotos %}
+                                <div class="position-relative text-center border rounded p-1">
+                                    <a href="/media/{{ photo.photo_file }}" target="_blank">
+                                        <img src="/media/{{ photo.photo_file }}" alt="Before" style="width: 120px; height: 90px; object-fit: cover; border-radius: 4px;">
+                                    </a>
+                                    <div class="text-muted" style="font-size: 0.7rem; margin-top: 2px;">
+                                        {{ photo.created_at|date:"H:i d/m" }}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-muted small fst-italic">No before photos uploaded.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- After Photos -->
+            <div class="col-md-6">
+                <div class="p-3 border rounded h-100 bg-white">
+                    <div class="fw-bold small text-muted text-uppercase mb-2">After Photos</div>
+                    {% if afterPhotos %}
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for photo in afterPhotos %}
+                                <div class="position-relative text-center border rounded p-1">
+                                    <a href="/media/{{ photo.photo_file }}" target="_blank">
+                                        <img src="/media/{{ photo.photo_file }}" alt="After" style="width: 120px; height: 90px; object-fit: cover; border-radius: 4px;">
+                                    </a>
+                                    <div class="text-muted" style="font-size: 0.7rem; margin-top: 2px;">
+                                        {{ photo.created_at|date:"H:i d/m" }}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-muted small fst-italic">No after photos uploaded.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attached Form & Dynamic Submission Data -->
+    <div class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="fw-bold mb-0 text-dark">
+                <i class="bi bi-ui-checks me-1 text-info"></i> Form Submission Answers
+            </h6>
+            {% if attachedForm %}
+                <span class="badge bg-light text-secondary border">Form: {{ attachedForm.form_name }}</span>
+            {% endif %}
+        </div>
+
+        {% if instance.submission_data %}
+            <div class="p-3 border rounded bg-white">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light">
+                            <tr style="font-size: 0.8rem;">
+                                <th>Field / Item</th>
+                                <th>Submitted Value / Answer</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key, val in instance.submission_data.items %}
+                            <tr>
+                                <td class="fw-semibold text-dark" style="width: 40%; font-size: 0.85rem;">{{ key }}</td>
+                                <td style="font-size: 0.85rem;">
+                                    {% if val|stringformat:"s" == "True" or val|stringformat:"s" == "true" or val|stringformat:"s" == "yes" or val|stringformat:"s" == "Yes" %}
+                                        <span class="badge bg-success-subtle text-success">Yes</span>
+                                    {% elif val|stringformat:"s" == "False" or val|stringformat:"s" == "false" or val|stringformat:"s" == "no" or val|stringformat:"s" == "No" %}
+                                        <span class="badge bg-danger-subtle text-danger">No</span>
+                                    {% else %}
+                                        {{ val }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% elif instance.form_submission %}
+            <div class="p-3 border rounded bg-white small">
+                <strong>Submission #{{ instance.form_submission.id }}:</strong>
+                <pre class="bg-light p-2 rounded mt-2 mb-0" style="font-size: 0.8rem;">{{ instance.form_submission.submission_data }}</pre>
+            </div>
+        {% else %}
+            <div class="p-3 border rounded bg-light text-muted small fst-italic">
+                No dynamic form submission recorded yet for this occurrence.
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Exception / Issue Reports -->
+    {% if issues %}
+    <div class="mb-3">
+        <h6 class="fw-bold mb-2 text-danger">
+            <i class="bi bi-exclamation-octagon me-1"></i> Reported Operational Exceptions / Inability to Complete
+        </h6>
+        {% for issue in issues %}
+        <div class="p-3 border rounded mb-2 bg-danger-subtle border-danger-subtle">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <span class="badge bg-danger">{{ issue.issue_category }}</span>
+                    <strong class="text-dark ms-2">{{ issue.short_description }}</strong>
+                </div>
+                <div class="text-muted small">
+                    Reported by {{ issue.reported_by.name|default:"Employee" }} on {{ issue.created_at|date:"d M Y H:i" }}
+                </div>
+            </div>
+            <div class="text-dark small mb-2 bg-white p-2 rounded border">
+                {{ issue.detailed_explanation }}
+            </div>
+
+            {% if issue.supporting_photo %}
+            <div class="mb-2">
+                <span class="small fw-bold text-muted d-block mb-1">Supporting Photo:</span>
+                <a href="/media/{{ issue.supporting_photo }}" target="_blank">
+                    <img src="/media/{{ issue.supporting_photo }}" alt="Evidence" style="max-height: 100px; border-radius: 4px;" class="border">
+                </a>
+            </div>
+            {% endif %}
+
+            <!-- Admin Review Form for Issue -->
+            <form method="POST" action="{% url 'admin_project_activity_review_issue' instance.id %}" class="row g-2 align-items-center mt-2 pt-2 border-top">
+                {% csrf_token %}
+                <input type="hidden" name="issue_id" value="{{ issue.id }}">
+                <div class="col-auto">
+                    <label class="form-label small fw-bold mb-0">Update Issue Status:</label>
+                </div>
+                <div class="col-auto">
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="Reported" {% if issue.status == 'Reported' %}selected{% endif %}>Reported</option>
+                        <option value="Under Review" {% if issue.status == 'Under Review' %}selected{% endif %}>Under Review</option>
+                        <option value="Resolved" {% if issue.status == 'Resolved' %}selected{% endif %}>Resolved (Re-open for execution)</option>
+                        <option value="Rejected" {% if issue.status == 'Rejected' %}selected{% endif %}>Rejected</option>
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <input type="text" name="admin_remarks" class="form-control form-control-sm" placeholder="Admin resolution remarks..." value="{{ issue.admin_remarks|default:'' }}">
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-sm btn-dark">Update</button>
+                </div>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+</div>

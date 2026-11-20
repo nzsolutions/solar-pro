@@ -12,9 +12,15 @@ from apps.masters.models import (
     DepartmentMaster, DesignationMaster, DocumentTypeMaster,
     SiteMaster, AttendanceMaster, SMTPConfiguration, AccessControl, ActivityMaster,
     ActivityFormConfiguration, ActivityFormField, ActivityFormFieldOption,
-    ActivityFormPhotoSetting, ActivityFormValidationRule
+    ActivityFormPhotoSetting, ActivityFormValidationRule,
+    LeaveRequest, ActivitySchedule, ActivityTask
 )
+from apps.employees.models import Employee
+from django.utils import timezone
 from apps.masters.form_builder_service import ActivityFormService
+from apps.masters.schedule_service import ActivityScheduleService
+from apps.employees.models import Employee
+from apps.operations.models import Project
 
 # ==========================================
 # 1. DEPARTMENT MASTER
@@ -390,6 +396,8 @@ MODULE_TREE = {
         'document-type-master': 'Document Type Master',
         'attendance-master': 'Attendance Master',
         'activity-master': 'Activity Master',
+        'leave-management': 'Leave Management',
+        'activity-scheduling': 'Activity Scheduling',
     },
     'Reports': {
         'project-reports': 'Project Reports',
@@ -400,6 +408,7 @@ MODULE_TREE = {
     },
     'Operations': {
         'all-projects': 'All Projects',
+        'project-activities': 'Project Activities',
         'add-project': 'Add Project',
         'maintenance-charts': 'Maintenance Charts',
     },
@@ -692,7 +701,8 @@ def activity_form_builder_save(request, activity_id):
 def activity_form_evaluate_preview(request):
     """
     Interactive test evaluation endpoint for the Form Builder preview mode.
-    Tests user input against both standard validation and business exception rules.
+    Tests user input against both standard validation and business exception rules,
+    as well as mandatory photo evidence.
     """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'POST method required.'}, status=405)
@@ -701,7 +711,14 @@ def activity_form_evaluate_preview(request):
         data = json.loads(request.body.decode('utf-8'))
         fields_config = data.get('fields', [])
         submitted_values = data.get('values', {})
-        result = ActivityFormService.evaluate_submission(fields_config, submitted_values)
+        photo_settings = data.get('photo_settings')
+        photo_data = data.get('photo_data')
+        result = ActivityFormService.evaluate_submission(
+            fields_config,
+            submitted_values,
+            photo_settings=photo_settings,
+            photo_data=photo_data
+        )
         return JsonResponse({
             'success': True,
             **result
@@ -711,4 +728,750 @@ def activity_form_evaluate_preview(request):
             'success': False,
             'message': f'Evaluation error: {str(e)}'
         }, status=400)
+
+
+@admin_required
+def activity_form_submit_test(request, activity_id):
+    """
+    Submits a real form test from the Form Builder's Live Mobile Preview.
+    Uploads and saves all Before & After photos, field photos, GPS coordinates,
+    timestamps, and field data into Django file storage and MySQL database.
+    """
+    activity = get_object_or_404(ActivityMaster, id=activity_id)
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'POST method required.'}, status=405)
+
+    try:
+        from apps.employees.models import Employee
+        from apps.operations.models import Project
+
+        # 1. Parse payload (JSON or multipart form-data)
+        if request.content_type and 'application/json' in request.content_type:
+            payload = json.loads(request.body.decode('utf-8'))
+            field_answers = payload.get('values', {})
+            photo_data = payload.get('photo_data', {})
+            before_photos = photo_data.get('before_photos', [])
+            after_photos = photo_data.get('after_photos', [])
+            field_photos = photo_data.get('field_photos', {})
+            gps_coordinates = payload.get('gps_coordinates', {})
+            timestamps = payload.get('timestamps', {})
+            inspection_details = payload.get('inspection_details', {})
+        else:
+            raw_payload = request.POST.get('payload', '{}')
+            payload = json.loads(raw_payload) if isinstance(raw_payload, str) else raw_payload
+            field_answers = payload.get('values', {})
+            photo_data = payload.get('photo_data', {})
+            before_photos = photo_data.get('before_photos', [])
+            after_photos = photo_data.get('after_photos', [])
+            field_photos = photo_data.get('field_photos', {})
+            gps_coordinates = payload.get('gps_coordinates', {})
+            timestamps = payload.get('timestamps', {})
+            inspection_details = payload.get('inspection_details', {})
+
+            # Also pull files from request.FILES if present
+            if 'before_photos' in request.FILES:
+                before_photos.extend(request.FILES.getlist('before_photos'))
+            if 'after_photos' in request.FILES:
+                after_photos.extend(request.FILES.getlist('after_photos'))
+            for key in request.FILES:
+                if key.startswith('field_photo_') or key.startswith('field_'):
+                    f_id = key.split('_')[-1]
+                    field_photos.setdefault(f_id, []).extend(request.FILES.getlist(key))
+
+        # 2. Check form config & photo settings
+        form_config = ActivityFormService.get_or_create_form_config(activity)
+        photo_setting = getattr(form_config, 'photo_settings', None)
+
+        # 3. Mandatory photo enforcement
+        if photo_setting and photo_setting.enable_photo_capture:
+            if photo_setting.before_photo_required and not before_photos:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Before Maintenance photo is required. Please capture or upload evidence before maintenance.',
+                    'errors': {'before_photos': 'Before Maintenance photo is mandatory.'}
+                }, status=422)
+
+            if photo_setting.after_photo_required and not after_photos:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'After Maintenance photo is required. Please capture or upload evidence after maintenance.',
+                    'errors': {'after_photos': 'After Maintenance photo is mandatory.'}
+                }, status=422)
+
+        # 4. Resolve Employee and Project
+        admin_emp = Employee.objects.filter(company_id=activity.company_id).first()
+        emp_id = admin_emp.id if admin_emp else 1
+        proj = Project.objects.filter(company_id=activity.company_id).first()
+        project_id = proj.id if proj else None
+
+        # 5. Ensure DynamicForm exists and is updated for this activity
+        dynamic_form = activity.form
+        if not dynamic_form:
+            dynamic_form = DynamicForm.objects.create(
+                company_id=activity.company_id,
+                form_name=form_config.form_title,
+                description=form_config.description,
+                form_schema=ActivityFormService.build_dynamic_form_schema(form_config),
+                is_active=1
+            )
+            activity.form = dynamic_form
+            activity.save(update_fields=['form'])
+        else:
+            dynamic_form.form_name = form_config.form_title
+            dynamic_form.description = form_config.description
+            dynamic_form.form_schema = ActivityFormService.build_dynamic_form_schema(form_config)
+            dynamic_form.save()
+
+        # 6. Save Form Submission with all photos, GPS, and timestamps
+        submission = ActivityFormService.save_form_submission(
+            form_id=dynamic_form.id,
+            emp_id=emp_id,
+            project_id=project_id,
+            field_answers=field_answers,
+            before_photos=before_photos,
+            after_photos=after_photos,
+            field_photos=field_photos,
+            gps_coordinates=gps_coordinates,
+            timestamps=timestamps,
+            inspection_details=inspection_details
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Form submission #{submission.id} created successfully with photo evidence!',
+            'submission_id': submission.id,
+            'view_url': f'/admin/form-submissions/{submission.id}/edit'
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Submission failed: {str(e)}'
+        }, status=400)
+
+
+# ==============================================================================
+# 9. ACTIVITY SCHEDULING & AUTOMATIC TASK GENERATION
+# ==============================================================================
+
+def _parse_date(val):
+    if not val:
+        return None
+    import datetime
+    if isinstance(val, datetime.date) and not isinstance(val, datetime.datetime):
+        return val
+    if isinstance(val, datetime.datetime):
+        return val.date()
+    try:
+        val_clean = str(val).strip().split('T')[0].split(' ')[0]
+        return datetime.date.fromisoformat(val_clean)
+    except Exception:
+        return None
+
+
+@admin_required
+def activity_schedules_index(request):
+    """
+    Main listing, calendar, and task management dashboard for Activity Scheduling.
+    Supports filtering by search query, status, priority, frequency, employee, and project.
+    """
+    company_id = request.session.get('company_id', 1)
+    
+    # Query parameters
+    search = request.GET.get('search', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    priority_filter = request.GET.get('priority', '').strip()
+    freq_filter = request.GET.get('frequency', '').strip()
+    emp_filter = request.GET.get('employee_id', '').strip()
+    proj_filter = request.GET.get('project_id', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    active_tab = request.GET.get('tab', 'schedules').strip()
+
+    # Base querysets
+    schedules_qs = ActivitySchedule.objects.filter(
+        company_id=company_id
+    ).select_related('activity', 'project', 'assigned_to').order_by('-id')
+
+    tasks_qs = ActivityTask.objects.filter(
+        company_id=company_id
+    ).select_related('schedule', 'activity', 'project', 'assigned_to').order_by('-task_date', '-id')
+
+    # Apply filters to Schedules
+    if search:
+        schedules_qs = schedules_qs.filter(
+            Q(title__icontains=search) |
+            Q(schedule_code__icontains=search) |
+            Q(activity__activity_title__icontains=search) |
+            Q(project__project_name__icontains=search) |
+            Q(assigned_to__name__icontains=search)
+        )
+        tasks_qs = tasks_qs.filter(
+            Q(task_title__icontains=search) |
+            Q(task_code__icontains=search) |
+            Q(activity__activity_title__icontains=search) |
+            Q(project__project_name__icontains=search) |
+            Q(assigned_to__name__icontains=search)
+        )
+
+    if status_filter:
+        schedules_qs = schedules_qs.filter(status=status_filter)
+        tasks_qs = tasks_qs.filter(status=status_filter)
+
+    if priority_filter:
+        schedules_qs = schedules_qs.filter(priority=priority_filter)
+        tasks_qs = tasks_qs.filter(priority=priority_filter)
+
+    if freq_filter:
+        schedules_qs = schedules_qs.filter(recurring_type=freq_filter)
+
+    if emp_filter and emp_filter.isdigit():
+        schedules_qs = schedules_qs.filter(assigned_to_id=int(emp_filter))
+        tasks_qs = tasks_qs.filter(assigned_to_id=int(emp_filter))
+
+    if proj_filter and proj_filter.isdigit():
+        schedules_qs = schedules_qs.filter(project_id=int(proj_filter))
+        tasks_qs = tasks_qs.filter(project_id=int(proj_filter))
+
+    if date_from:
+        schedules_qs = schedules_qs.filter(start_date__gte=date_from)
+        tasks_qs = tasks_qs.filter(task_date__gte=date_from)
+
+    if date_to:
+        schedules_qs = schedules_qs.filter(start_date__lte=date_to)
+        tasks_qs = tasks_qs.filter(task_date__lte=date_to)
+
+    # Calculate KPIs using service
+    kpis = ActivityScheduleService.get_kpis(company_id=company_id)
+
+    # Master options for dropdowns & modals
+    activities = ActivityMaster.objects.filter(
+        company_id=company_id, status='active'
+    ).order_by('activity_title')
+    projects = Project.objects.filter(company_id=company_id).order_by('project_name')
+    employees = Employee.objects.filter(company_id=company_id, status='active').order_by('name')
+
+    context = {
+        'schedules': schedules_qs,
+        'tasks': tasks_qs[:100],  # Limit to 100 recent for performance
+        'activities': activities,
+        'projects': projects,
+        'employees': employees,
+        'kpis': kpis,
+        'active_tab': active_tab,
+        'filters': {
+            'search': search,
+            'status': status_filter,
+            'priority': priority_filter,
+            'frequency': freq_filter,
+            'employee_id': emp_filter,
+            'project_id': proj_filter,
+            'date_from': date_from,
+            'date_to': date_to,
+        },
+        'priority_choices': ActivitySchedule.PRIORITY_CHOICES,
+        'recurring_choices': ActivitySchedule.RECURRING_CHOICES,
+        'status_choices': ActivitySchedule.STATUS_CHOICES,
+        'task_status_choices': ActivityTask.STATUS_CHOICES,
+    }
+    return render(request, 'admin/master/activity_schedules.html', context)
+
+
+@admin_required
+def activity_schedule_store(request):
+    """
+    Store a new activity schedule and automatically generate tasks according to schedule recurrence.
+    """
+    if request.method != 'POST':
+        return redirect('admin_activity_schedules_index')
+
+    company_id = request.session.get('company_id', 1)
+    
+    title = request.POST.get('title', '').strip()
+    activity_id = request.POST.get('activity_id')
+    project_id = request.POST.get('project_id') or None
+    assigned_to_id = request.POST.get('assigned_to_id') or None
+    assigned_staff_raw = request.POST.getlist('assigned_staff')
+    priority = request.POST.get('priority', 'Medium')
+    recurring_type = request.POST.get('recurring_type', 'one_time')
+    start_date = request.POST.get('start_date')
+    start_time = request.POST.get('start_time') or None
+    end_date = request.POST.get('end_date') or None
+    deadline = request.POST.get('deadline') or None
+    status = request.POST.get('status', 'Scheduled')
+    auto_generate = request.POST.get('auto_generate_tasks') in ['1', 'on', 'true', True]
+    remind_upcoming = request.POST.get('remind_upcoming') in ['1', 'on', 'true', True]
+    notes = request.POST.get('notes', '').strip()
+
+    if not title:
+        messages.error(request, 'Schedule Title is required.')
+        return redirect('admin_activity_schedules_index')
+
+    if not activity_id:
+        messages.error(request, 'Please select an Activity.')
+        return redirect('admin_activity_schedules_index')
+
+    if not start_date:
+        messages.error(request, 'Start Date is required.')
+        return redirect('admin_activity_schedules_index')
+
+    activity = get_object_or_404(ActivityMaster, id=activity_id)
+
+    # Process assigned staff IDs
+    assigned_staff = []
+    for s in assigned_staff_raw:
+        if s and str(s).isdigit():
+            assigned_staff.append(int(s))
+
+    start_date_parsed = _parse_date(start_date)
+    if not start_date_parsed:
+        messages.error(request, 'Valid Start Date is required (YYYY-MM-DD).')
+        return redirect('admin_activity_schedules_index')
+
+    end_date_parsed = _parse_date(end_date)
+    deadline_parsed = _parse_date(deadline)
+
+    schedule = ActivitySchedule.objects.create(
+        company_id=company_id,
+        title=title,
+        activity=activity,
+        project_id=project_id,
+        assigned_to_id=assigned_to_id,
+        assigned_staff=assigned_staff,
+        priority=priority,
+        recurring_type=recurring_type,
+        start_date=start_date_parsed,
+        start_time=start_time if start_time else None,
+        end_date=end_date_parsed,
+        deadline=deadline_parsed,
+        status=status,
+        auto_generate_tasks=auto_generate,
+        remind_upcoming=remind_upcoming,
+        notes=notes,
+        created_by='Admin'
+    )
+    schedule.refresh_from_db()
+
+    # Automatic Task Generation
+    created_tasks_count = 0
+    if auto_generate and schedule.status in ['Scheduled', 'Pending', 'In Progress']:
+        created_tasks_count = ActivityScheduleService.generate_tasks_for_schedule(schedule, horizon_days=60)
+
+    # Send Notification to Primary Assignee if configured
+    if assigned_to_id:
+        try:
+            from apps.expenses.views import send_fcm_notification
+            emp = Employee.objects.filter(id=assigned_to_id).first()
+            if emp and emp.fcm_token:
+                send_fcm_notification(
+                    emp.fcm_token,
+                    f"New Activity Scheduled: {schedule.title}",
+                    f"Priority: {schedule.priority} | Scheduled for: {schedule.start_date}"
+                )
+        except Exception:
+            pass
+
+    messages.success(
+        request,
+        f'Activity Schedule "{schedule.title}" created successfully! Generated {created_tasks_count} automatic task(s).'
+    )
+    return redirect('admin_activity_schedules_index')
+
+
+@admin_required
+def activity_schedule_update(request, id):
+    """
+    Update an existing activity schedule and synchronize pending future tasks.
+    """
+    if request.method != 'POST':
+        return redirect('admin_activity_schedules_index')
+
+    company_id = request.session.get('company_id', 1)
+    schedule = get_object_or_404(ActivitySchedule, id=id, company_id=company_id)
+
+    title = request.POST.get('title', '').strip()
+    activity_id = request.POST.get('activity_id')
+    project_id = request.POST.get('project_id') or None
+    assigned_to_id = request.POST.get('assigned_to_id') or None
+    assigned_staff_raw = request.POST.getlist('assigned_staff')
+    priority = request.POST.get('priority', schedule.priority)
+    recurring_type = request.POST.get('recurring_type', schedule.recurring_type)
+    start_date = request.POST.get('start_date', str(schedule.start_date))
+    start_time = request.POST.get('start_time') or None
+    end_date = request.POST.get('end_date') or None
+    deadline = request.POST.get('deadline') or None
+    status = request.POST.get('status', schedule.status)
+    auto_generate = request.POST.get('auto_generate_tasks') in ['1', 'on', 'true', True]
+    remind_upcoming = request.POST.get('remind_upcoming') in ['1', 'on', 'true', True]
+    notes = request.POST.get('notes', '').strip()
+
+    if not title:
+        messages.error(request, 'Schedule Title cannot be empty.')
+        return redirect('admin_activity_schedules_index')
+
+    if activity_id:
+        schedule.activity_id = activity_id
+
+    # Process assigned staff IDs
+    assigned_staff = []
+    for s in assigned_staff_raw:
+        if s and str(s).isdigit():
+            assigned_staff.append(int(s))
+
+    schedule.title = title
+    schedule.project_id = project_id
+    schedule.assigned_to_id = assigned_to_id
+    schedule.assigned_staff = assigned_staff
+    schedule.priority = priority
+    schedule.recurring_type = recurring_type
+    schedule.start_date = _parse_date(start_date) or schedule.start_date
+    schedule.start_time = start_time if start_time else None
+    schedule.end_date = _parse_date(end_date)
+    schedule.deadline = _parse_date(deadline)
+    schedule.status = status
+    schedule.auto_generate_tasks = auto_generate
+    schedule.remind_upcoming = remind_upcoming
+    schedule.notes = notes
+    schedule.save()
+    schedule.refresh_from_db()
+
+    # Synchronize future pending tasks
+    ActivityScheduleService.sync_schedule_update(schedule)
+
+    messages.success(request, f'Schedule "{schedule.schedule_code}" updated successfully!')
+    return redirect('admin_activity_schedules_index')
+
+
+@admin_required
+def activity_schedule_destroy(request, id):
+    """
+    Delete an activity schedule and all its associated tasks.
+    """
+    company_id = request.session.get('company_id', 1)
+    schedule = get_object_or_404(ActivitySchedule, id=id, company_id=company_id)
+    title = schedule.title
+    code = schedule.schedule_code
+    schedule.delete()
+
+    messages.success(request, f'Schedule "{code} - {title}" and its generated tasks deleted successfully.')
+    return redirect('admin_activity_schedules_index')
+
+
+@admin_required
+def activity_schedule_generate_tasks(request):
+    """
+    Manual trigger to run automatic task generation across all active recurring schedules.
+    """
+    company_id = request.session.get('company_id', 1)
+    horizon_days = int(request.GET.get('days', 60))
+
+    result = ActivityScheduleService.generate_all_active_schedules(
+        horizon_days=horizon_days, company_id=company_id
+    )
+
+    tasks_created = result.get('tasks_created', 0)
+    schedules_processed = result.get('schedules_processed', 0)
+
+    messages.success(
+        request,
+        f'Automatic Task Generation finished: {tasks_created} new task(s) generated across {schedules_processed} active schedule(s).'
+    )
+    return redirect(f"{redirect('admin_activity_schedules_index').url}?tab=tasks")
+
+
+@admin_required
+def activity_task_update_status(request, id):
+    """
+    Update the status and completion remarks of an individual generated ActivityTask.
+    Supports both standard form POST and JSON/AJAX requests.
+    """
+    company_id = request.session.get('company_id', 1)
+    task = get_object_or_404(ActivityTask, id=id, company_id=company_id)
+
+    if request.method == 'POST':
+        new_status = request.POST.get('status', '').strip()
+        remarks = request.POST.get('completion_remarks', '').strip()
+
+        if new_status and new_status in dict(ActivityTask.STATUS_CHOICES):
+            task.status = new_status
+            if new_status == 'Completed':
+                from django.utils import timezone
+                task.completed_at = timezone.now()
+            else:
+                task.completed_at = None
+
+        if remarks:
+            task.completion_remarks = remarks
+
+        task.save()
+
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.content_type == 'application/json':
+            return JsonResponse({
+                'success': True,
+                'message': f'Task {task.task_code} updated to {task.status}',
+                'task_code': task.task_code,
+                'status': task.status
+            })
+
+        messages.success(request, f'Task {task.task_code} status updated to "{task.status}".')
+
+    return redirect(f"{redirect('admin_activity_schedules_index').url}?tab=tasks")
+
+
+@admin_required
+def activity_calendar_events_json(request):
+    """
+    API endpoint that returns FullCalendar / JSON formatted schedule and task events.
+    """
+    company_id = request.session.get('company_id', 1)
+    start_str = request.GET.get('start', '').split('T')[0]
+    end_str = request.GET.get('end', '').split('T')[0]
+    employee_id = request.GET.get('employee_id')
+    project_id = request.GET.get('project_id')
+    status = request.GET.get('status')
+
+    events = ActivityScheduleService.get_calendar_events(
+        company_id=company_id,
+        start_date=start_str or None,
+        end_date=end_str or None,
+        employee_id=employee_id if employee_id and employee_id.isdigit() else None,
+        project_id=project_id if project_id and project_id.isdigit() else None,
+        status=status or None
+    )
+
+    return JsonResponse(events, safe=False)
+
+
+# ==========================================
+# 10. LEAVE MANAGEMENT (MASTER)
+# ==========================================
+@admin_required
+def leave_management_index(request):
+    """
+    Admin Leave Management dashboard and review console.
+    Provides KPI summary cards, multi-facet filtering, and full request history.
+    """
+    company_id = request.session.get('company_id', 1)
+
+    employee_filter = request.GET.get('employee', '').strip()
+    department_filter = request.GET.get('department', '').strip()
+    leave_type_filter = request.GET.get('leave_type', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    start_date_filter = request.GET.get('start_date', '').strip()
+    end_date_filter = request.GET.get('end_date', '').strip()
+
+    qs = LeaveRequest.objects.select_related('employee').all()
+
+    # Pre-calculate counts before dynamic filters for dashboard KPIs
+    total_count = qs.count()
+    pending_count = qs.filter(status='pending').count()
+    approved_count = qs.filter(status='approved').count()
+    rejected_count = qs.filter(status='rejected').count()
+
+    # Apply filters
+    if employee_filter and employee_filter.isdigit():
+        qs = qs.filter(employee_id=int(employee_filter))
+
+    if leave_type_filter:
+        qs = qs.filter(leave_type=leave_type_filter)
+
+    if status_filter in ['pending', 'approved', 'rejected']:
+        qs = qs.filter(status=status_filter)
+
+    if start_date_filter:
+        qs = qs.filter(start_date__gte=start_date_filter)
+
+    if end_date_filter:
+        qs = qs.filter(end_date__lte=end_date_filter)
+
+    # Department filter requires joining employee designation -> department
+    desig_map = {d.id: d for d in DesignationMaster.objects.all()}
+    dept_map = {d.id: d.department_name for d in DepartmentMaster.objects.all()}
+
+    leaves_list = []
+    for leave in qs:
+        emp = leave.employee
+        desig_obj = desig_map.get(emp.role) if emp and emp.role else None
+        desig_name = desig_obj.designation_name if desig_obj else '—'
+        dept_id = desig_obj.department_id if desig_obj else None
+        dept_name = dept_map.get(dept_id, '—') if dept_id else '—'
+
+        if department_filter and str(dept_id) != str(department_filter):
+            continue
+
+        leaves_list.append({
+            'id': leave.id,
+            'employee_id': emp.id if emp else None,
+            'employee_name': emp.name if emp else 'Unknown',
+            'employee_code': f"EMP-{emp.id:04d}" if emp else '—',
+            'designation': desig_name,
+            'department': dept_name,
+            'leave_type': leave.leave_type,
+            'start_date': leave.start_date,
+            'end_date': leave.end_date,
+            'days_count': leave.days_count,
+            'reason': leave.reason,
+            'attachment': leave.attachment,
+            'status': leave.status,
+            'rejection_reason': leave.rejection_reason,
+            'admin_remarks': leave.admin_remarks,
+            'action_by': leave.action_by,
+            'action_at': leave.action_at,
+            'created_at': leave.created_at,
+        })
+
+    all_employees = Employee.objects.filter(status='active').order_by('name')
+    all_departments = DepartmentMaster.objects.all().order_by('department_name')
+    leave_types = [c[0] for c in LeaveRequest.LEAVE_TYPE_CHOICES]
+
+    return render(request, 'admin/master/leavemanagement.html', {
+        'leaves': leaves_list,
+        'total_count': total_count,
+        'pending_count': pending_count,
+        'approved_count': approved_count,
+        'rejected_count': rejected_count,
+        'employees': all_employees,
+        'departments': all_departments,
+        'leave_types': leave_types,
+        'employee_filter': employee_filter,
+        'department_filter': department_filter,
+        'leave_type_filter': leave_type_filter,
+        'status_filter': status_filter,
+        'start_date_filter': start_date_filter,
+        'end_date_filter': end_date_filter,
+    })
+
+
+@admin_required
+def leave_request_detail(request, id):
+    """
+    JSON detail endpoint for viewing the complete leave request in review modal.
+    """
+    leave = get_object_or_404(LeaveRequest.objects.select_related('employee'), id=id)
+    emp = leave.employee
+    desig = DesignationMaster.objects.filter(id=emp.role).first() if emp and emp.role else None
+    dept = DepartmentMaster.objects.filter(id=desig.department_id).first() if desig and desig.department_id else None
+
+    return JsonResponse({
+        'success': True,
+        'data': {
+            'id': leave.id,
+            'employee_id': emp.id if emp else None,
+            'employee_name': emp.name if emp else 'Unknown',
+            'employee_code': f"EMP-{emp.id:04d}" if emp else '—',
+            'email': emp.email if emp else '',
+            'phone': emp.phone if emp else '',
+            'designation': desig.designation_name if desig else '—',
+            'department': dept.department_name if dept else '—',
+            'leave_type': leave.leave_type,
+            'start_date': leave.start_date.strftime('%Y-%m-%d'),
+            'end_date': leave.end_date.strftime('%Y-%m-%d'),
+            'days_count': str(leave.days_count),
+            'reason': leave.reason,
+            'attachment': leave.attachment,
+            'status': leave.status,
+            'rejection_reason': leave.rejection_reason or '',
+            'admin_remarks': leave.admin_remarks or '',
+            'action_by': leave.action_by or '',
+            'action_at': leave.action_at.strftime('%Y-%m-%d %H:%M:%S') if leave.action_at else '',
+            'created_at': leave.created_at.strftime('%Y-%m-%d %H:%M:%S') if leave.created_at else '',
+        }
+    })
+
+
+@admin_required
+def leave_request_approve(request, id):
+    """
+    Admin action to approve a pending leave request.
+    Records approver and timestamp, updates status to approved, and notifies employee.
+    """
+    leave = get_object_or_404(LeaveRequest.objects.select_related('employee'), id=id)
+    if request.method == 'POST':
+        admin_remarks = request.POST.get('admin_remarks', '').strip()
+        approver = request.session.get('name') or ('Admin' if request.session.get('is_admin') == 1 else 'Administrator')
+
+        leave.status = 'approved'
+        leave.admin_remarks = admin_remarks
+        leave.rejection_reason = None
+        leave.action_by = approver
+        leave.action_at = timezone.now()
+        leave.save()
+
+        # Notify employee via dynamic SMTP / FCM if configured
+        emp = leave.employee
+        if emp and emp.email:
+            try:
+                smtp = SMTPConfiguration.objects.first()
+                from_name = smtp.from_name if smtp else 'SolarPro Leave Portal'
+                subject = f"Leave Request Approved - {leave.leave_type}"
+                body = (
+                    f"Dear {emp.name},\n\n"
+                    f"Your leave application for {leave.leave_type} from {leave.start_date} to {leave.end_date} "
+                    f"({leave.days_count} days) has been APPROVED by {approver}.\n\n"
+                    f"Remarks: {admin_remarks or 'None'}\n\n"
+                    f"Regards,\nSolarPro Management"
+                )
+                from apps.api.views import send_dynamic_smtp_email
+                send_dynamic_smtp_email(emp.email, subject, body)
+            except Exception:
+                pass
+
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('format') == 'json':
+            return JsonResponse({'success': True, 'message': f'Leave request #{leave.id} approved successfully.'})
+
+        messages.success(request, f'Leave request #{leave.id} for {emp.name} has been approved.')
+    return redirect('admin_leave_management_index')
+
+
+@admin_required
+def leave_request_reject(request, id):
+    """
+    Admin action to reject a leave request.
+    Requires mandatory rejection reason, records reviewer and timestamp, and notifies employee.
+    """
+    leave = get_object_or_404(LeaveRequest.objects.select_related('employee'), id=id)
+    if request.method == 'POST':
+        rejection_reason = request.POST.get('rejection_reason', '').strip()
+        admin_remarks = request.POST.get('admin_remarks', '').strip()
+        reviewer = request.session.get('name') or ('Admin' if request.session.get('is_admin') == 1 else 'Administrator')
+
+        if not rejection_reason:
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('format') == 'json':
+                return JsonResponse({'success': False, 'message': 'Rejection reason is mandatory.'}, status=422)
+            messages.error(request, 'Rejection reason is mandatory to reject a leave request.')
+            return redirect('admin_leave_management_index')
+
+        leave.status = 'rejected'
+        leave.rejection_reason = rejection_reason
+        leave.admin_remarks = admin_remarks
+        leave.action_by = reviewer
+        leave.action_at = timezone.now()
+        leave.save()
+
+        # Notify employee
+        emp = leave.employee
+        if emp and emp.email:
+            try:
+                smtp = SMTPConfiguration.objects.first()
+                from_name = smtp.from_name if smtp else 'SolarPro Leave Portal'
+                subject = f"Leave Request Rejected - {leave.leave_type}"
+                body = (
+                    f"Dear {emp.name},\n\n"
+                    f"Your leave application for {leave.leave_type} from {leave.start_date} to {leave.end_date} "
+                    f"has been REJECTED by {reviewer}.\n\n"
+                    f"Reason for rejection: {rejection_reason}\n"
+                    f"Remarks: {admin_remarks or 'None'}\n\n"
+                    f"Regards,\nSolarPro Management"
+                )
+                from apps.api.views import send_dynamic_smtp_email
+                send_dynamic_smtp_email(emp.email, subject, body)
+            except Exception:
+                pass
+
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('format') == 'json':
+            return JsonResponse({'success': True, 'message': f'Leave request #{leave.id} rejected.'})
+
+        messages.success(request, f'Leave request #{leave.id} for {emp.name} has been rejected.')
+    return redirect('admin_leave_management_index')
+
 

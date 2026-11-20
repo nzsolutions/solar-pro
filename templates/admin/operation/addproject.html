@@ -250,18 +250,22 @@
     </div>
     <div class="wizard-step" data-step-indicator="3">
         <div class="wizard-step-circle">3</div>
-        <div class="wizard-step-label">Team Assignment</div>
+        <div class="wizard-step-label">Add Activity</div>
     </div>
     <div class="wizard-step" data-step-indicator="4">
         <div class="wizard-step-circle">4</div>
-        <div class="wizard-step-label">Stock Allocation</div>
+        <div class="wizard-step-label">Team Assignment</div>
     </div>
     <div class="wizard-step" data-step-indicator="5">
         <div class="wizard-step-circle">5</div>
-        <div class="wizard-step-label">Documents</div>
+        <div class="wizard-step-label">Stock Allocation</div>
     </div>
     <div class="wizard-step" data-step-indicator="6">
         <div class="wizard-step-circle">6</div>
+        <div class="wizard-step-label">Documents</div>
+    </div>
+    <div class="wizard-step" data-step-indicator="7">
+        <div class="wizard-step-circle">7</div>
         <div class="wizard-step-label">Notes</div>
     </div>
 </div>
@@ -298,6 +302,145 @@
                     <label class="form-label">Email</label>
                     <input type="email" name="email" class="form-control" id="email">
                     <div class="invalid-feedback-custom d-none" id="email_error">Enter a valid email address.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Agreement & Billing Details (Moved to Step 1) -->
+        <div class="form-card">
+            <h5>Agreement &amp; Billing</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Agreement <span class="text-danger">*</span></label>
+                    <select name="agreement" class="form-select" id="agreement_select" required>
+                        <option value="No" selected>No</option>
+                        <option value="Yes">Yes</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- When Agreement = YES -->
+            <div id="agreement_yes_section" class="row g-3 mt-2" style="display: none;">
+                <div class="col-md-6">
+                    <label class="form-label">Agreement Start Date <span class="text-danger">*</span></label>
+                    <input type="date" name="agreement_start_date" id="agreement_start_date" class="form-control datepicker-click">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Agreement End Date <span class="text-danger">*</span></label>
+                    <input type="date" name="agreement_end_date" id="agreement_end_date" class="form-control datepicker-click">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Billing Frequency <span class="text-danger">*</span></label>
+                    <select name="billing_frequency" id="billing_frequency" class="form-select">
+                        <option value="">-- Select Billing Frequency --</option>
+                        <option value="Monthly">Monthly</option>
+                        <option value="Quarterly">Quarterly</option>
+                        <option value="Yearly">Yearly</option>
+                    </select>
+                </div>
+
+                <!-- Dynamic Billing Month (Yearly only) -->
+                <div class="col-md-4" id="billing_month_group" style="display: none;">
+                    <label class="form-label">Billing Month <span class="text-danger">*</span></label>
+                    <select name="billing_month" id="billing_month" class="form-select">
+                        <option value="">-- Select Month --</option>
+                        <option value="January">January</option>
+                        <option value="February">February</option>
+                        <option value="March">March</option>
+                        <option value="April">April</option>
+                        <option value="May">May</option>
+                        <option value="June">June</option>
+                        <option value="July">July</option>
+                        <option value="August">August</option>
+                        <option value="September">September</option>
+                        <option value="October">October</option>
+                        <option value="November">November</option>
+                        <option value="December">December</option>
+                    </select>
+                </div>
+
+                <!-- Dynamic Billing Day (Monthly, Quarterly, Yearly) -->
+                <div class="col-md-4" id="billing_day_group" style="display: none;">
+                    <label class="form-label">Billing Day <span class="text-danger">*</span></label>
+                    <select name="billing_day" id="billing_day" class="form-select">
+                        <option value="">-- Select Day --</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9">9</option>
+                        <option value="10">10</option>
+                        <option value="11">11</option>
+                        <option value="12">12</option>
+                        <option value="13">13</option>
+                        <option value="14">14</option>
+                        <option value="15">15</option>
+                        <option value="16">16</option>
+                        <option value="17">17</option>
+                        <option value="18">18</option>
+                        <option value="19">19</option>
+                        <option value="20">20</option>
+                        <option value="21">21</option>
+                        <option value="22">22</option>
+                        <option value="23">23</option>
+                        <option value="24">24</option>
+                        <option value="25">25</option>
+                        <option value="26">26</option>
+                        <option value="27">27</option>
+                        <option value="28">28</option>
+                        <option value="29">29</option>
+                        <option value="30">30</option>
+                        <option value="31">31</option>
+                    </select>
+                </div>
+
+                <!-- Agreement Document / Photo Upload -->
+                <div class="col-12 mt-3">
+                    <label class="form-label fw-bold">Agreement Document / Photo</label>
+                    <div class="p-3 border rounded" style="background: #F9FAFB; border: 1px dashed #CBD5E1 !important;">
+                        <div class="d-flex flex-wrap align-items-center gap-3">
+                            <label for="agreement_document_input" class="btn btn-sm btn-outline-primary mb-0" style="cursor: pointer;">
+                                <i class="bi bi-cloud-arrow-up me-1"></i> Choose Agreement File / Photo
+                            </label>
+                            <input type="file" name="agreement_document" id="agreement_document_input" class="d-none" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                            <span class="text-muted small">Supported: PDF, JPG, PNG, DOC, DOCX</span>
+                        </div>
+                        <div id="agreement_file_preview" class="mt-2 align-items-center gap-2 p-2 border rounded bg-white" style="display: none; max-width: 480px;">
+                            <i class="bi bi-file-earmark-check text-success fs-5"></i>
+                            <span id="agreement_file_name" class="small fw-semibold text-truncate flex-grow-1"></span>
+                            <button type="button" class="btn btn-sm text-danger p-0 ms-2" id="remove_agreement_file_btn" title="Remove File">
+                                <i class="bi bi-x-circle-fill fs-6"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- When Agreement = NO -->
+            <div id="agreement_no_section" class="row g-3 mt-2">
+                <div class="col-md-4">
+                    <label class="form-label">Prepaid</label>
+                    <select name="prepaid" id="prepaid_select" class="form-select">
+                        <option value="No" selected>No</option>
+                        <option value="Yes">Yes</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label d-block">Free Period</label>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" name="free_period_check" id="free_period_check" value="1">
+                        <label class="form-check-label fw-bold" for="free_period_check">
+                            Free Period Check
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-4" id="free_period_date_group" style="display: none;">
+                    <label class="form-label">Free Period End Date</label>
+                    <input type="date" name="free_period_end_date" id="free_period_end_date" class="form-control datepicker-click">
                 </div>
             </div>
         </div>
@@ -352,8 +495,113 @@
         </div>
     </div>
 
-    <!-- Step 3: Team Assignment -->
+    <!-- Step 3: Add Activity -->
     <div class="form-step" data-step="3">
+        <div class="form-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 class="mb-1">Add Project Activities</h5>
+                    <div class="text-muted small">Select the operational and maintenance activities to schedule for this project and optionally attach a dynamic form.</div>
+                </div>
+                <div class="badge bg-light text-dark border px-3 py-2" id="selectedActivitiesBadge" style="font-size: 0.85rem;">
+                    <i class="bi bi-check2-circle text-warning me-1"></i> <span id="selectedActivitiesCount">0</span> Activities Selected
+                </div>
+            </div>
+
+            <div class="table-responsive border rounded" style="background: #fff; max-height: 480px; overflow-y: auto;">
+                <table class="table table-hover align-middle mb-0" id="activitiesTable">
+                    <thead class="table-light sticky-top" style="z-index: 5;">
+                        <tr style="font-size: 0.83rem; text-transform: uppercase; letter-spacing: 0.03em;">
+                            <th style="width: 50px;" class="text-center">Select</th>
+                            <th>Activity Details</th>
+                            <th style="width: 150px;">Category</th>
+                            <th style="width: 170px;">Frequency</th>
+                            <th style="width: 260px;">Attached Form</th>
+                            <th style="width: 130px;">Est. Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for act in masterActivities %}
+                        <tr class="activity-row" data-activity-id="{{ act.id }}">
+                            <td class="text-center">
+                                <input class="form-check-input custom-checkbox activity-select-chk"
+                                    type="checkbox"
+                                    name="selected_activities[]"
+                                    value="{{ act.id }}"
+                                    id="act_chk_{{ act.id }}"
+                                    data-id="{{ act.id }}">
+                            </td>
+                            <td>
+                                <label class="form-check-label fw-bold text-dark d-block mb-0 cursor-pointer" for="act_chk_{{ act.id }}" style="cursor: pointer;">
+                                    {{ act.activity_title }}
+                                </label>
+                                {% if act.description %}
+                                    <div class="text-muted" style="font-size: 0.78rem; line-height: 1.3;">{{ act.description|truncatechars:100 }}</div>
+                                {% endif %}
+                                {% if act.photo_required %}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle mt-1" style="font-size: 0.7rem;">
+                                        <i class="bi bi-camera-fill me-1"></i> Photo Evidence Required
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-secondary border px-2 py-1" style="font-size: 0.78rem;">
+                                    {{ act.activity_category|default:"Maintenance" }}
+                                </span>
+                            </td>
+                            <td>
+                                <select name="activity_frequency_{{ act.id }}" class="form-select form-select-sm" style="font-size: 0.83rem;">
+                                    {% for f in frequencyChoices %}
+                                        <option value="{{ f }}" {% if f == act.default_frequency %}selected{% endif %}>{{ f }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <select name="activity_form_{{ act.id }}" class="form-select form-select-sm" style="font-size: 0.83rem;">
+                                    <option value="">No Form Attached (Basic)</option>
+                                    {% for f in availableForms %}
+                                        <option value="{{ f.id }}" {% if act.form_id == f.id %}selected{% endif %}>
+                                            {{ f.form_name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <input type="text" name="activity_duration_{{ act.id }}"
+                                    class="form-control form-control-sm"
+                                    value="{{ act.estimated_duration|default:'' }}"
+                                    placeholder="e.g. 2 hrs"
+                                    style="font-size: 0.83rem;">
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">
+                                <i class="bi bi-info-circle me-1"></i> No active activities found in Activity Master. Please add activities under Masters &gt; Activity Master.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="form-text mt-2 text-muted small">
+                <i class="bi bi-lightbulb me-1"></i> <strong>Note:</strong> Selected activities will automatically generate daily, weekly, monthly, or yearly activity occurrences between the project start and expected end date.
+            </div>
+        </div>
+
+        <div class="wizard-nav-btns">
+            <button type="button" class="btn btn-outline-secondary btn-back">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+            <div class="spacer"></div>
+            <button type="button" class="btn hover-lift btn-next" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                Next <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 4: Team Assignment -->
+    <div class="form-step" data-step="4">
         <div class="form-card">
             <h5>Team Assignment</h5>
 
@@ -406,8 +654,8 @@
         </div>
     </div>
 
-    <!-- Step 4: Stock Allocation -->
-    <div class="form-step" data-step="4">
+    <!-- Step 5: Stock Allocation -->
+    <div class="form-step" data-step="5">
         <div class="form-card">
             <h5>Stock Allocation</h5>
 
@@ -446,8 +694,8 @@
         </div>
     </div>
 
-    <!-- Step 5: Project Documents -->
-    <div class="form-step" data-step="5">
+    <!-- Step 6: Project Documents -->
+    <div class="form-step" data-step="6">
         <div class="form-card">
             <h5>Project Documents</h5>
 
@@ -490,8 +738,8 @@
         </div>
     </div>
 
-    <!-- Step 6: Notes / Special Instructions -->
-    <div class="form-step" data-step="6">
+    <!-- Step 7: Notes / Special Instructions -->
+    <div class="form-step" data-step="7">
         <div class="form-card">
             <h5>Notes / Special Instructions</h5>
             <textarea name="notes" class="form-control"></textarea>
@@ -513,11 +761,22 @@
 {% block extra_scripts %}
 <script>
 (function () {
-    var totalSteps   = 6;
+    var totalSteps   = 7;
     var currentStep  = 1;
-    var stepCompleted = [false, false, false, false, false, false];
+    var stepCompleted = [false, false, false, false, false, false, false];
     var formSteps    = document.querySelectorAll('.form-step');
     var stepDots     = document.querySelectorAll('.wizard-step');
+
+    // Selected activities badge updater
+    function updateSelectedActivitiesCount() {
+        var checked = document.querySelectorAll('.activity-select-chk:checked').length;
+        var countEl = document.getElementById('selectedActivitiesCount');
+        if (countEl) countEl.textContent = checked;
+    }
+    document.querySelectorAll('.activity-select-chk').forEach(function(chk) {
+        chk.addEventListener('change', updateSelectedActivitiesCount);
+    });
+    updateSelectedActivitiesCount();
 
     document.querySelectorAll('.datepicker-click').forEach(function (input) {
         input.addEventListener('click', function () {
@@ -526,6 +785,110 @@
             }
         });
     });
+
+    // Agreement Conditional Fields Toggle Logic
+    var agreementSelect = document.getElementById('agreement_select');
+    var agreementYesSection = document.getElementById('agreement_yes_section');
+    var agreementNoSection = document.getElementById('agreement_no_section');
+    var freePeriodCheck = document.getElementById('free_period_check');
+    var freePeriodDateGroup = document.getElementById('free_period_date_group');
+    var agreementFileInput = document.getElementById('agreement_document_input');
+    var agreementFilePreview = document.getElementById('agreement_file_preview');
+    var agreementFileName = document.getElementById('agreement_file_name');
+    var removeAgreementFileBtn = document.getElementById('remove_agreement_file_btn');
+
+    var billingFreqSelect = document.getElementById('billing_frequency');
+    var billingMonthGroup = document.getElementById('billing_month_group');
+    var billingDayGroup = document.getElementById('billing_day_group');
+    var billingMonthSelect = document.getElementById('billing_month');
+    var billingDaySelect = document.getElementById('billing_day');
+
+    if (agreementFileInput) {
+        agreementFileInput.addEventListener('change', function() {
+            if (this.files && this.files.length > 0) {
+                var file = this.files[0];
+                if (agreementFileName) agreementFileName.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+                if (agreementFilePreview) agreementFilePreview.style.display = 'flex';
+            } else {
+                if (agreementFilePreview) agreementFilePreview.style.display = 'none';
+            }
+        });
+    }
+
+    if (removeAgreementFileBtn) {
+        removeAgreementFileBtn.addEventListener('click', function() {
+            if (agreementFileInput) agreementFileInput.value = '';
+            if (agreementFilePreview) agreementFilePreview.style.display = 'none';
+        });
+    }
+
+    function toggleBillingFrequencyFields() {
+        if (!billingFreqSelect) return;
+        var freq = billingFreqSelect.value;
+        if (freq === 'Monthly' || freq === 'Quarterly') {
+            if (billingDayGroup) billingDayGroup.style.display = 'block';
+            if (billingMonthGroup) billingMonthGroup.style.display = 'none';
+            if (billingMonthSelect) billingMonthSelect.value = '';
+        } else if (freq === 'Yearly') {
+            if (billingDayGroup) billingDayGroup.style.display = 'block';
+            if (billingMonthGroup) billingMonthGroup.style.display = 'block';
+        } else {
+            if (billingDayGroup) billingDayGroup.style.display = 'none';
+            if (billingMonthGroup) billingMonthGroup.style.display = 'none';
+            if (billingDaySelect) billingDaySelect.value = '';
+            if (billingMonthSelect) billingMonthSelect.value = '';
+        }
+    }
+
+    function toggleAgreementFields() {
+        if (!agreementSelect) return;
+        var isYes = agreementSelect.value === 'Yes';
+        if (agreementYesSection) agreementYesSection.style.display = isYes ? 'flex' : 'none';
+        if (agreementNoSection) agreementNoSection.style.display = isYes ? 'none' : 'flex';
+
+        // Clear values when switching to prevent unintended submissions
+        if (!isYes) {
+            var fieldsToClear = ['agreement_start_date', 'agreement_end_date', 'billing_frequency', 'billing_month', 'billing_day'];
+            fieldsToClear.forEach(function(fid) {
+                var el = document.getElementById(fid);
+                if (el) el.value = '';
+            });
+            if (agreementFileInput) agreementFileInput.value = '';
+            if (agreementFilePreview) agreementFilePreview.style.display = 'none';
+            if (billingDayGroup) billingDayGroup.style.display = 'none';
+            if (billingMonthGroup) billingMonthGroup.style.display = 'none';
+        } else {
+            var prepaidEl = document.getElementById('prepaid_select');
+            if (prepaidEl) prepaidEl.value = 'No';
+            if (freePeriodCheck) freePeriodCheck.checked = false;
+            var freeDateEl = document.getElementById('free_period_end_date');
+            if (freeDateEl) freeDateEl.value = '';
+            if (freePeriodDateGroup) freePeriodDateGroup.style.display = 'none';
+            toggleBillingFrequencyFields();
+        }
+    }
+
+    function toggleFreePeriodDate() {
+        if (!freePeriodCheck || !freePeriodDateGroup) return;
+        freePeriodDateGroup.style.display = freePeriodCheck.checked ? 'block' : 'none';
+        if (!freePeriodCheck.checked) {
+            var freeDateEl = document.getElementById('free_period_end_date');
+            if (freeDateEl) freeDateEl.value = '';
+        }
+    }
+
+    if (agreementSelect) {
+        agreementSelect.addEventListener('change', toggleAgreementFields);
+        toggleAgreementFields();
+    }
+    if (billingFreqSelect) {
+        billingFreqSelect.addEventListener('change', toggleBillingFrequencyFields);
+        toggleBillingFrequencyFields();
+    }
+    if (freePeriodCheck) {
+        freePeriodCheck.addEventListener('change', toggleFreePeriodDate);
+        toggleFreePeriodDate();
+    }
 
     function showStep(step) {
         formSteps.forEach(function (el) {
@@ -614,6 +977,46 @@
             markField(email, emailErrorEl, emailValid);
             if (!emailValid) { valid = false; firstInvalid = firstInvalid || email; errorMessages.push('Valid Email address'); }
 
+            // Validate Agreement fields when Agreement = Yes
+            var agrSelect = document.getElementById('agreement_select');
+            if (agrSelect && agrSelect.value === 'Yes') {
+                var agrStart = document.getElementById('agreement_start_date');
+                var agrEnd = document.getElementById('agreement_end_date');
+                var bFreq = document.getElementById('billing_frequency');
+                var bDay = document.getElementById('billing_day');
+                var bMonth = document.getElementById('billing_month');
+
+                var agrStartValid = agrStart && agrStart.value.trim().length > 0;
+                markField(agrStart, null, agrStartValid);
+                if (!agrStartValid) { valid = false; firstInvalid = firstInvalid || agrStart; errorMessages.push('Agreement Start Date'); }
+
+                var agrEndValid = agrEnd && agrEnd.value.trim().length > 0;
+                if (agrStartValid && agrEndValid && agrEnd.value < agrStart.value) {
+                    agrEndValid = false;
+                    markField(agrEnd, null, false);
+                    valid = false;
+                    firstInvalid = firstInvalid || agrEnd;
+                    errorMessages.push('Agreement End Date must not be earlier than Start Date');
+                } else {
+                    markField(agrEnd, null, agrEndValid);
+                    if (!agrEndValid) { valid = false; firstInvalid = firstInvalid || agrEnd; errorMessages.push('Agreement End Date'); }
+                }
+
+                var bFreqValid = bFreq && bFreq.value.trim().length > 0;
+                markField(bFreq, null, bFreqValid);
+                if (!bFreqValid) { valid = false; firstInvalid = firstInvalid || bFreq; errorMessages.push('Billing Frequency'); }
+
+                var bDayValid = bDay && bDay.value.trim().length > 0;
+                markField(bDay, null, bDayValid);
+                if (!bDayValid) { valid = false; firstInvalid = firstInvalid || bDay; errorMessages.push('Billing Day'); }
+
+                if (bFreq && bFreq.value === 'Yearly') {
+                    var bMonthValid = bMonth && bMonth.value.trim().length > 0;
+                    markField(bMonth, null, bMonthValid);
+                    if (!bMonthValid) { valid = false; firstInvalid = firstInvalid || bMonth; errorMessages.push('Billing Month'); }
+                }
+            }
+
             console.log('[Step 1 Validation]', { siteIdValid, clientNameValid, projectNameValid, emailValid, valid, errorMessages });
 
             if (!valid) {
@@ -623,7 +1026,7 @@
             }
         }
 
-        if (step === 3) {
+        if (step === 4) {
             var siteManager = document.getElementById('site_manager');
             var siteManagerValid = siteManager && siteManager.value.trim().length > 0;
             markField(siteManager, document.getElementById('site_manager_error'), siteManagerValid);
@@ -713,9 +1116,9 @@
             showStepErrorBanner(1, 'Please complete the required Client & Site information before saving.');
             return;
         }
-        if (!validateStep(3)) {
+        if (!validateStep(4)) {
             e.preventDefault();
-            showStep(3);
+            showStep(4);
             return;
         }
     });

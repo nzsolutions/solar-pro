@@ -125,6 +125,135 @@
         </div>
     </div>
 
+    <!-- Agreement & Billing -->
+    <div class="form-card">
+        <h5>Agreement &amp; Billing</h5>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Agreement <span class="text-danger">*</span></label>
+                <select name="agreement" class="form-select" id="edit_agreement_select" required>
+                    <option value="No" {% if project.agreement == 'No' or not project.agreement %}selected{% endif %}>No</option>
+                    <option value="Yes" {% if project.agreement == 'Yes' %}selected{% endif %}>Yes</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- When Agreement = YES -->
+        <div id="edit_agreement_yes_section" class="row g-3 mt-2" {% if project.agreement != 'Yes' %}style="display: none;"{% endif %}>
+            <div class="col-md-6">
+                <label class="form-label">Agreement Start Date <span class="text-danger">*</span></label>
+                <input type="date" name="agreement_start_date" id="edit_agreement_start_date"
+                       value="{{ project.agreement_start_date|date:'Y-m-d' }}" class="form-control datepicker-click">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Agreement End Date <span class="text-danger">*</span></label>
+                <input type="date" name="agreement_end_date" id="edit_agreement_end_date"
+                       value="{{ project.agreement_end_date|date:'Y-m-d' }}" class="form-control datepicker-click">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Billing Frequency <span class="text-danger">*</span></label>
+                <select name="billing_frequency" id="edit_billing_frequency" class="form-select">
+                    <option value="">-- Select Billing Frequency --</option>
+                    <option value="Monthly" {% if project.billing_frequency == 'Monthly' %}selected{% endif %}>Monthly</option>
+                    <option value="Quarterly" {% if project.billing_frequency == 'Quarterly' %}selected{% endif %}>Quarterly</option>
+                    <option value="Yearly" {% if project.billing_frequency == 'Yearly' %}selected{% endif %}>Yearly</option>
+                </select>
+            </div>
+
+            <!-- Dynamic Billing Month (Yearly only) -->
+            <div class="col-md-4" id="edit_billing_month_group" {% if project.billing_frequency != 'Yearly' %}style="display: none;"{% endif %}>
+                <label class="form-label">Billing Month <span class="text-danger">*</span></label>
+                <select name="billing_month" id="edit_billing_month" class="form-select">
+                    <option value="">-- Select Month --</option>
+                    <option value="January" {% if project.billing_month == 'January' %}selected{% endif %}>January</option>
+                    <option value="February" {% if project.billing_month == 'February' %}selected{% endif %}>February</option>
+                    <option value="March" {% if project.billing_month == 'March' %}selected{% endif %}>March</option>
+                    <option value="April" {% if project.billing_month == 'April' %}selected{% endif %}>April</option>
+                    <option value="May" {% if project.billing_month == 'May' %}selected{% endif %}>May</option>
+                    <option value="June" {% if project.billing_month == 'June' %}selected{% endif %}>June</option>
+                    <option value="July" {% if project.billing_month == 'July' %}selected{% endif %}>July</option>
+                    <option value="August" {% if project.billing_month == 'August' %}selected{% endif %}>August</option>
+                    <option value="September" {% if project.billing_month == 'September' %}selected{% endif %}>September</option>
+                    <option value="October" {% if project.billing_month == 'October' %}selected{% endif %}>October</option>
+                    <option value="November" {% if project.billing_month == 'November' %}selected{% endif %}>November</option>
+                    <option value="December" {% if project.billing_month == 'December' %}selected{% endif %}>December</option>
+                </select>
+            </div>
+
+            <!-- Dynamic Billing Day (Monthly, Quarterly, Yearly) -->
+            <div class="col-md-4" id="edit_billing_day_group" {% if not project.billing_frequency %}style="display: none;"{% endif %}>
+                <label class="form-label">Billing Day <span class="text-danger">*</span></label>
+                <select name="billing_day" id="edit_billing_day" class="form-select">
+                    <option value="">-- Select Day --</option>
+                    {% for day in "x"|rjust:"31" %}
+                        <option value="{{ forloop.counter }}" {% if project.billing_day == forloop.counter %}selected{% endif %}>{{ forloop.counter }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Agreement Document / Photo Upload -->
+            <div class="col-12 mt-3">
+                <label class="form-label fw-bold">Agreement Document / Photo</label>
+                <div class="p-3 border rounded" style="background: #F9FAFB; border: 1px dashed #CBD5E1 !important;">
+                    {% if project.agreement_document %}
+                        <div class="mb-2 p-2 border rounded bg-white d-flex align-items-center gap-2" id="existing_agreement_doc_wrapper" style="max-width: 520px;">
+                            <i class="bi bi-file-earmark-text text-primary fs-5"></i>
+                            <div class="flex-grow-1 text-truncate">
+                                <a href="{{ project.agreement_document.url }}" target="_blank" class="fw-semibold text-decoration-none small" title="View Agreement Document">
+                                    {{ project.agreement_document.name }}
+                                </a>
+                            </div>
+                            <div class="form-check mb-0 ms-2">
+                                <input class="form-check-input" type="checkbox" name="remove_agreement_document" id="remove_agreement_document" value="1">
+                                <label class="form-check-label text-danger small fw-semibold" for="remove_agreement_document" style="cursor: pointer;">Remove</label>
+                            </div>
+                        </div>
+                    {% endif %}
+                    <div class="d-flex flex-wrap align-items-center gap-3">
+                        <label for="edit_agreement_document_input" class="btn btn-sm btn-outline-primary mb-0" style="cursor: pointer;">
+                            <i class="bi bi-cloud-arrow-up me-1"></i> {% if project.agreement_document %}Replace Agreement File / Photo{% else %}Choose Agreement File / Photo{% endif %}
+                        </label>
+                        <input type="file" name="agreement_document" id="edit_agreement_document_input" class="d-none" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                        <span class="text-muted small">Supported: PDF, JPG, PNG, DOC, DOCX</span>
+                    </div>
+                    <div id="edit_agreement_file_preview" class="mt-2 align-items-center gap-2 p-2 border rounded bg-white" style="display: none; max-width: 480px;">
+                        <i class="bi bi-file-earmark-check text-success fs-5"></i>
+                        <span id="edit_agreement_file_name" class="small fw-semibold text-truncate flex-grow-1"></span>
+                        <button type="button" class="btn btn-sm text-danger p-0 ms-2" id="edit_remove_agreement_file_btn" title="Remove File">
+                            <i class="bi bi-x-circle-fill fs-6"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- When Agreement = NO -->
+        <div id="edit_agreement_no_section" class="row g-3 mt-2" {% if project.agreement == 'Yes' %}style="display: none;"{% endif %}>
+            <div class="col-md-4">
+                <label class="form-label">Prepaid</label>
+                <select name="prepaid" id="edit_prepaid_select" class="form-select">
+                    <option value="No" {% if project.prepaid == 'No' or not project.prepaid %}selected{% endif %}>No</option>
+                    <option value="Yes" {% if project.prepaid == 'Yes' %}selected{% endif %}>Yes</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label d-block">Free Period</label>
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" name="free_period_check" id="edit_free_period_check" value="1"
+                           {% if project.free_period_check %}checked{% endif %}>
+                    <label class="form-check-label fw-bold" for="edit_free_period_check">
+                        Free Period Check
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-4" id="edit_free_period_date_group" {% if not project.free_period_check %}style="display: none;"{% endif %}>
+                <label class="form-label">Free Period End Date</label>
+                <input type="date" name="free_period_end_date" id="edit_free_period_end_date"
+                       value="{{ project.free_period_end_date|date:'Y-m-d' }}" class="form-control datepicker-click">
+            </div>
+        </div>
+    </div>
+
     <!-- Team Assignment -->
     <div class="form-card">
         <h5>Team Assignment</h5>
@@ -273,6 +402,87 @@
                 rowsWrap.appendChild(row);
                 rowIndex++;
             });
+        }
+
+        // Agreement Conditional Fields Toggle Logic in Edit Project
+        var agreementSelect = document.getElementById('edit_agreement_select');
+        var agreementYesSection = document.getElementById('edit_agreement_yes_section');
+        var agreementNoSection = document.getElementById('edit_agreement_no_section');
+        var freePeriodCheck = document.getElementById('edit_free_period_check');
+        var freePeriodDateGroup = document.getElementById('edit_free_period_date_group');
+        var editAgreementFileInput = document.getElementById('edit_agreement_document_input');
+        var editAgreementFilePreview = document.getElementById('edit_agreement_file_preview');
+        var editAgreementFileName = document.getElementById('edit_agreement_file_name');
+        var editRemoveAgreementFileBtn = document.getElementById('edit_remove_agreement_file_btn');
+
+        var editBillingFreqSelect = document.getElementById('edit_billing_frequency');
+        var editBillingMonthGroup = document.getElementById('edit_billing_month_group');
+        var editBillingDayGroup = document.getElementById('edit_billing_day_group');
+        var editBillingMonthSelect = document.getElementById('edit_billing_month');
+        var editBillingDaySelect = document.getElementById('edit_billing_day');
+
+        if (editAgreementFileInput) {
+            editAgreementFileInput.addEventListener('change', function() {
+                if (this.files && this.files.length > 0) {
+                    var file = this.files[0];
+                    if (editAgreementFileName) editAgreementFileName.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+                    if (editAgreementFilePreview) editAgreementFilePreview.style.display = 'flex';
+                } else {
+                    if (editAgreementFilePreview) editAgreementFilePreview.style.display = 'none';
+                }
+            });
+        }
+
+        if (editRemoveAgreementFileBtn) {
+            editRemoveAgreementFileBtn.addEventListener('click', function() {
+                if (editAgreementFileInput) editAgreementFileInput.value = '';
+                if (editAgreementFilePreview) editAgreementFilePreview.style.display = 'none';
+            });
+        }
+
+        function toggleEditBillingFrequencyFields() {
+            if (!editBillingFreqSelect) return;
+            var freq = editBillingFreqSelect.value;
+            if (freq === 'Monthly' || freq === 'Quarterly') {
+                if (editBillingDayGroup) editBillingDayGroup.style.display = 'block';
+                if (editBillingMonthGroup) editBillingMonthGroup.style.display = 'none';
+                if (editBillingMonthSelect) editBillingMonthSelect.value = '';
+            } else if (freq === 'Yearly') {
+                if (editBillingDayGroup) editBillingDayGroup.style.display = 'block';
+                if (editBillingMonthGroup) editBillingMonthGroup.style.display = 'block';
+            } else {
+                if (editBillingDayGroup) editBillingDayGroup.style.display = 'none';
+                if (editBillingMonthGroup) editBillingMonthGroup.style.display = 'none';
+                if (editBillingDaySelect) editBillingDaySelect.value = '';
+                if (editBillingMonthSelect) editBillingMonthSelect.value = '';
+            }
+        }
+
+        function toggleAgreementFields() {
+            if (!agreementSelect) return;
+            var isYes = agreementSelect.value === 'Yes';
+            if (agreementYesSection) agreementYesSection.style.display = isYes ? 'flex' : 'none';
+            if (agreementNoSection) agreementNoSection.style.display = isYes ? 'none' : 'flex';
+            if (isYes) {
+                toggleEditBillingFrequencyFields();
+            }
+        }
+
+        function toggleFreePeriodDate() {
+            if (!freePeriodCheck || !freePeriodDateGroup) return;
+            freePeriodDateGroup.style.display = freePeriodCheck.checked ? 'block' : 'none';
+        }
+
+        if (agreementSelect) {
+            agreementSelect.addEventListener('change', toggleAgreementFields);
+            toggleAgreementFields();
+        }
+        if (editBillingFreqSelect) {
+            editBillingFreqSelect.addEventListener('change', toggleEditBillingFrequencyFields);
+            toggleEditBillingFrequencyFields();
+        }
+        if (freePeriodCheck) {
+            freePeriodCheck.addEventListener('change', toggleFreePeriodDate);
         }
     })();
 </script>

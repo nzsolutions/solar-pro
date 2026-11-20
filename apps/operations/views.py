@@ -1,10 +1,12 @@
 import os
 import uuid
 import json
+import calendar
 from django.shortcuts import render, redirect, get_object_or_404
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
-from django.db.models import Sum, F, DecimalField, ExpressionWrapper, Count
+from django.db.models import Sum, F, DecimalField, ExpressionWrapper, Count, Q
 from django.contrib import messages
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
@@ -13,7 +15,20 @@ from apps.operations.models import Project, ProjectDocument, Lead
 from apps.employees.models import Employee, EmployeeAttendance
 from apps.inventory.models import OpeningStock, StockCategory, AssignedStock
 from apps.expenses.models import Expense
-from apps.masters.models import SiteMaster, DocumentTypeMaster, DesignationMaster
+from apps.masters.models import SiteMaster, DocumentTypeMaster, DesignationMaster, ActivityMaster
+from apps.dynamic_forms.models import DynamicForm
+from apps.operations.models import (
+    Project,
+    ProjectDocument,
+    ProjectBillingNotification,
+    Lead,
+    ProjectActivity,
+    ProjectActivityInstance,
+    ProjectActivityPhoto,
+    ProjectActivityIssue,
+)
+from apps.operations.activity_service import ProjectActivityService
+from apps.operations.billing_service import sync_project_billing_notifications, calculate_billing_dates, parse_date_safely
 import openpyxl
 
 
@@ -189,6 +204,14 @@ def projects_index(request):
             'manager_name': emp_map.get(p.site_manager, '—'),
             'manager_role': 'Site Manager',
             'status': p.status,
+            'agreement': p.agreement,
+            'agreement_start_date': p.agreement_start_date,
+            'agreement_end_date': p.agreement_end_date,
+            'billing_frequency': p.billing_frequency,
+            'charge_frequency': p.charge_frequency,
+            'bill_date': p.bill_date,
+            'prepaid': p.prepaid,
+            'free_period_check': p.free_period_check,
             'system_size': 0,
             'generated_kwh': 0,
             'panel_type': '—',
@@ -249,6 +272,11 @@ def project_create(request):
     sites = SiteMaster.objects.order_by('site_name')
     document_types = DocumentTypeMaster.objects.filter(status='active').order_by('type_name')
 
+    # Available master activities & forms for Step 3: Add Activity
+    master_activities = ActivityMaster.objects.filter(status='active').select_related('form').order_by('activity_title')
+    available_forms = DynamicForm.objects.filter(is_active=1).order_by('form_name')
+    frequency_choices = [f[0] for f in ActivityMaster.FREQUENCY_CHOICES]
+
     status_options = ['planning', 'in_progress', 'completed', 'on_hold', 'maintenance']
     reporting_frequencies = ['Hourly', 'Daily', 'Weekly', 'As Required', 'Monthly']
 
@@ -258,6 +286,9 @@ def project_create(request):
         'stockCategories': stock_categories,
         'sites': sites,
         'documentTypes': document_types,
+        'masterActivities': master_activities,
+        'availableForms': available_forms,
+        'frequencyChoices': frequency_choices,
         'statusOptions': status_options,
         'reportingFrequencies': reporting_frequencies,
     })
@@ -277,6 +308,41 @@ def project_store(request):
 
         staff_list = [int(x) for x in request.POST.getlist('field_staff[]') if x.isdigit()]
 
+        agreement = request.POST.get('agreement', 'No').strip()
+        if agreement == 'Yes':
+            agreement_start_date = request.POST.get('agreement_start_date') or None
+            agreement_end_date = request.POST.get('agreement_end_date') or None
+
+            # Date validation: End Date must not be earlier than Start Date
+            if agreement_start_date and agreement_end_date:
+                s_d = parse_date_safely(agreement_start_date)
+                e_d = parse_date_safely(agreement_end_date)
+                if s_d and e_d and e_d < s_d:
+                    messages.error(request, 'Agreement End Date cannot be earlier than Agreement Start Date.')
+                    return redirect('admin_projects_create')
+
+            billing_frequency = request.POST.get('billing_frequency') or None
+            billing_day_raw = request.POST.get('billing_day')
+            billing_day = int(billing_day_raw) if billing_day_raw and str(billing_day_raw).isdigit() else None
+            billing_month = request.POST.get('billing_month') if billing_frequency == 'Yearly' else None
+            charge_frequency = request.POST.get('charge_frequency') or billing_frequency
+            prepaid = 'No'
+            free_period_check = False
+            free_period_end_date = None
+            agreement_doc = request.FILES.get('agreement_document') or None
+        else:
+            agreement = 'No'
+            agreement_start_date = None
+            agreement_end_date = None
+            billing_frequency = None
+            billing_day = None
+            billing_month = None
+            charge_frequency = None
+            prepaid = request.POST.get('prepaid', 'No').strip()
+            free_period_check = request.POST.get('free_period_check') in ['1', 'on', 'true', 'True', True]
+            free_period_end_date = request.POST.get('free_period_end_date') or None
+            agreement_doc = None
+
         project = Project.objects.create(
             company_id=request.session.get('company_id', 1),
             project_name=project_name,
@@ -288,8 +354,23 @@ def project_store(request):
             start_date=request.POST.get('start_date') or None,
             end_date=request.POST.get('end_date') or None,
             reporting_frequency=request.POST.get('reporting_frequency', 'Weekly'),
+            agreement=agreement,
+            agreement_document=agreement_doc,
+            agreement_start_date=agreement_start_date,
+            agreement_end_date=agreement_end_date,
+            billing_frequency=billing_frequency,
+            billing_day=billing_day,
+            billing_month=billing_month,
+            charge_frequency=charge_frequency,
+            bill_date=None,
+            prepaid=prepaid,
+            free_period_check=free_period_check,
+            free_period_end_date=free_period_end_date,
             notes=request.POST.get('notes', ''),
         )
+
+        # Synchronize billing notifications for the agreement period
+        sync_project_billing_notifications(project)
 
         # Handle Assigned Stock
         stock_ids = request.POST.getlist('stock_selected[]')
@@ -301,6 +382,24 @@ def project_store(request):
                     item_id=int(item_id),
                     qty=float(qty),
                 )
+
+        # Handle Project Activities & Automatic Instance Generation (Step 3)
+        activity_ids = request.POST.getlist('selected_activities[]')
+        activities_data = []
+        for a_id in activity_ids:
+            if a_id.isdigit():
+                form_id = request.POST.get(f'activity_form_{a_id}')
+                freq = request.POST.get(f'activity_frequency_{a_id}')
+                duration = request.POST.get(f'activity_duration_{a_id}', '')
+                activities_data.append({
+                    'activity_id': int(a_id),
+                    'form_id': int(form_id) if form_id and form_id.isdigit() else None,
+                    'frequency': freq,
+                    'estimated_duration': duration,
+                })
+
+        added_by = request.session.get('name') or ('Admin' if request.session.get('is_admin') == 1 else 'Staff')
+        ProjectActivityService.sync_project_activities(project, activities_data, user_name=added_by)
 
         # Handle Multi-Document Uploads
         upload_dir = os.path.join(settings.MEDIA_ROOT, 'project_documents')
@@ -434,8 +533,66 @@ def project_update(request, id):
         project.start_date = request.POST.get('start_date') or None
         project.end_date = request.POST.get('end_date') or None
         project.reporting_frequency = request.POST.get('reporting_frequency', project.reporting_frequency)
+        
+        agreement = request.POST.get('agreement', 'No').strip()
+        project.agreement = agreement
+        if agreement == 'Yes':
+            agreement_start_date = request.POST.get('agreement_start_date') or None
+            agreement_end_date = request.POST.get('agreement_end_date') or None
+
+            # Date validation: End Date must not be earlier than Start Date
+            if agreement_start_date and agreement_end_date:
+                s_d = parse_date_safely(agreement_start_date)
+                e_d = parse_date_safely(agreement_end_date)
+                if s_d and e_d and e_d < s_d:
+                    messages.error(request, 'Agreement End Date cannot be earlier than Agreement Start Date.')
+                    return redirect('admin_projects_edit', id=id)
+
+            billing_frequency = request.POST.get('billing_frequency') or None
+            billing_day_raw = request.POST.get('billing_day')
+            billing_day = int(billing_day_raw) if billing_day_raw and str(billing_day_raw).isdigit() else None
+            billing_month = request.POST.get('billing_month') if billing_frequency == 'Yearly' else None
+
+            project.agreement_start_date = agreement_start_date
+            project.agreement_end_date = agreement_end_date
+            project.billing_frequency = billing_frequency
+            project.billing_day = billing_day
+            project.billing_month = billing_month
+            project.charge_frequency = request.POST.get('charge_frequency') or billing_frequency
+            project.prepaid = 'No'
+            project.free_period_check = False
+            project.free_period_end_date = None
+
+            # Handle agreement document upload / replace / remove
+            if 'agreement_document' in request.FILES and request.FILES['agreement_document']:
+                project.agreement_document = request.FILES['agreement_document']
+            elif request.POST.get('remove_agreement_document') == '1':
+                project.agreement_document = None
+        else:
+            project.agreement_start_date = None
+            project.agreement_end_date = None
+            project.billing_frequency = None
+            project.billing_day = None
+            project.billing_month = None
+            project.charge_frequency = None
+            project.bill_date = None
+            project.prepaid = request.POST.get('prepaid', 'No').strip()
+            project.free_period_check = request.POST.get('free_period_check') in ['1', 'on', 'true', 'True', True]
+            project.free_period_end_date = request.POST.get('free_period_end_date') or None
+            project.agreement_document = None
+
         project.notes = request.POST.get('notes', project.notes)
         project.save()
+
+        # Synchronize billing notifications
+        sync_project_billing_notifications(project)
+
+        # Reconcile project activities instances on date changes
+        for pa in project.project_activities.filter(status='active'):
+            pa.start_date = project.start_date
+            pa.end_date = project.end_date
+            pa.save(update_fields=['start_date', 'end_date', 'updated_at'])
+            ProjectActivityService.generate_instances_for_activity(pa)
 
         messages.success(request, f'Project "{client_name}" updated successfully.')
         return redirect('admin_projects_index')
@@ -739,4 +896,177 @@ def staff_destroy(request, id):
         messages.success(request, 'Staff member removed successfully.')
         return redirect('admin_staff_index')
     return redirect('admin_staff_index')
+
+
+# ==========================================
+# 6. PROJECT ACTIVITY MANAGEMENT
+# ==========================================
+@admin_required
+def project_activities_index(request):
+    """
+    Project Activity Management screen: displays project-specific activities
+    and their generated instances, supporting:
+    - Search & Filter bar: Search input, Project, Activity, Frequency, Status, Filter button, Reset button
+    - Frequency filter: Display activity occurrences according to their frequency (Daily, Weekly, Monthly, Quarterly, Yearly)
+    - Ascending sort by scheduled_date (earliest first), secondary by id
+    - Server-side pagination (20 per page)
+    """
+    project_id = request.GET.get('project', '').strip()
+    activity_id = request.GET.get('activity', '').strip()
+    employee_id = request.GET.get('employee', '').strip()
+    frequency = request.GET.get('frequency', '').strip()
+    status = request.GET.get('status', '').strip()
+    search = request.GET.get('search', '').strip()
+
+    qs = ProjectActivityInstance.objects.select_related(
+        'project',
+        'activity',
+        'project_activity',
+        'project_activity__form',
+        'assigned_employee',
+        'submitted_by'
+    ).prefetch_related('photos', 'issues').all()
+
+    # Search and Filter criteria
+    if project_id and project_id.isdigit():
+        qs = qs.filter(project_id=int(project_id))
+    if activity_id and activity_id.isdigit():
+        qs = qs.filter(activity_id=int(activity_id))
+    if employee_id and employee_id.isdigit():
+        qs = qs.filter(assigned_employee_id=int(employee_id))
+    if frequency:
+        # Match frequency on instance, parent project activity, or activity master
+        qs = qs.filter(
+            Q(frequency__iexact=frequency) |
+            Q(project_activity__frequency__iexact=frequency) |
+            Q(activity__default_frequency__iexact=frequency)
+        )
+    if status:
+        qs = qs.filter(status=status)
+    if search:
+        qs = qs.filter(
+            Q(activity__activity_title__icontains=search) |
+            Q(project__client_name__icontains=search) |
+            Q(project__project_name__icontains=search) |
+            Q(assigned_employee__name__icontains=search)
+        )
+
+    # Sort in ascending order by scheduled_date (earliest first), secondary by id
+    qs = qs.order_by('scheduled_date', 'id')
+
+    # Server-side pagination (20 per page)
+    paginator = Paginator(qs, 20)
+    page_number = request.GET.get('page', 1)
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    # Summary metrics
+    all_instances = ProjectActivityInstance.objects.all()
+    metrics = {
+        'total_instances': all_instances.count(),
+        'pending': all_instances.filter(status='Pending').count(),
+        'in_progress': all_instances.filter(status='In Progress').count(),
+        'completed': all_instances.filter(status='Completed').count(),
+        'exceptions': all_instances.filter(status__in=['Unable to Complete', 'Exception Reported']).count(),
+    }
+
+    projects_list = Project.objects.order_by('project_name', 'client_name')
+    activities_list = ActivityMaster.objects.order_by('activity_title')
+    employees_list = Employee.objects.filter(status='active').order_by('name')
+    frequency_choices = [f[0] for f in ActivityMaster.FREQUENCY_CHOICES]
+    status_choices = [s[0] for s in ProjectActivityInstance.STATUS_CHOICES]
+
+    return render(request, 'admin/operation/project_activities.html', {
+        'page_obj': page_obj,
+        'instances': page_obj.object_list,
+        'metrics': metrics,
+        'projects': projects_list,
+        'activities': activities_list,
+        'employees': employees_list,
+        'frequencyChoices': frequency_choices,
+        'statusChoices': status_choices,
+        'filters': {
+            'project': project_id,
+            'activity': activity_id,
+            'employee': employee_id,
+            'frequency': frequency,
+            'status': status,
+            'search': search,
+        }
+    })
+
+
+@admin_required
+def project_activity_instance_detail(request, instance_id):
+    """
+    Returns full modal detail HTML or JSON for an individual activity instance:
+    Activity information, project info, attached form, submitted form answers,
+    before/after photos, employee remarks, and issue/exception details.
+    """
+    instance = get_object_or_404(
+        ProjectActivityInstance.objects.select_related(
+            'project',
+            'activity',
+            'project_activity',
+            'project_activity__form',
+            'assigned_employee',
+            'submitted_by',
+            'form_submission'
+        ).prefetch_related('photos', 'issues'),
+        id=instance_id
+    )
+
+    before_photos = [p for p in instance.photos.all() if p.photo_stage == 'Before']
+    after_photos = [p for p in instance.photos.all() if p.photo_stage == 'After']
+    intermediate_photos = [p for p in instance.photos.all() if p.photo_stage == 'Intermediate']
+    issues = list(instance.issues.all().order_by('-created_at'))
+
+    attached_form = instance.project_activity.form
+
+    return render(request, 'admin/operation/project_activity_detail_modal.html', {
+        'instance': instance,
+        'beforePhotos': before_photos,
+        'afterPhotos': after_photos,
+        'intermediatePhotos': intermediate_photos,
+        'issues': issues,
+        'attachedForm': attached_form,
+    })
+
+
+@admin_required
+def project_activity_review_issue(request, instance_id):
+    """
+    Allows Admin to review and update status/remarks on reported activity exceptions.
+    """
+    instance = get_object_or_404(ProjectActivityInstance, id=instance_id)
+    if request.method == 'POST':
+        issue_id = request.POST.get('issue_id')
+        new_status = request.POST.get('status', 'Under Review')
+        admin_remarks = request.POST.get('admin_remarks', '').strip()
+
+        issue = None
+        if issue_id and issue_id.isdigit():
+            issue = ProjectActivityIssue.objects.filter(id=int(issue_id), instance=instance).first()
+
+        if issue:
+            issue.status = new_status
+            issue.admin_remarks = admin_remarks
+            issue.action_by = request.session.get('name') or 'Admin'
+            issue.action_at = timezone.now()
+            issue.save()
+
+            if new_status == 'Resolved':
+                instance.status = 'Pending'
+                instance.save(update_fields=['status', 'updated_at'])
+            elif new_status == 'Under Review':
+                instance.status = 'Under Review'
+                instance.save(update_fields=['status', 'updated_at'])
+
+            messages.success(request, f'Issue #{issue.id} updated successfully.')
+        return redirect('admin_project_activities_index')
+    return redirect('admin_project_activities_index')
 

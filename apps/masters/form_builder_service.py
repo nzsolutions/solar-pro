@@ -1,7 +1,13 @@
 import json
+import os
+import re
+import uuid
+import base64
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from apps.masters.models import (
     ActivityMaster,
     ActivityFormConfiguration,
@@ -10,7 +16,8 @@ from apps.masters.models import (
     ActivityFormPhotoSetting,
     ActivityFormValidationRule,
 )
-from apps.dynamic_forms.models import DynamicForm
+from apps.dynamic_forms.models import DynamicForm, FormSubmission
+from apps.dynamic_forms.flag_service import evaluate_form_submission
 
 
 class ActivityFormService:
@@ -241,8 +248,38 @@ class ActivityFormService:
     @staticmethod
     def build_dynamic_form_schema(form_config):
         """
-        Builds a compatible JSON schema representation for dynamic_forms consumers.
+        Builds a compatible JSON schema representation for dynamic_forms consumers,
+        including complete photo compliance and evidence settings.
         """
+        photo_setting = getattr(form_config, 'photo_settings', None)
+        if not photo_setting:
+            photo_setting = ActivityFormPhotoSetting.objects.filter(form_config=form_config).first()
+
+        req_mode = 'none'
+        if photo_setting and photo_setting.enable_photo_capture:
+            if photo_setting.before_photo_required and photo_setting.after_photo_required:
+                req_mode = 'both'
+            elif photo_setting.before_photo_required:
+                req_mode = 'before'
+            elif photo_setting.after_photo_required:
+                req_mode = 'after'
+            else:
+                req_mode = 'optional'
+
+        photo_settings_dict = {
+            'enable_photo_capture': photo_setting.enable_photo_capture if photo_setting else False,
+            'before_photo_required': photo_setting.before_photo_required if photo_setting else False,
+            'after_photo_required': photo_setting.after_photo_required if photo_setting else False,
+            'photo_requirement_mode': req_mode,
+            'optional_photo': photo_setting.optional_photo if photo_setting else True,
+            'photo_instructions': photo_setting.photo_instructions if photo_setting else '',
+            'capture_timestamp_required': photo_setting.capture_timestamp_required if photo_setting else True,
+            'submission_timestamp_required': photo_setting.submission_timestamp_required if photo_setting else True,
+            'gps_coordinates_required': photo_setting.gps_coordinates_required if photo_setting else True,
+            'allow_multiple_photos': True,
+            'max_photos_per_section': 10
+        }
+
         fields = form_config.fields.filter(is_active=True).order_by('field_order', 'id')
         rows = []
         for f in fields:
@@ -253,13 +290,15 @@ class ActivityFormService:
                 'unit': f.settings.get('unit', '') if f.settings else '',
                 'required': f.is_required,
                 'placeholder': f.placeholder or '',
-                'options': [opt.option_label for opt in f.options.all()]
+                'options': [opt.option_label for opt in f.options.all()],
+                'settings': f.settings or {}
             })
 
         return {
             'form_type': 'activity_form',
             'version': '2.0',
             'columns': ['Status / Reading', 'Remarks'],
+            'photo_settings': photo_settings_dict,
             'sections': [
                 {
                     'name': 'Activity Checklist Fields',
@@ -268,18 +307,35 @@ class ActivityFormService:
             ]
         }
 
-    @staticmethod
-    def evaluate_submission(fields_config, submitted_values):
+    @classmethod
+    def evaluate_submission(cls, fields_config, submitted_values, photo_settings=None, photo_data=None):
         """
         Evaluates submitted values against normal validation rules and business exception rules.
+        Also validates mandatory Before and After maintenance photos and photo fields.
         Distinguishes between:
-        1. Validation Errors (missing mandatory inputs, invalid format) -> blocks submission
+        1. Validation Errors (missing mandatory inputs, invalid format, missing required photos) -> blocks submission
         2. Business Exceptions (valid value, but falls outside acceptable business parameters) ->
            clearly identified with warning/amber status, recorded for Exception Report.
            Valid values are NOT highlighted in red.
         """
         validation_errors = {}
         exceptions = []
+
+        # --- 0. Mandatory Photo Evidence Verification ---
+        if photo_settings and photo_settings.get('enable_photo_capture'):
+            p_data = photo_data or {}
+            req_before = photo_settings.get('before_photo_required', False)
+            req_after = photo_settings.get('after_photo_required', False)
+
+            if req_before:
+                before_photos = p_data.get('before_photos') or []
+                if not before_photos or len(before_photos) == 0:
+                    validation_errors['before_photos'] = "Before Maintenance photo is required. Please capture or upload evidence before maintenance."
+
+            if req_after:
+                after_photos = p_data.get('after_photos') or []
+                if not after_photos or len(after_photos) == 0:
+                    validation_errors['after_photos'] = "After Maintenance photo is required. Please capture or upload evidence after maintenance."
 
         for field in fields_config:
             f_id = str(field.get('id', ''))
@@ -291,6 +347,13 @@ class ActivityFormService:
 
             val = submitted_values.get(f_id)
             val_str = str(val).strip() if val is not None else ''
+
+            # Photo Capture field validation
+            if f_type == 'photo_capture':
+                field_photos = (photo_data or {}).get('field_photos', {}).get(f_id, [])
+                if is_req and not field_photos and not val_str:
+                    validation_errors[f_id] = f"{f_label} photo is required."
+                continue
 
             # --- 1. Standard Required Validation ---
             if is_req and not val_str:
@@ -416,6 +479,187 @@ class ActivityFormService:
             'has_exceptions': len(exceptions) > 0,
             'exceptions': exceptions
         }
+
+    @staticmethod
+    def save_photo_file(file_or_b64, subfolder='evidence', original_filename=None):
+        """
+        Saves an uploaded photo file (UploadedFile or base64 data string) to Django file storage
+        under media/form_submissions/<subfolder>/.
+        Returns metadata dictionary containing URL, storage path, filename, size, and timestamp.
+        """
+        now_str = timezone.now().strftime('%Y%m%d_%H%M%S')
+        random_suffix = uuid.uuid4().hex[:8]
+
+        if hasattr(file_or_b64, 'read'):
+            # Django UploadedFile / File object
+            ext = os.path.splitext(getattr(file_or_b64, 'name', 'photo.jpg'))[1] or '.jpg'
+            clean_name = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', getattr(file_or_b64, 'name', 'photo.jpg'))
+            filename = f"{now_str}_{random_suffix}_{clean_name}"
+            storage_path = f"form_submissions/{subfolder}/{filename}"
+            saved_path = default_storage.save(storage_path, file_or_b64)
+            size = getattr(file_or_b64, 'size', 0)
+        elif isinstance(file_or_b64, str):
+            # Check if base64 data URL
+            if file_or_b64.startswith('data:image'):
+                header, encoded = file_or_b64.split(',', 1)
+                ext = '.jpg'
+                if 'png' in header:
+                    ext = '.png'
+                elif 'webp' in header:
+                    ext = '.webp'
+                data_bytes = base64.b64decode(encoded)
+                size = len(data_bytes)
+                name = original_filename or f"photo_{now_str}{ext}"
+                clean_name = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', name)
+                filename = f"{now_str}_{random_suffix}_{clean_name}"
+                storage_path = f"form_submissions/{subfolder}/{filename}"
+                saved_path = default_storage.save(storage_path, ContentFile(data_bytes))
+            elif file_or_b64.startswith('/media/'):
+                # Already a saved file URL on disk
+                rel_path = file_or_b64.replace('/media/', '')
+                full_path = default_storage.path(rel_path) if hasattr(default_storage, 'path') else None
+                file_size = os.path.getsize(full_path) if (full_path and os.path.exists(full_path)) else 0
+                return {
+                    'url': file_or_b64,
+                    'storage_path': rel_path,
+                    'filename': os.path.basename(file_or_b64),
+                    'size': file_size,
+                    'timestamp': timezone.now().strftime('%d %b %Y, %I:%M %p')
+                }
+            else:
+                return None
+        elif isinstance(file_or_b64, dict) and file_or_b64.get('url'):
+            return file_or_b64
+        else:
+            return None
+
+        file_url = f"/media/{saved_path}".replace('//', '/')
+        return {
+            'url': file_url,
+            'storage_path': saved_path,
+            'filename': filename,
+            'size': size,
+            'timestamp': timezone.now().strftime('%d %b %Y, %I:%M %p')
+        }
+
+    @classmethod
+    def save_form_submission(cls, form_id, emp_id, project_id=None,
+                             field_answers=None, before_photos=None, after_photos=None,
+                             field_photos=None, gps_coordinates=None, timestamps=None, inspection_details=None):
+        """
+        Processes and saves a complete form submission with all fields, multiple Before/After photos,
+        GPS coordinates, and timestamps into the FormSubmission database model.
+        """
+        form = DynamicForm.objects.filter(id=form_id).first()
+        if not form:
+            raise ValueError(f"DynamicForm with ID {form_id} not found.")
+
+        field_answers = field_answers or {}
+        before_photos = before_photos or []
+        after_photos = after_photos or []
+        field_photos = field_photos or {}
+        gps_coordinates = gps_coordinates or {}
+        timestamps = timestamps or {}
+        inspection_details = inspection_details or {}
+
+        # 1. Save Before Maintenance Photos to file storage
+        saved_before_photos = []
+        for p in before_photos:
+            saved_p = cls.save_photo_file(p, subfolder='before_photos')
+            if saved_p:
+                saved_before_photos.append(saved_p)
+
+        # 2. Save After Maintenance Photos to file storage
+        saved_after_photos = []
+        for p in after_photos:
+            saved_p = cls.save_photo_file(p, subfolder='after_photos')
+            if saved_p:
+                saved_after_photos.append(saved_p)
+
+        # 3. Save Field Photos to file storage
+        saved_field_photos = {}
+        for f_id, photos_list in field_photos.items():
+            saved_f_list = []
+            if not isinstance(photos_list, list):
+                photos_list = [photos_list]
+            for p in photos_list:
+                saved_p = cls.save_photo_file(p, subfolder='field_photos')
+                if saved_p:
+                    saved_f_list.append(saved_p)
+            if saved_f_list:
+                saved_field_photos[str(f_id)] = saved_f_list
+
+        # 4. Extract schema rows to populate legacy sections & answers
+        schema = form.form_schema if isinstance(form.form_schema, dict) else json.loads(form.form_schema or '{}')
+        columns = schema.get('columns', ['Status / Reading', 'Remarks'])
+        first_col = columns[0] if columns else 'Status / Reading'
+
+        # Build legacy sections for compatibility with existing views
+        legacy_rows = []
+        for sec in schema.get('sections', []):
+            for row in sec.get('rows', []):
+                r_id = str(row.get('id', ''))
+                r_name = row.get('name', '')
+                ans_val = field_answers.get(r_id) or field_answers.get(r_name, '')
+                # If it's a photo field, include the photo URLs
+                if row.get('type') == 'photo_capture' and r_id in saved_field_photos:
+                    ans_val = ", ".join([p['url'] for p in saved_field_photos[r_id]])
+                legacy_rows.append({
+                    'id': row.get('id'),
+                    'name': r_name,
+                    'type': row.get('type', 'text'),
+                    'unit': row.get('unit', ''),
+                    'answers': {first_col: ans_val}
+                })
+
+        legacy_sections = [
+            {
+                'name': 'Activity Checklist Fields',
+                'rows': legacy_rows
+            }
+        ] if legacy_rows else schema.get('sections', [])
+
+        # Ensure timestamps
+        now_iso = timezone.now().isoformat()
+        now_formatted = timezone.now().strftime('%d %b %Y, %I:%M %p')
+        if not timestamps.get('submission_time'):
+            timestamps['submission_time'] = now_formatted
+        if not timestamps.get('iso_timestamp'):
+            timestamps['iso_timestamp'] = now_iso
+
+        # Assemble full submission_data payload
+        submission_payload = {
+            'form_id': form_id,
+            'form_name': form.form_name,
+            'fields': field_answers,
+            'photo_evidence': {
+                'before_photos': saved_before_photos,
+                'after_photos': saved_after_photos,
+                'before_count': len(saved_before_photos),
+                'after_count': len(saved_after_photos),
+            },
+            'field_photos': saved_field_photos,
+            'gps_coordinates': gps_coordinates,
+            'timestamps': timestamps,
+            'inspection_details': inspection_details,
+            # Legacy structures for existing show.html and submission-edit.html
+            'columns': columns,
+            'sections': legacy_sections
+        }
+
+        # Create FormSubmission record in MySQL
+        is_flg, flg_dets = evaluate_form_submission(form.form_schema, submission_payload)
+        submission = FormSubmission.objects.create(
+            company_id=form.company_id,
+            form_id=form_id,
+            project_id=project_id,
+            emp_id=emp_id,
+            submission_data=submission_payload,
+            is_flagged=is_flg,
+            flagged_details=flg_dets
+        )
+
+        return submission
 
     @staticmethod
     def get_prebuilt_templates():
