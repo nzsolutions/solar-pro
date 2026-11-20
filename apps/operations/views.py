@@ -316,6 +316,7 @@ def project_store(request):
             prepaid = 'No'
             free_period_check = False
             free_period_end_date = None
+            agreement_doc = request.FILES.get('agreement_document') or None
         else:
             agreement = 'No'
             agreement_start_date = None
@@ -326,6 +327,7 @@ def project_store(request):
             prepaid = request.POST.get('prepaid', 'No').strip()
             free_period_check = request.POST.get('free_period_check') in ['1', 'on', 'true', 'True', True]
             free_period_end_date = request.POST.get('free_period_end_date') or None
+            agreement_doc = None
 
         project = Project.objects.create(
             company_id=request.session.get('company_id', 1),
@@ -339,6 +341,7 @@ def project_store(request):
             end_date=request.POST.get('end_date') or None,
             reporting_frequency=request.POST.get('reporting_frequency', 'Weekly'),
             agreement=agreement,
+            agreement_document=agreement_doc,
             agreement_start_date=agreement_start_date,
             agreement_end_date=agreement_end_date,
             billing_frequency=billing_frequency,
@@ -523,6 +526,12 @@ def project_update(request, id):
             project.prepaid = 'No'
             project.free_period_check = False
             project.free_period_end_date = None
+
+            # Handle agreement document upload / replace / remove
+            if 'agreement_document' in request.FILES and request.FILES['agreement_document']:
+                project.agreement_document = request.FILES['agreement_document']
+            elif request.POST.get('remove_agreement_document') == '1':
+                project.agreement_document = None
         else:
             project.agreement_start_date = None
             project.agreement_end_date = None
@@ -532,6 +541,7 @@ def project_update(request, id):
             project.prepaid = request.POST.get('prepaid', 'No').strip()
             project.free_period_check = request.POST.get('free_period_check') in ['1', 'on', 'true', 'True', True]
             project.free_period_end_date = request.POST.get('free_period_end_date') or None
+            project.agreement_document = None
 
         project.notes = request.POST.get('notes', project.notes)
         project.save()

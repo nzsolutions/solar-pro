@@ -306,46 +306,7 @@
             </div>
         </div>
 
-        <div class="wizard-step-error-banner" id="step1_error_banner">
-            <i class="bi bi-exclamation-circle-fill"></i>
-            <span id="step1_error_msg">Please fill in all required fields before continuing.</span>
-        </div>
-        <div class="wizard-nav-btns">
-            <a href="{% url 'admin_projects_index' %}" class="btn btn-outline-secondary">Cancel</a>
-            <div class="spacer"></div>
-            <button type="button" class="btn hover-lift btn-next" id="step1_next_btn" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
-                Next <i class="bi bi-arrow-right"></i>
-            </button>
-        </div>
-    </div>
-
-    <!-- Step 2: Schedule & Reporting -->
-    <div class="form-step" data-step="2">
-        <div class="form-card">
-            <h5>Schedule &amp; Reporting</h5>
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label">Start Date</label>
-                    <input type="date" name="start_date" class="form-control datepicker-click">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Expected End Date</label>
-                    <input type="date" name="end_date" class="form-control datepicker-click">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Reporting Frequency *</label>
-                    <select name="reporting_frequency" class="form-select" id="reporting_frequency" required>
-                        {% for freq in reportingFrequencies %}
-                            <option value="{{ freq }}" {% if freq == 'Weekly' %}selected{% endif %}>{{ freq }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="invalid-feedback-custom d-none" id="reporting_frequency_error">Please select a reporting frequency.</div>
-                </div>
-                <input type="hidden" name="status" value="planning">
-            </div>
-        </div>
-
-        <!-- Agreement & Billing Details -->
+        <!-- Agreement & Billing Details (Moved to Step 1) -->
         <div class="form-card">
             <h5>Agreement &amp; Billing</h5>
             <div class="row g-3">
@@ -390,6 +351,27 @@
                         <option value="Yearly">Yearly</option>
                     </select>
                 </div>
+
+                <!-- Agreement Document / Photo Upload -->
+                <div class="col-12 mt-3">
+                    <label class="form-label fw-bold">Agreement Document / Photo</label>
+                    <div class="p-3 border rounded" style="background: #F9FAFB; border: 1px dashed #CBD5E1 !important;">
+                        <div class="d-flex flex-wrap align-items-center gap-3">
+                            <label for="agreement_document_input" class="btn btn-sm btn-outline-primary mb-0" style="cursor: pointer;">
+                                <i class="bi bi-cloud-arrow-up me-1"></i> Choose Agreement File / Photo
+                            </label>
+                            <input type="file" name="agreement_document" id="agreement_document_input" class="d-none" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                            <span class="text-muted small">Supported: PDF, JPG, PNG, DOC, DOCX</span>
+                        </div>
+                        <div id="agreement_file_preview" class="mt-2 align-items-center gap-2 p-2 border rounded bg-white" style="display: none; max-width: 480px;">
+                            <i class="bi bi-file-earmark-check text-success fs-5"></i>
+                            <span id="agreement_file_name" class="small fw-semibold text-truncate flex-grow-1"></span>
+                            <button type="button" class="btn btn-sm text-danger p-0 ms-2" id="remove_agreement_file_btn" title="Remove File">
+                                <i class="bi bi-x-circle-fill fs-6"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- When Agreement = NO -->
@@ -414,6 +396,45 @@
                     <label class="form-label">Free Period End Date</label>
                     <input type="date" name="free_period_end_date" id="free_period_end_date" class="form-control datepicker-click">
                 </div>
+            </div>
+        </div>
+
+        <div class="wizard-step-error-banner" id="step1_error_banner">
+            <i class="bi bi-exclamation-circle-fill"></i>
+            <span id="step1_error_msg">Please fill in all required fields before continuing.</span>
+        </div>
+        <div class="wizard-nav-btns">
+            <a href="{% url 'admin_projects_index' %}" class="btn btn-outline-secondary">Cancel</a>
+            <div class="spacer"></div>
+            <button type="button" class="btn hover-lift btn-next" id="step1_next_btn" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                Next <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 2: Schedule & Reporting -->
+    <div class="form-step" data-step="2">
+        <div class="form-card">
+            <h5>Schedule &amp; Reporting</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" name="start_date" class="form-control datepicker-click">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Expected End Date</label>
+                    <input type="date" name="end_date" class="form-control datepicker-click">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Reporting Frequency *</label>
+                    <select name="reporting_frequency" class="form-select" id="reporting_frequency" required>
+                        {% for freq in reportingFrequencies %}
+                            <option value="{{ freq }}" {% if freq == 'Weekly' %}selected{% endif %}>{{ freq }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="invalid-feedback-custom d-none" id="reporting_frequency_error">Please select a reporting frequency.</div>
+                </div>
+                <input type="hidden" name="status" value="planning">
             </div>
         </div>
 
@@ -725,6 +746,29 @@
     var agreementNoSection = document.getElementById('agreement_no_section');
     var freePeriodCheck = document.getElementById('free_period_check');
     var freePeriodDateGroup = document.getElementById('free_period_date_group');
+    var agreementFileInput = document.getElementById('agreement_document_input');
+    var agreementFilePreview = document.getElementById('agreement_file_preview');
+    var agreementFileName = document.getElementById('agreement_file_name');
+    var removeAgreementFileBtn = document.getElementById('remove_agreement_file_btn');
+
+    if (agreementFileInput) {
+        agreementFileInput.addEventListener('change', function() {
+            if (this.files && this.files.length > 0) {
+                var file = this.files[0];
+                if (agreementFileName) agreementFileName.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+                if (agreementFilePreview) agreementFilePreview.style.display = 'flex';
+            } else {
+                if (agreementFilePreview) agreementFilePreview.style.display = 'none';
+            }
+        });
+    }
+
+    if (removeAgreementFileBtn) {
+        removeAgreementFileBtn.addEventListener('click', function() {
+            if (agreementFileInput) agreementFileInput.value = '';
+            if (agreementFilePreview) agreementFilePreview.style.display = 'none';
+        });
+    }
 
     function toggleAgreementFields() {
         if (!agreementSelect) return;
@@ -739,6 +783,8 @@
                 var el = document.getElementById(fid);
                 if (el) el.value = '';
             });
+            if (agreementFileInput) agreementFileInput.value = '';
+            if (agreementFilePreview) agreementFilePreview.style.display = 'none';
         } else {
             var prepaidEl = document.getElementById('prepaid_select');
             if (prepaidEl) prepaidEl.value = 'No';
