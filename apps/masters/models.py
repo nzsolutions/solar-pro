@@ -375,6 +375,14 @@ class LeaveRequest(models.Model):
         related_name='leave_requests',
         db_column='employee_id'
     )
+    project = models.ForeignKey(
+        'operations.Project',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='leave_requests',
+        db_column='project_id'
+    )
     leave_type = models.CharField(max_length=100, choices=LEAVE_TYPE_CHOICES, default='Casual Leave')
     start_date = models.DateField()
     end_date = models.DateField()
