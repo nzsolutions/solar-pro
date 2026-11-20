@@ -140,23 +140,18 @@
 
         <!-- When Agreement = YES -->
         <div id="edit_agreement_yes_section" class="row g-3 mt-2" {% if project.agreement != 'Yes' %}style="display: none;"{% endif %}>
-            <div class="col-md-4">
-                <label class="form-label">Agreement Start Date</label>
+            <div class="col-md-6">
+                <label class="form-label">Agreement Start Date <span class="text-danger">*</span></label>
                 <input type="date" name="agreement_start_date" id="edit_agreement_start_date"
                        value="{{ project.agreement_start_date|date:'Y-m-d' }}" class="form-control datepicker-click">
             </div>
-            <div class="col-md-4">
-                <label class="form-label">Agreement End Date</label>
+            <div class="col-md-6">
+                <label class="form-label">Agreement End Date <span class="text-danger">*</span></label>
                 <input type="date" name="agreement_end_date" id="edit_agreement_end_date"
                        value="{{ project.agreement_end_date|date:'Y-m-d' }}" class="form-control datepicker-click">
             </div>
             <div class="col-md-4">
-                <label class="form-label">Bill Date</label>
-                <input type="date" name="bill_date" id="edit_bill_date"
-                       value="{{ project.bill_date|date:'Y-m-d' }}" class="form-control datepicker-click">
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Billing Frequency</label>
+                <label class="form-label">Billing Frequency <span class="text-danger">*</span></label>
                 <select name="billing_frequency" id="edit_billing_frequency" class="form-select">
                     <option value="">-- Select Billing Frequency --</option>
                     <option value="Monthly" {% if project.billing_frequency == 'Monthly' %}selected{% endif %}>Monthly</option>
@@ -164,13 +159,35 @@
                     <option value="Yearly" {% if project.billing_frequency == 'Yearly' %}selected{% endif %}>Yearly</option>
                 </select>
             </div>
-            <div class="col-md-6">
-                <label class="form-label">Charge Frequency</label>
-                <select name="charge_frequency" id="edit_charge_frequency" class="form-select">
-                    <option value="">-- Select Charge Frequency --</option>
-                    <option value="Monthly" {% if project.charge_frequency == 'Monthly' %}selected{% endif %}>Monthly</option>
-                    <option value="Quarterly" {% if project.charge_frequency == 'Quarterly' %}selected{% endif %}>Quarterly</option>
-                    <option value="Yearly" {% if project.charge_frequency == 'Yearly' %}selected{% endif %}>Yearly</option>
+
+            <!-- Dynamic Billing Month (Yearly only) -->
+            <div class="col-md-4" id="edit_billing_month_group" {% if project.billing_frequency != 'Yearly' %}style="display: none;"{% endif %}>
+                <label class="form-label">Billing Month <span class="text-danger">*</span></label>
+                <select name="billing_month" id="edit_billing_month" class="form-select">
+                    <option value="">-- Select Month --</option>
+                    <option value="January" {% if project.billing_month == 'January' %}selected{% endif %}>January</option>
+                    <option value="February" {% if project.billing_month == 'February' %}selected{% endif %}>February</option>
+                    <option value="March" {% if project.billing_month == 'March' %}selected{% endif %}>March</option>
+                    <option value="April" {% if project.billing_month == 'April' %}selected{% endif %}>April</option>
+                    <option value="May" {% if project.billing_month == 'May' %}selected{% endif %}>May</option>
+                    <option value="June" {% if project.billing_month == 'June' %}selected{% endif %}>June</option>
+                    <option value="July" {% if project.billing_month == 'July' %}selected{% endif %}>July</option>
+                    <option value="August" {% if project.billing_month == 'August' %}selected{% endif %}>August</option>
+                    <option value="September" {% if project.billing_month == 'September' %}selected{% endif %}>September</option>
+                    <option value="October" {% if project.billing_month == 'October' %}selected{% endif %}>October</option>
+                    <option value="November" {% if project.billing_month == 'November' %}selected{% endif %}>November</option>
+                    <option value="December" {% if project.billing_month == 'December' %}selected{% endif %}>December</option>
+                </select>
+            </div>
+
+            <!-- Dynamic Billing Day (Monthly, Quarterly, Yearly) -->
+            <div class="col-md-4" id="edit_billing_day_group" {% if not project.billing_frequency %}style="display: none;"{% endif %}>
+                <label class="form-label">Billing Day <span class="text-danger">*</span></label>
+                <select name="billing_day" id="edit_billing_day" class="form-select">
+                    <option value="">-- Select Day --</option>
+                    {% for day in "x"|rjust:"31" %}
+                        <option value="{{ forloop.counter }}" {% if project.billing_day == forloop.counter %}selected{% endif %}>{{ forloop.counter }}</option>
+                    {% endfor %}
                 </select>
             </div>
 
@@ -398,6 +415,12 @@
         var editAgreementFileName = document.getElementById('edit_agreement_file_name');
         var editRemoveAgreementFileBtn = document.getElementById('edit_remove_agreement_file_btn');
 
+        var editBillingFreqSelect = document.getElementById('edit_billing_frequency');
+        var editBillingMonthGroup = document.getElementById('edit_billing_month_group');
+        var editBillingDayGroup = document.getElementById('edit_billing_day_group');
+        var editBillingMonthSelect = document.getElementById('edit_billing_month');
+        var editBillingDaySelect = document.getElementById('edit_billing_day');
+
         if (editAgreementFileInput) {
             editAgreementFileInput.addEventListener('change', function() {
                 if (this.files && this.files.length > 0) {
@@ -417,11 +440,32 @@
             });
         }
 
+        function toggleEditBillingFrequencyFields() {
+            if (!editBillingFreqSelect) return;
+            var freq = editBillingFreqSelect.value;
+            if (freq === 'Monthly' || freq === 'Quarterly') {
+                if (editBillingDayGroup) editBillingDayGroup.style.display = 'block';
+                if (editBillingMonthGroup) editBillingMonthGroup.style.display = 'none';
+                if (editBillingMonthSelect) editBillingMonthSelect.value = '';
+            } else if (freq === 'Yearly') {
+                if (editBillingDayGroup) editBillingDayGroup.style.display = 'block';
+                if (editBillingMonthGroup) editBillingMonthGroup.style.display = 'block';
+            } else {
+                if (editBillingDayGroup) editBillingDayGroup.style.display = 'none';
+                if (editBillingMonthGroup) editBillingMonthGroup.style.display = 'none';
+                if (editBillingDaySelect) editBillingDaySelect.value = '';
+                if (editBillingMonthSelect) editBillingMonthSelect.value = '';
+            }
+        }
+
         function toggleAgreementFields() {
             if (!agreementSelect) return;
             var isYes = agreementSelect.value === 'Yes';
             if (agreementYesSection) agreementYesSection.style.display = isYes ? 'flex' : 'none';
             if (agreementNoSection) agreementNoSection.style.display = isYes ? 'none' : 'flex';
+            if (isYes) {
+                toggleEditBillingFrequencyFields();
+            }
         }
 
         function toggleFreePeriodDate() {
@@ -431,6 +475,11 @@
 
         if (agreementSelect) {
             agreementSelect.addEventListener('change', toggleAgreementFields);
+            toggleAgreementFields();
+        }
+        if (editBillingFreqSelect) {
+            editBillingFreqSelect.addEventListener('change', toggleEditBillingFrequencyFields);
+            toggleEditBillingFrequencyFields();
         }
         if (freePeriodCheck) {
             freePeriodCheck.addEventListener('change', toggleFreePeriodDate);

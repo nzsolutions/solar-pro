@@ -21,6 +21,8 @@ class Project(models.Model):
     agreement_start_date = models.DateField(null=True, blank=True)
     agreement_end_date = models.DateField(null=True, blank=True)
     billing_frequency = models.CharField(max_length=50, null=True, blank=True)
+    billing_day = models.IntegerField(null=True, blank=True)
+    billing_month = models.CharField(max_length=20, null=True, blank=True)
     charge_frequency = models.CharField(max_length=50, null=True, blank=True)
     bill_date = models.DateField(null=True, blank=True)
     prepaid = models.CharField(max_length=10, default='No', choices=[('Yes', 'Yes'), ('No', 'No')])
@@ -36,6 +38,27 @@ class Project(models.Model):
 
     def __str__(self):
         return self.client_name
+
+
+class ProjectBillingNotification(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='billing_notifications')
+    notification_date = models.DateField()
+    billing_period = models.CharField(max_length=100, null=True, blank=True)
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    is_sent = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+
+    class Meta:
+        db_table = 'project_billing_notifications'
+        managed = True
+        unique_together = ('project', 'notification_date')
+        ordering = ['notification_date']
+
+    def __str__(self):
+        return f"{self.project.client_name} - {self.notification_date}"
 
 
 class ProjectDocument(models.Model):

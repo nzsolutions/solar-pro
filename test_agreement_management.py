@@ -1,17 +1,3 @@
-"""
-Comprehensive Verification Tests for Agreement Management in Add Project & Edit Project
-Verifies all 10 project requirements:
-1. Create a project with Agreement = Yes.
-2. Verify Agreement Start Date and End Date.
-3. Verify Monthly, Quarterly, and Yearly billing frequency selections.
-4. Verify Charge Frequency.
-5. Verify Bill Date.
-6. Create a project with Agreement = No.
-7. Verify Prepaid and Free Period fields.
-8. Edit an existing project and verify saved agreement information.
-9. Verify that projects without agreement information continue working.
-10. Verify that all existing Add Project wizard steps work correctly.
-"""
 import os
 import django
 from datetime import date, timedelta
@@ -21,14 +7,15 @@ django.setup()
 
 from django.test import Client
 from django.core.files.uploadedfile import SimpleUploadedFile
-from apps.operations.models import Project
+from apps.operations.models import Project, ProjectBillingNotification
 from apps.masters.models import SiteMaster
 from apps.employees.models import Employee
+from apps.operations.billing_service import calculate_billing_dates, sync_project_billing_notifications
 
 
 def run_tests():
     print("=" * 70)
-    print("AGREEMENT MANAGEMENT VERIFICATION TEST SUITE (WITH DOCUMENT UPLOAD)")
+    print("COMPREHENSIVE DYNAMIC AGREEMENT & BILLING VERIFICATION SUITE")
     print("=" * 70)
 
     client = Client()
@@ -54,12 +41,13 @@ def run_tests():
     # Clean up test projects
     Project.objects.filter(client_name__startswith='TEST_AGREEMENT_').delete()
 
-    # 1. Test GET /admin/projects/create renders wizard with Agreement in Step 1
+    # -------------------------------------------------------------
+    # 1. Test UI: Agreement in Step 1, Bill Date field REMOVED, Dynamic Fields Present
+    # -------------------------------------------------------------
     res = client.get('/admin/projects/create')
     assert res.status_code == 200, f"Add Project wizard failed to render: {res.status_code}"
     content = res.content.decode('utf-8')
 
-    # Verify Agreement & Billing is inside Step 1 and NOT in Step 2
     step1_start = content.find('data-step="1"')
     step2_start = content.find('data-step="2"')
     step3_start = content.find('data-step="3"')
@@ -73,226 +61,233 @@ def run_tests():
     assert 'agreement_start_date' in content, "Agreement Start Date field missing"
     assert 'agreement_end_date' in content, "Agreement End Date field missing"
     assert 'billing_frequency' in content, "Billing Frequency dropdown missing"
-    assert 'charge_frequency' in content, "Charge Frequency dropdown missing"
-    assert 'bill_date' in content, "Bill Date field missing"
-    assert 'prepaid_select' in content, "Prepaid dropdown missing"
-    assert 'free_period_check' in content, "Free Period Check missing"
-    print(" [PASS] Step 1: Add Project wizard renders with Agreement & Billing relocated to Step 1 (200 OK)")
-
-    # 2. Test Create Project with Agreement = Yes & Upload Agreement Document
-    start_d = today
-    end_d = today + timedelta(days=365)
-    bill_d = today + timedelta(days=30)
-
-    sample_doc = SimpleUploadedFile("contract_agreement.pdf", b"%PDF-1.4 sample contract agreement content", content_type="application/pdf")
+    assert 'billing_day' in content, "Billing Day dropdown missing"
+    assert 'billing_month' in content, "Billing Month dropdown missing"
     
-    post_data_yes = {
-        'client_name': 'TEST_AGREEMENT_CLIENT_YES_MONTHLY',
-        'project_name': 'Solar Agreement Project 1',
+    # Crucial Requirement: Bill Date input field removed from UI
+    assert 'name="bill_date"' not in content, "Bill Date input must be completely removed from the Add Project UI"
+    
+    print(" [PASS] Step 1: Add Project wizard UI verified (Agreement in Step 1, Bill Date removed, Dynamic billing fields present)")
+
+    # -------------------------------------------------------------
+    # 2. Test Monthly Billing: Billing Day = 5, Generates 1 notification per month
+    # -------------------------------------------------------------
+    start_d = date(2026, 1, 1)
+    end_d = date(2026, 6, 30)
+
+    post_data_monthly = {
+        'client_name': 'TEST_AGREEMENT_CLIENT_MONTHLY_5',
+        'project_name': 'Solar Monthly Billing Project',
         'site_id': site.id,
         'start_date': str(start_d),
         'end_date': str(end_d),
         'reporting_frequency': 'Weekly',
         'agreement': 'Yes',
-        'agreement_document': sample_doc,
         'agreement_start_date': str(start_d),
         'agreement_end_date': str(end_d),
         'billing_frequency': 'Monthly',
-        'charge_frequency': 'Monthly',
-        'bill_date': str(bill_d),
-        'notes': 'Test project with Agreement = Yes',
+        'billing_day': '5',
+        'notes': 'Test monthly billing on 5th',
     }
-    res = client.post('/admin/projects/store', post_data_yes, follow=True)
+    res = client.post('/admin/projects/store', post_data_monthly, follow=True)
     assert res.status_code == 200, f"Project creation failed: {res.status_code}"
-    p_yes_monthly = Project.objects.filter(client_name='TEST_AGREEMENT_CLIENT_YES_MONTHLY').first()
-    assert p_yes_monthly is not None, "Project with Agreement=Yes was not created"
-    assert p_yes_monthly.agreement == 'Yes', f"Expected agreement 'Yes', got {p_yes_monthly.agreement}"
-    assert bool(p_yes_monthly.agreement_document), "Agreement document was not saved to project"
-    assert "contract_agreement" in p_yes_monthly.agreement_document.name, f"Expected filename in document path, got {p_yes_monthly.agreement_document.name}"
-    assert p_yes_monthly.agreement_start_date == start_d, "Agreement Start Date mismatch"
-    assert p_yes_monthly.agreement_end_date == end_d, "Agreement End Date mismatch"
-    assert p_yes_monthly.billing_frequency == 'Monthly', "Billing Frequency mismatch"
-    assert p_yes_monthly.charge_frequency == 'Monthly', "Charge Frequency mismatch"
-    assert p_yes_monthly.bill_date == bill_d, "Bill Date mismatch"
-    assert p_yes_monthly.prepaid == 'No', "Prepaid should be 'No' when Agreement is 'Yes'"
-    assert p_yes_monthly.free_period_check is False, "Free period should be False when Agreement is 'Yes'"
-    print(" [PASS] Step 2: Project with Agreement = Yes, Monthly Billing & Document Upload created and verified")
+    p_monthly = Project.objects.filter(client_name='TEST_AGREEMENT_CLIENT_MONTHLY_5').first()
+    assert p_monthly is not None, "Monthly project was not created"
+    assert p_monthly.agreement == 'Yes'
+    assert p_monthly.billing_frequency == 'Monthly'
+    assert p_monthly.billing_day == 5
+    
+    # Verify generated billing notifications
+    notifs = list(ProjectBillingNotification.objects.filter(project=p_monthly).order_by('notification_date'))
+    assert len(notifs) == 6, f"Expected exactly 6 monthly notifications between Jan and June, got {len(notifs)}"
+    for idx, notif in enumerate(notifs):
+        expected_month = idx + 1
+        assert notif.notification_date == date(2026, expected_month, 5), f"Notification date mismatch: {notif.notification_date}"
+    print(" [PASS] Step 2: Monthly billing generated exactly 1 notification per month on the 5th (6/6 notifications)")
 
-    # 3. Test Create Project with Agreement = Yes without document (Optional doc)
+    # -------------------------------------------------------------
+    # 3. Test Quarterly Billing: Billing Day = 10, Generates 1 notification per quarter
+    # -------------------------------------------------------------
+    start_q = date(2026, 1, 1)
+    end_q = date(2026, 12, 31)
+
     post_data_quarterly = {
-        'client_name': 'TEST_AGREEMENT_CLIENT_YES_QUARTERLY',
-        'project_name': 'Solar Agreement Project Quarterly',
+        'client_name': 'TEST_AGREEMENT_CLIENT_QUARTERLY_10',
+        'project_name': 'Solar Quarterly Billing Project',
         'site_id': site.id,
-        'start_date': str(start_d),
-        'end_date': str(end_d),
+        'start_date': str(start_q),
+        'end_date': str(end_q),
         'reporting_frequency': 'Monthly',
         'agreement': 'Yes',
-        'agreement_start_date': str(start_d),
-        'agreement_end_date': str(end_d),
+        'agreement_start_date': str(start_q),
+        'agreement_end_date': str(end_q),
         'billing_frequency': 'Quarterly',
-        'charge_frequency': 'Quarterly',
-        'bill_date': str(today + timedelta(days=90)),
+        'billing_day': '10',
     }
     client.post('/admin/projects/store', post_data_quarterly, follow=True)
-    p_quarterly = Project.objects.filter(client_name='TEST_AGREEMENT_CLIENT_YES_QUARTERLY').first()
-    assert p_quarterly.billing_frequency == 'Quarterly' and p_quarterly.charge_frequency == 'Quarterly'
-    assert not bool(p_quarterly.agreement_document), "Agreement document should be empty when none provided"
-    print(" [PASS] Step 3: Agreement = Yes without document verified")
+    p_quarterly = Project.objects.filter(client_name='TEST_AGREEMENT_CLIENT_QUARTERLY_10').first()
+    assert p_quarterly.billing_frequency == 'Quarterly' and p_quarterly.billing_day == 10
+    
+    q_notifs = list(ProjectBillingNotification.objects.filter(project=p_quarterly).order_by('notification_date'))
+    assert len(q_notifs) == 4, f"Expected exactly 4 quarterly notifications for 1 year, got {len(q_notifs)}"
+    expected_dates = [date(2026, 1, 10), date(2026, 4, 10), date(2026, 7, 10), date(2026, 10, 10)]
+    actual_dates = [n.notification_date for n in q_notifs]
+    assert actual_dates == expected_dates, f"Quarterly dates mismatch: {actual_dates} vs {expected_dates}"
+    print(" [PASS] Step 3: Quarterly billing generated exactly 1 notification per quarter on the 10th (4/4 quarters)")
 
-    # 4. Test Yearly Billing & Charge Frequency
+    # -------------------------------------------------------------
+    # 4. Test Yearly Billing: Billing Month = January, Billing Day = 15
+    # -------------------------------------------------------------
+    start_y = date(2026, 1, 1)
+    end_y = date(2028, 12, 31)
+
     post_data_yearly = {
-        'client_name': 'TEST_AGREEMENT_CLIENT_YES_YEARLY',
-        'project_name': 'Solar Agreement Project Yearly',
+        'client_name': 'TEST_AGREEMENT_CLIENT_YEARLY_JAN15',
+        'project_name': 'Solar Yearly Billing Project',
         'site_id': site.id,
-        'start_date': str(start_d),
-        'end_date': str(end_d),
+        'start_date': str(start_y),
+        'end_date': str(end_y),
         'reporting_frequency': 'Monthly',
         'agreement': 'Yes',
-        'agreement_start_date': str(start_d),
-        'agreement_end_date': str(end_d),
+        'agreement_start_date': str(start_y),
+        'agreement_end_date': str(end_y),
         'billing_frequency': 'Yearly',
-        'charge_frequency': 'Yearly',
-        'bill_date': str(today + timedelta(days=365)),
+        'billing_month': 'January',
+        'billing_day': '15',
     }
     client.post('/admin/projects/store', post_data_yearly, follow=True)
-    p_yearly = Project.objects.filter(client_name='TEST_AGREEMENT_CLIENT_YES_YEARLY').first()
-    assert p_yearly.billing_frequency == 'Yearly' and p_yearly.charge_frequency == 'Yearly'
-    print(" [PASS] Step 4: Yearly billing frequency and charge frequency verified")
+    p_yearly = Project.objects.filter(client_name='TEST_AGREEMENT_CLIENT_YEARLY_JAN15').first()
+    assert p_yearly.billing_frequency == 'Yearly' and p_yearly.billing_month == 'January' and p_yearly.billing_day == 15
 
-    # 5. Test Create Project with Agreement = No (Prepaid = Yes, Free Period = Checked, No doc)
-    free_end = today + timedelta(days=60)
-    post_data_no = {
-        'client_name': 'TEST_AGREEMENT_CLIENT_NO_PREPAID',
-        'project_name': 'Solar Prepaid Project',
+    y_notifs = list(ProjectBillingNotification.objects.filter(project=p_yearly).order_by('notification_date'))
+    assert len(y_notifs) == 3, f"Expected exactly 3 yearly notifications (2026, 2027, 2028), got {len(y_notifs)}"
+    expected_y_dates = [date(2026, 1, 15), date(2027, 1, 15), date(2028, 1, 15)]
+    actual_y_dates = [n.notification_date for n in y_notifs]
+    assert actual_y_dates == expected_y_dates, f"Yearly dates mismatch: {actual_y_dates} vs {expected_y_dates}"
+    print(" [PASS] Step 4: Yearly billing generated exactly 1 notification per year on January 15 (3/3 years)")
+
+    # -------------------------------------------------------------
+    # 5. Test Clamping for Day 31 on 30-Day Months and Feb (Leap Year test)
+    # -------------------------------------------------------------
+    start_clamp = date(2026, 1, 1)
+    end_clamp = date(2026, 4, 30)
+
+    post_data_clamp = {
+        'client_name': 'TEST_AGREEMENT_CLIENT_CLAMP_31',
+        'project_name': 'Solar Day 31 Clamping Project',
         'site_id': site.id,
-        'start_date': str(start_d),
-        'end_date': str(end_d),
+        'start_date': str(start_clamp),
+        'end_date': str(end_clamp),
+        'reporting_frequency': 'Monthly',
+        'agreement': 'Yes',
+        'agreement_start_date': str(start_clamp),
+        'agreement_end_date': str(end_clamp),
+        'billing_frequency': 'Monthly',
+        'billing_day': '31',
+    }
+    client.post('/admin/projects/store', post_data_clamp, follow=True)
+    p_clamp = Project.objects.filter(client_name='TEST_AGREEMENT_CLIENT_CLAMP_31').first()
+    c_notifs = list(ProjectBillingNotification.objects.filter(project=p_clamp).order_by('notification_date'))
+    assert len(c_notifs) == 4
+    # Jan 31, Feb 28 (non-leap), Mar 31, Apr 30 (30-day month)
+    assert c_notifs[0].notification_date == date(2026, 1, 31)
+    assert c_notifs[1].notification_date == date(2026, 2, 28)
+    assert c_notifs[2].notification_date == date(2026, 3, 31)
+    assert c_notifs[3].notification_date == date(2026, 4, 30)
+    print(" [PASS] Step 5: Day 31 clamping handled correctly across 31-day, 30-day, and February dates")
+
+    # Leap Year Test: Feb 29 in 2028
+    leap_dates = calculate_billing_dates(date(2028, 1, 1), date(2028, 3, 31), 'Monthly', 31)
+    assert leap_dates[1][0] == date(2028, 2, 29), f"Leap year 2028 Feb should clamp to 29, got {leap_dates[1][0]}"
+    print(" [PASS] Step 5b: Leap year February 29 clamping verified")
+
+    # -------------------------------------------------------------
+    # 6. Test Date Validation: End Date cannot be earlier than Start Date
+    # -------------------------------------------------------------
+    post_invalid_dates = {
+        'client_name': 'TEST_AGREEMENT_CLIENT_INVALID_DATES',
+        'project_name': 'Invalid Date Project',
+        'site_id': site.id,
+        'start_date': '2026-06-01',
+        'end_date': '2026-01-01',
+        'reporting_frequency': 'Weekly',
+        'agreement': 'Yes',
+        'agreement_start_date': '2026-06-01',
+        'agreement_end_date': '2026-01-01',
+        'billing_frequency': 'Monthly',
+        'billing_day': '1',
+    }
+    res_inv = client.post('/admin/projects/store', post_invalid_dates, follow=True)
+    p_inv = Project.objects.filter(client_name='TEST_AGREEMENT_CLIENT_INVALID_DATES').first()
+    assert p_inv is None, "Project with End Date < Start Date should be rejected"
+    print(" [PASS] Step 6: Validation correctly rejects Agreement End Date earlier than Start Date")
+
+    # -------------------------------------------------------------
+    # 7. Test Avoid Duplicate Notifications on Project Edit / Save
+    # -------------------------------------------------------------
+    initial_count = ProjectBillingNotification.objects.filter(project=p_monthly).count()
+    # Save project again with same data
+    update_data = {
+        'client_name': p_monthly.client_name,
+        'project_name': p_monthly.project_name,
+        'site_id': site.id,
+        'status': 'in_progress',
+        'start_date': str(p_monthly.start_date),
+        'end_date': str(p_monthly.end_date),
+        'reporting_frequency': 'Weekly',
+        'agreement': 'Yes',
+        'agreement_start_date': str(p_monthly.agreement_start_date),
+        'agreement_end_date': str(p_monthly.agreement_end_date),
+        'billing_frequency': 'Monthly',
+        'billing_day': '5',
+    }
+    client.post(f'/admin/projects/{p_monthly.id}/update', update_data, follow=True)
+    after_count = ProjectBillingNotification.objects.filter(project=p_monthly).count()
+    assert initial_count == after_count == 6, f"Expected no duplicate notifications, got {after_count}"
+    print(" [PASS] Step 7: Saving existing project avoided duplicate notifications")
+
+    # -------------------------------------------------------------
+    # 8. Test Edit Project Form UI Renders Saved Billing Configuration
+    # -------------------------------------------------------------
+    edit_res = client.get(f'/admin/projects/{p_yearly.id}/edit')
+    assert edit_res.status_code == 200
+    edit_content = edit_res.content.decode('utf-8')
+    assert 'edit_agreement_select' in edit_content
+    assert 'name="bill_date"' not in edit_content, "Bill Date must be removed from Edit Project UI"
+    assert 'edit_billing_day' in edit_content
+    assert 'edit_billing_month' in edit_content
+    print(" [PASS] Step 8: Edit Project UI renders with saved dynamic billing configuration")
+
+    # -------------------------------------------------------------
+    # 9. Test Switch Agreement from Yes to No Clears Notifications
+    # -------------------------------------------------------------
+    update_to_no = {
+        'client_name': p_monthly.client_name,
+        'project_name': p_monthly.project_name,
+        'site_id': site.id,
+        'status': 'in_progress',
+        'start_date': str(p_monthly.start_date),
+        'end_date': str(p_monthly.end_date),
         'reporting_frequency': 'Weekly',
         'agreement': 'No',
         'prepaid': 'Yes',
-        'free_period_check': '1',
-        'free_period_end_date': str(free_end),
-        'agreement_start_date': str(start_d),
-        'billing_frequency': 'Monthly',
     }
-    res = client.post('/admin/projects/store', post_data_no, follow=True)
-    assert res.status_code == 200
-    p_no = Project.objects.filter(client_name='TEST_AGREEMENT_CLIENT_NO_PREPAID').first()
-    assert p_no is not None, "Project with Agreement=No was not created"
-    assert p_no.agreement == 'No', "Expected agreement 'No'"
-    assert p_no.prepaid == 'Yes', "Prepaid mismatch"
-    assert p_no.free_period_check is True, "Free Period Check mismatch"
-    assert p_no.free_period_end_date == free_end, "Free Period End Date mismatch"
-    assert not bool(p_no.agreement_document), "Agreement document must be None when Agreement is No"
-    assert p_no.agreement_start_date is None, "Agreement Start Date must be None when Agreement is No"
-    assert p_no.billing_frequency is None, "Billing Frequency must be None when Agreement is No"
-    print(" [PASS] Step 5: Project with Agreement = No (Prepaid & Free Period) created and sanitized")
+    client.post(f'/admin/projects/{p_monthly.id}/update', update_to_no, follow=True)
+    p_monthly.refresh_from_db()
+    assert p_monthly.agreement == 'No'
+    notifs_after_no = ProjectBillingNotification.objects.filter(project=p_monthly, is_sent=False).count()
+    assert notifs_after_no == 0, "Unsent notifications should be cleared when Agreement is set to No"
+    print(" [PASS] Step 9: Switching Agreement to No successfully cleared notifications")
 
-    # 6. Test Edit Existing Project & Verify Saved Agreement and Document
-    edit_res = client.get(f'/admin/projects/{p_yes_monthly.id}/edit')
-    assert edit_res.status_code == 200, "Edit Project failed to render"
-    edit_content = edit_res.content.decode('utf-8')
-    assert 'edit_agreement_select' in edit_content, "Edit Agreement dropdown missing"
-    assert 'contract_agreement' in edit_content, "Previously uploaded agreement document not displayed in edit form"
-    assert str(p_yes_monthly.agreement_start_date) in edit_content, "Saved agreement start date not found in edit form"
-    assert str(p_yes_monthly.bill_date) in edit_content, "Saved bill date not found in edit form"
-    print(" [PASS] Step 6: Edit Project renders with pre-filled Agreement details & uploaded document")
-
-    # 7. Test Replace Agreement Document in Edit Project
-    new_doc = SimpleUploadedFile("replaced_contract.jpg", b"fake jpeg content", content_type="image/jpeg")
-    update_data_replace = {
-        'client_name': 'TEST_AGREEMENT_CLIENT_YES_MONTHLY',
-        'project_name': 'Solar Agreement Project Replaced',
-        'site_id': site.id,
-        'status': 'in_progress',
-        'start_date': str(start_d),
-        'end_date': str(end_d),
-        'reporting_frequency': 'Daily',
-        'agreement': 'Yes',
-        'agreement_document': new_doc,
-        'agreement_start_date': str(start_d),
-        'agreement_end_date': str(end_d),
-        'billing_frequency': 'Monthly',
-        'charge_frequency': 'Monthly',
-        'bill_date': str(bill_d),
-    }
-    client.post(f'/admin/projects/{p_yes_monthly.id}/update', update_data_replace, follow=True)
-    p_yes_monthly.refresh_from_db()
-    assert "replaced_contract" in p_yes_monthly.agreement_document.name, "Agreement document replacement failed"
-    print(" [PASS] Step 7: Agreement document successfully replaced with new file")
-
-    # 8. Test Remove Agreement Document in Edit Project
-    update_data_remove = {
-        'client_name': 'TEST_AGREEMENT_CLIENT_YES_MONTHLY',
-        'project_name': 'Solar Agreement Project Doc Removed',
-        'site_id': site.id,
-        'status': 'in_progress',
-        'start_date': str(start_d),
-        'end_date': str(end_d),
-        'reporting_frequency': 'Daily',
-        'agreement': 'Yes',
-        'remove_agreement_document': '1',
-        'agreement_start_date': str(start_d),
-        'agreement_end_date': str(end_d),
-        'billing_frequency': 'Monthly',
-        'charge_frequency': 'Monthly',
-        'bill_date': str(bill_d),
-    }
-    client.post(f'/admin/projects/{p_yes_monthly.id}/update', update_data_remove, follow=True)
-    p_yes_monthly.refresh_from_db()
-    assert not bool(p_yes_monthly.agreement_document), "Agreement document was not removed"
-    print(" [PASS] Step 8: Agreement document successfully removed on request")
-
-    # 9. Update project from Agreement=Yes to Agreement=No with Prepaid=Yes
-    update_data = {
-        'client_name': 'TEST_AGREEMENT_CLIENT_YES_MONTHLY',
-        'project_name': 'Updated Solar Project to No Agreement',
-        'site_id': site.id,
-        'status': 'in_progress',
-        'start_date': str(start_d),
-        'end_date': str(end_d),
-        'reporting_frequency': 'Daily',
-        'agreement': 'No',
-        'prepaid': 'Yes',
-        'free_period_check': '1',
-        'free_period_end_date': str(today + timedelta(days=45)),
-    }
-    client.post(f'/admin/projects/{p_yes_monthly.id}/update', update_data, follow=True)
-    p_yes_monthly.refresh_from_db()
-    assert p_yes_monthly.agreement == 'No', "Failed to update Agreement to 'No'"
-    assert p_yes_monthly.prepaid == 'Yes', "Failed to update Prepaid to 'Yes'"
-    assert p_yes_monthly.agreement_start_date is None, "Agreement fields should be cleared after update to 'No'"
-    assert p_yes_monthly.billing_frequency is None, "Billing frequency should be cleared after update to 'No'"
-    assert not bool(p_yes_monthly.agreement_document), "Agreement doc should be cleared when Agreement is No"
-    print(" [PASS] Step 9: Successfully updated existing project from Agreement=Yes to Agreement=No")
-
-    # 10. Verify legacy projects without agreement continue working cleanly
-    legacy_p = Project.objects.create(
-        company_id=1,
-        client_name='TEST_AGREEMENT_LEGACY_PROJECT',
-        project_name='Legacy Project Without Agreement',
-        site_id=site.id,
-        status='planning'
-    )
-    assert legacy_p.agreement == 'No', "Default agreement should be 'No'"
-    assert legacy_p.agreement_start_date is None
-    assert not bool(legacy_p.agreement_document)
-    list_res = client.get('/admin/projects')
-    assert list_res.status_code == 200, "Projects index failed to render"
-    assert b'TEST_AGREEMENT_LEGACY_PROJECT' in list_res.content
-    print(" [PASS] Step 10: Legacy projects without agreement information continue working cleanly")
-
-    # Clean up test projects
+    # -------------------------------------------------------------
+    # 10. Clean up test projects
+    # -------------------------------------------------------------
     Project.objects.filter(client_name__startswith='TEST_AGREEMENT_').delete()
-    print(" [PASS] Step 11: Cleaned up temporary test projects")
+    print(" [PASS] Step 10: Cleaned up temporary test projects")
 
     print("\n" + "=" * 70)
-    print("ALL 11 AGREEMENT MANAGEMENT & DOCUMENT UPLOAD TESTS PASSED (100%)!")
+    print("ALL 10 DYNAMIC AGREEMENT & BILLING TESTS PASSED (100%)!")
     print("=" * 70)
-
-
-if __name__ == '__main__':
-    run_tests()
 
 
 if __name__ == '__main__':

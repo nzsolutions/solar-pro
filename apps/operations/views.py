@@ -20,6 +20,7 @@ from apps.dynamic_forms.models import DynamicForm
 from apps.operations.models import (
     Project,
     ProjectDocument,
+    ProjectBillingNotification,
     Lead,
     ProjectActivity,
     ProjectActivityInstance,
@@ -27,6 +28,7 @@ from apps.operations.models import (
     ProjectActivityIssue,
 )
 from apps.operations.activity_service import ProjectActivityService
+from apps.operations.billing_service import sync_project_billing_notifications, calculate_billing_dates, parse_date_safely
 import openpyxl
 
 
@@ -310,9 +312,20 @@ def project_store(request):
         if agreement == 'Yes':
             agreement_start_date = request.POST.get('agreement_start_date') or None
             agreement_end_date = request.POST.get('agreement_end_date') or None
+
+            # Date validation: End Date must not be earlier than Start Date
+            if agreement_start_date and agreement_end_date:
+                s_d = parse_date_safely(agreement_start_date)
+                e_d = parse_date_safely(agreement_end_date)
+                if s_d and e_d and e_d < s_d:
+                    messages.error(request, 'Agreement End Date cannot be earlier than Agreement Start Date.')
+                    return redirect('admin_projects_create')
+
             billing_frequency = request.POST.get('billing_frequency') or None
-            charge_frequency = request.POST.get('charge_frequency') or None
-            bill_date = request.POST.get('bill_date') or None
+            billing_day_raw = request.POST.get('billing_day')
+            billing_day = int(billing_day_raw) if billing_day_raw and str(billing_day_raw).isdigit() else None
+            billing_month = request.POST.get('billing_month') if billing_frequency == 'Yearly' else None
+            charge_frequency = request.POST.get('charge_frequency') or billing_frequency
             prepaid = 'No'
             free_period_check = False
             free_period_end_date = None
@@ -322,8 +335,9 @@ def project_store(request):
             agreement_start_date = None
             agreement_end_date = None
             billing_frequency = None
+            billing_day = None
+            billing_month = None
             charge_frequency = None
-            bill_date = None
             prepaid = request.POST.get('prepaid', 'No').strip()
             free_period_check = request.POST.get('free_period_check') in ['1', 'on', 'true', 'True', True]
             free_period_end_date = request.POST.get('free_period_end_date') or None
@@ -345,13 +359,18 @@ def project_store(request):
             agreement_start_date=agreement_start_date,
             agreement_end_date=agreement_end_date,
             billing_frequency=billing_frequency,
+            billing_day=billing_day,
+            billing_month=billing_month,
             charge_frequency=charge_frequency,
-            bill_date=bill_date,
+            bill_date=None,
             prepaid=prepaid,
             free_period_check=free_period_check,
             free_period_end_date=free_period_end_date,
             notes=request.POST.get('notes', ''),
         )
+
+        # Synchronize billing notifications for the agreement period
+        sync_project_billing_notifications(project)
 
         # Handle Assigned Stock
         stock_ids = request.POST.getlist('stock_selected[]')
@@ -518,11 +537,28 @@ def project_update(request, id):
         agreement = request.POST.get('agreement', 'No').strip()
         project.agreement = agreement
         if agreement == 'Yes':
-            project.agreement_start_date = request.POST.get('agreement_start_date') or None
-            project.agreement_end_date = request.POST.get('agreement_end_date') or None
-            project.billing_frequency = request.POST.get('billing_frequency') or None
-            project.charge_frequency = request.POST.get('charge_frequency') or None
-            project.bill_date = request.POST.get('bill_date') or None
+            agreement_start_date = request.POST.get('agreement_start_date') or None
+            agreement_end_date = request.POST.get('agreement_end_date') or None
+
+            # Date validation: End Date must not be earlier than Start Date
+            if agreement_start_date and agreement_end_date:
+                s_d = parse_date_safely(agreement_start_date)
+                e_d = parse_date_safely(agreement_end_date)
+                if s_d and e_d and e_d < s_d:
+                    messages.error(request, 'Agreement End Date cannot be earlier than Agreement Start Date.')
+                    return redirect('admin_projects_edit', id=id)
+
+            billing_frequency = request.POST.get('billing_frequency') or None
+            billing_day_raw = request.POST.get('billing_day')
+            billing_day = int(billing_day_raw) if billing_day_raw and str(billing_day_raw).isdigit() else None
+            billing_month = request.POST.get('billing_month') if billing_frequency == 'Yearly' else None
+
+            project.agreement_start_date = agreement_start_date
+            project.agreement_end_date = agreement_end_date
+            project.billing_frequency = billing_frequency
+            project.billing_day = billing_day
+            project.billing_month = billing_month
+            project.charge_frequency = request.POST.get('charge_frequency') or billing_frequency
             project.prepaid = 'No'
             project.free_period_check = False
             project.free_period_end_date = None
@@ -536,6 +572,8 @@ def project_update(request, id):
             project.agreement_start_date = None
             project.agreement_end_date = None
             project.billing_frequency = None
+            project.billing_day = None
+            project.billing_month = None
             project.charge_frequency = None
             project.bill_date = None
             project.prepaid = request.POST.get('prepaid', 'No').strip()
@@ -545,6 +583,9 @@ def project_update(request, id):
 
         project.notes = request.POST.get('notes', project.notes)
         project.save()
+
+        # Synchronize billing notifications
+        sync_project_billing_notifications(project)
 
         # Reconcile project activities instances on date changes
         for pa in project.project_activities.filter(status='active'):

@@ -321,20 +321,16 @@
 
             <!-- When Agreement = YES -->
             <div id="agreement_yes_section" class="row g-3 mt-2" style="display: none;">
-                <div class="col-md-4">
-                    <label class="form-label">Agreement Start Date</label>
+                <div class="col-md-6">
+                    <label class="form-label">Agreement Start Date <span class="text-danger">*</span></label>
                     <input type="date" name="agreement_start_date" id="agreement_start_date" class="form-control datepicker-click">
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label">Agreement End Date</label>
+                <div class="col-md-6">
+                    <label class="form-label">Agreement End Date <span class="text-danger">*</span></label>
                     <input type="date" name="agreement_end_date" id="agreement_end_date" class="form-control datepicker-click">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Bill Date</label>
-                    <input type="date" name="bill_date" id="bill_date" class="form-control datepicker-click">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Billing Frequency</label>
+                    <label class="form-label">Billing Frequency <span class="text-danger">*</span></label>
                     <select name="billing_frequency" id="billing_frequency" class="form-select">
                         <option value="">-- Select Billing Frequency --</option>
                         <option value="Monthly">Monthly</option>
@@ -342,13 +338,63 @@
                         <option value="Yearly">Yearly</option>
                     </select>
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label">Charge Frequency</label>
-                    <select name="charge_frequency" id="charge_frequency" class="form-select">
-                        <option value="">-- Select Charge Frequency --</option>
-                        <option value="Monthly">Monthly</option>
-                        <option value="Quarterly">Quarterly</option>
-                        <option value="Yearly">Yearly</option>
+
+                <!-- Dynamic Billing Month (Yearly only) -->
+                <div class="col-md-4" id="billing_month_group" style="display: none;">
+                    <label class="form-label">Billing Month <span class="text-danger">*</span></label>
+                    <select name="billing_month" id="billing_month" class="form-select">
+                        <option value="">-- Select Month --</option>
+                        <option value="January">January</option>
+                        <option value="February">February</option>
+                        <option value="March">March</option>
+                        <option value="April">April</option>
+                        <option value="May">May</option>
+                        <option value="June">June</option>
+                        <option value="July">July</option>
+                        <option value="August">August</option>
+                        <option value="September">September</option>
+                        <option value="October">October</option>
+                        <option value="November">November</option>
+                        <option value="December">December</option>
+                    </select>
+                </div>
+
+                <!-- Dynamic Billing Day (Monthly, Quarterly, Yearly) -->
+                <div class="col-md-4" id="billing_day_group" style="display: none;">
+                    <label class="form-label">Billing Day <span class="text-danger">*</span></label>
+                    <select name="billing_day" id="billing_day" class="form-select">
+                        <option value="">-- Select Day --</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9">9</option>
+                        <option value="10">10</option>
+                        <option value="11">11</option>
+                        <option value="12">12</option>
+                        <option value="13">13</option>
+                        <option value="14">14</option>
+                        <option value="15">15</option>
+                        <option value="16">16</option>
+                        <option value="17">17</option>
+                        <option value="18">18</option>
+                        <option value="19">19</option>
+                        <option value="20">20</option>
+                        <option value="21">21</option>
+                        <option value="22">22</option>
+                        <option value="23">23</option>
+                        <option value="24">24</option>
+                        <option value="25">25</option>
+                        <option value="26">26</option>
+                        <option value="27">27</option>
+                        <option value="28">28</option>
+                        <option value="29">29</option>
+                        <option value="30">30</option>
+                        <option value="31">31</option>
                     </select>
                 </div>
 
@@ -751,6 +797,12 @@
     var agreementFileName = document.getElementById('agreement_file_name');
     var removeAgreementFileBtn = document.getElementById('remove_agreement_file_btn');
 
+    var billingFreqSelect = document.getElementById('billing_frequency');
+    var billingMonthGroup = document.getElementById('billing_month_group');
+    var billingDayGroup = document.getElementById('billing_day_group');
+    var billingMonthSelect = document.getElementById('billing_month');
+    var billingDaySelect = document.getElementById('billing_day');
+
     if (agreementFileInput) {
         agreementFileInput.addEventListener('change', function() {
             if (this.files && this.files.length > 0) {
@@ -770,6 +822,24 @@
         });
     }
 
+    function toggleBillingFrequencyFields() {
+        if (!billingFreqSelect) return;
+        var freq = billingFreqSelect.value;
+        if (freq === 'Monthly' || freq === 'Quarterly') {
+            if (billingDayGroup) billingDayGroup.style.display = 'block';
+            if (billingMonthGroup) billingMonthGroup.style.display = 'none';
+            if (billingMonthSelect) billingMonthSelect.value = '';
+        } else if (freq === 'Yearly') {
+            if (billingDayGroup) billingDayGroup.style.display = 'block';
+            if (billingMonthGroup) billingMonthGroup.style.display = 'block';
+        } else {
+            if (billingDayGroup) billingDayGroup.style.display = 'none';
+            if (billingMonthGroup) billingMonthGroup.style.display = 'none';
+            if (billingDaySelect) billingDaySelect.value = '';
+            if (billingMonthSelect) billingMonthSelect.value = '';
+        }
+    }
+
     function toggleAgreementFields() {
         if (!agreementSelect) return;
         var isYes = agreementSelect.value === 'Yes';
@@ -778,13 +848,15 @@
 
         // Clear values when switching to prevent unintended submissions
         if (!isYes) {
-            var fieldsToClear = ['agreement_start_date', 'agreement_end_date', 'bill_date', 'billing_frequency', 'charge_frequency'];
+            var fieldsToClear = ['agreement_start_date', 'agreement_end_date', 'billing_frequency', 'billing_month', 'billing_day'];
             fieldsToClear.forEach(function(fid) {
                 var el = document.getElementById(fid);
                 if (el) el.value = '';
             });
             if (agreementFileInput) agreementFileInput.value = '';
             if (agreementFilePreview) agreementFilePreview.style.display = 'none';
+            if (billingDayGroup) billingDayGroup.style.display = 'none';
+            if (billingMonthGroup) billingMonthGroup.style.display = 'none';
         } else {
             var prepaidEl = document.getElementById('prepaid_select');
             if (prepaidEl) prepaidEl.value = 'No';
@@ -792,6 +864,7 @@
             var freeDateEl = document.getElementById('free_period_end_date');
             if (freeDateEl) freeDateEl.value = '';
             if (freePeriodDateGroup) freePeriodDateGroup.style.display = 'none';
+            toggleBillingFrequencyFields();
         }
     }
 
@@ -807,6 +880,10 @@
     if (agreementSelect) {
         agreementSelect.addEventListener('change', toggleAgreementFields);
         toggleAgreementFields();
+    }
+    if (billingFreqSelect) {
+        billingFreqSelect.addEventListener('change', toggleBillingFrequencyFields);
+        toggleBillingFrequencyFields();
     }
     if (freePeriodCheck) {
         freePeriodCheck.addEventListener('change', toggleFreePeriodDate);
@@ -899,6 +976,46 @@
             }
             markField(email, emailErrorEl, emailValid);
             if (!emailValid) { valid = false; firstInvalid = firstInvalid || email; errorMessages.push('Valid Email address'); }
+
+            // Validate Agreement fields when Agreement = Yes
+            var agrSelect = document.getElementById('agreement_select');
+            if (agrSelect && agrSelect.value === 'Yes') {
+                var agrStart = document.getElementById('agreement_start_date');
+                var agrEnd = document.getElementById('agreement_end_date');
+                var bFreq = document.getElementById('billing_frequency');
+                var bDay = document.getElementById('billing_day');
+                var bMonth = document.getElementById('billing_month');
+
+                var agrStartValid = agrStart && agrStart.value.trim().length > 0;
+                markField(agrStart, null, agrStartValid);
+                if (!agrStartValid) { valid = false; firstInvalid = firstInvalid || agrStart; errorMessages.push('Agreement Start Date'); }
+
+                var agrEndValid = agrEnd && agrEnd.value.trim().length > 0;
+                if (agrStartValid && agrEndValid && agrEnd.value < agrStart.value) {
+                    agrEndValid = false;
+                    markField(agrEnd, null, false);
+                    valid = false;
+                    firstInvalid = firstInvalid || agrEnd;
+                    errorMessages.push('Agreement End Date must not be earlier than Start Date');
+                } else {
+                    markField(agrEnd, null, agrEndValid);
+                    if (!agrEndValid) { valid = false; firstInvalid = firstInvalid || agrEnd; errorMessages.push('Agreement End Date'); }
+                }
+
+                var bFreqValid = bFreq && bFreq.value.trim().length > 0;
+                markField(bFreq, null, bFreqValid);
+                if (!bFreqValid) { valid = false; firstInvalid = firstInvalid || bFreq; errorMessages.push('Billing Frequency'); }
+
+                var bDayValid = bDay && bDay.value.trim().length > 0;
+                markField(bDay, null, bDayValid);
+                if (!bDayValid) { valid = false; firstInvalid = firstInvalid || bDay; errorMessages.push('Billing Day'); }
+
+                if (bFreq && bFreq.value === 'Yearly') {
+                    var bMonthValid = bMonth && bMonth.value.trim().length > 0;
+                    markField(bMonth, null, bMonthValid);
+                    if (!bMonthValid) { valid = false; firstInvalid = firstInvalid || bMonth; errorMessages.push('Billing Month'); }
+                }
+            }
 
             console.log('[Step 1 Validation]', { siteIdValid, clientNameValid, projectNameValid, emailValid, valid, errorMessages });
 
