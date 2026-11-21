@@ -292,13 +292,13 @@
             <h5 class="mb-0">Employee Leave Requests</h5>
             <span class="badge-count">{{ leaves|length }} Requests</span>
         </div>
-        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="{% if employee_filter or department_filter or leave_type_filter or status_filter or start_date_filter or end_date_filter %}true{% else %}false{% endif %}">
-            <i class="bi bi-funnel"></i> Filters {% if employee_filter or department_filter or leave_type_filter or status_filter or start_date_filter or end_date_filter %}<span class="badge bg-primary ms-1">Active</span>{% endif %}
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="{% if employee_filter or project_filter or department_filter or leave_type_filter or status_filter or start_date_filter or end_date_filter %}true{% else %}false{% endif %}">
+            <i class="bi bi-funnel"></i> Filters {% if employee_filter or project_filter or department_filter or leave_type_filter or status_filter or start_date_filter or end_date_filter %}<span class="badge bg-primary ms-1">Active</span>{% endif %}
         </button>
     </div>
 
     <!-- Filters Section -->
-    <div class="collapse {% if employee_filter or department_filter or leave_type_filter or status_filter or start_date_filter or end_date_filter %}show{% endif %}" id="filterCollapse">
+    <div class="collapse {% if employee_filter or project_filter or department_filter or leave_type_filter or status_filter or start_date_filter or end_date_filter %}show{% endif %}" id="filterCollapse">
         <form method="GET" action="{% url 'admin_leave_management_index' %}" class="filter-card">
             <div class="row g-2">
                 <div class="col-md-3">
@@ -308,6 +308,16 @@
                         {% for emp in employees %}
                             <option value="{{ emp.id }}" {% if employee_filter == emp.id|stringformat:"s" %}selected{% endif %}>{{ emp.name }} (EMP-{{ emp.id|stringformat:"04d" }})</option>
                         {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="filter-label">Project</label>
+                    <select name="project" class="form-select filter-input">
+                        <option value="">All Projects</option>
+                        {% for proj in projects %}
+                            <option value="{{ proj.id }}" {% if project_filter == proj.id|stringformat:"s" %}selected{% endif %}>{{ proj.project_name|default:proj.client_name }}</option>
+                        {% endfor %}
+                        <option value="unassigned" {% if project_filter == 'unassigned' %}selected{% endif %}>Not Assigned</option>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -337,7 +347,7 @@
                         <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label class="filter-label">Date Range</label>
                     <div class="input-group">
                         <input type="date" name="start_date" value="{{ start_date_filter }}" class="form-control filter-input" title="From Date">
@@ -361,6 +371,7 @@
                     <th>#</th>
                     <th>Employee Details</th>
                     <th>Department / Role</th>
+                    <th>Project</th>
                     <th>Leave Type</th>
                     <th>Duration</th>
                     <th>Days</th>
@@ -381,6 +392,13 @@
                     <td>
                         <div>{{ item.department }}</div>
                         <div class="text-muted" style="font-size: 0.75rem;">{{ item.designation }}</div>
+                    </td>
+                    <td>
+                        {% if item.project_name and item.project_name != 'Not Assigned' %}
+                            <div class="fw-semibold text-dark">{{ item.project_name }}</div>
+                        {% else %}
+                            <span class="text-muted">Not Assigned</span>
+                        {% endif %}
                     </td>
                     <td>
                         <span class="fw-semibold text-secondary">{{ item.leave_type }}</span>
@@ -431,7 +449,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="10" class="text-center py-4 text-muted">
+                    <td colspan="11" class="text-center py-4 text-muted">
                         <i class="bi bi-calendar-x d-block mb-2" style="font-size: 2rem; color: #CBD5E1;"></i>
                         No leave requests found matching the current criteria.
                     </td>
@@ -551,7 +569,7 @@
             pageLength: 10,
             lengthMenu: [5, 10, 25, 50, 100],
             columnDefs: [{ orderable: false, targets: -1 }],
-            order: [[7, 'desc']],
+            order: [[8, 'desc']],
             dom: 'B lfrtip',
             buttons: [
                 {
@@ -653,7 +671,13 @@
                                 <div class="detail-value">${l.department} / ${l.designation}</div>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
+                            <div class="detail-row">
+                                <div class="detail-label">Project</div>
+                                <div class="detail-value text-dark">${l.project_name || 'Not Assigned'}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
                             <div class="detail-row">
                                 <div class="detail-label">Leave Type</div>
                                 <div class="detail-value text-primary">${l.leave_type}</div>

@@ -1638,10 +1638,56 @@ def apply_leave(request):
         saved_path = default_storage.save(save_name, file_obj)
         attachment_path = saved_path
 
+    # Determine project association for this leave request
+    project_obj = None
+    project_id_input = data.get('project_id') or request.POST.get('project_id')
+    if project_id_input and str(project_id_input).isdigit():
+        project_obj = Project.objects.filter(id=int(project_id_input)).first()
+
+    if not project_obj:
+        # Check active projects assigned to this employee
+        all_emp_projects = []
+        for p in Project.objects.filter(company_id=employee.company_id):
+            is_sm = (p.site_manager == employee.id)
+            staff_list = p.field_staff if isinstance(p.field_staff, list) else []
+            is_staff = (employee.id in staff_list or str(employee.id) in [str(x) for x in staff_list])
+            if is_sm or is_staff:
+                all_emp_projects.append(p)
+
+        # 1. If only 1 project assigned across the company, associate it directly
+        if len(all_emp_projects) == 1:
+            project_obj = all_emp_projects[0]
+        elif len(all_emp_projects) > 1:
+            # 2. Check projects active/in_progress during the requested leave date range
+            matching_during_dates = []
+            for p in all_emp_projects:
+                p_start = p.start_date
+                p_end = p.end_date
+                # If project has dates defined, check overlap with leave dates
+                if p_start and p_end:
+                    if p_start <= end_date and p_end >= start_date:
+                        matching_during_dates.append(p)
+                elif p_start and not p_end:
+                    if p_start <= end_date:
+                        matching_during_dates.append(p)
+
+            if len(matching_during_dates) == 1:
+                project_obj = matching_during_dates[0]
+            else:
+                # 3. Check if active attendance or recent attendance points to a single project
+                recent_att = EmployeeAttendance.objects.filter(
+                    employee_id=employee.id
+                ).order_by('-punch_in').first()
+                if recent_att and hasattr(recent_att, 'project_id') and recent_att.project_id:
+                    att_proj = Project.objects.filter(id=recent_att.project_id).first()
+                    if att_proj and att_proj in all_emp_projects:
+                        project_obj = att_proj
+
     try:
         leave_request = LeaveRequest.objects.create(
             company_id=employee.company_id,
             employee=employee,
+            project=project_obj,
             leave_type=leave_type,
             start_date=start_date,
             end_date=end_date,
@@ -1675,6 +1721,8 @@ def apply_leave(request):
                 'leave_id': leave_request.id,
                 'employee_id': employee.id,
                 'employee_name': employee.name,
+                'project_id': leave_request.project_id,
+                'project_name': (leave_request.project.project_name or leave_request.project.client_name) if leave_request.project else None,
                 'leave_type': leave_request.leave_type,
                 'start_date': str(leave_request.start_date),
                 'end_date': str(leave_request.end_date),
@@ -1719,7 +1767,7 @@ def get_employee_leaves(request):
 
         status_filter = data.get('status') or request.GET.get('status') or request.POST.get('status')
 
-        leaves_qs = LeaveRequest.objects.filter(employee=employee)
+        leaves_qs = LeaveRequest.objects.filter(employee=employee).select_related('project')
         if status_filter in ['pending', 'approved', 'rejected']:
             leaves_qs = leaves_qs.filter(status=status_filter)
 
@@ -1739,8 +1787,11 @@ def get_employee_leaves(request):
 
         records = []
         for l in leaves_qs:
+            proj_name = (l.project.project_name or l.project.client_name) if l.project else 'Not Assigned'
             records.append({
                 'id': l.id,
+                'project_id': l.project_id,
+                'project_name': proj_name,
                 'leave_type': l.leave_type,
                 'start_date': str(l.start_date),
                 'end_date': str(l.end_date),

@@ -1254,13 +1254,14 @@ def leave_management_index(request):
     company_id = request.session.get('company_id', 1)
 
     employee_filter = request.GET.get('employee', '').strip()
+    project_filter = request.GET.get('project', '').strip()
     department_filter = request.GET.get('department', '').strip()
     leave_type_filter = request.GET.get('leave_type', '').strip()
     status_filter = request.GET.get('status', '').strip()
     start_date_filter = request.GET.get('start_date', '').strip()
     end_date_filter = request.GET.get('end_date', '').strip()
 
-    qs = LeaveRequest.objects.select_related('employee').all()
+    qs = LeaveRequest.objects.select_related('employee', 'project').all()
 
     # Pre-calculate counts before dynamic filters for dashboard KPIs
     total_count = qs.count()
@@ -1268,7 +1269,62 @@ def leave_management_index(request):
     approved_count = qs.filter(status='approved').count()
     rejected_count = qs.filter(status='rejected').count()
 
-    # Apply filters
+    # Pre-fetch all projects for assignment mapping and dropdown
+    all_projects = list(Project.objects.all().order_by('project_name', 'client_name'))
+    project_dict = {p.id: p for p in all_projects}
+
+    # Map employee IDs to their assigned projects
+    # Each employee can be site_manager or in field_staff
+    emp_to_projects = {}
+    for p in all_projects:
+        if p.site_manager:
+            emp_to_projects.setdefault(p.site_manager, []).append(p)
+        if isinstance(p.field_staff, list):
+            for eid in p.field_staff:
+                try:
+                    emp_to_projects.setdefault(int(eid), []).append(p)
+                except (ValueError, TypeError):
+                    pass
+
+    # Helper function to resolve the project display for a leave request
+    def resolve_leave_project(leave):
+        # 1. If explicit project foreign key is set on the request
+        if leave.project_id and leave.project_id in project_dict:
+            p = project_dict[leave.project_id]
+            return p.id, p.project_name or p.client_name or f"Project #{p.id}"
+
+        # 2. Check employee assignments
+        emp = leave.employee
+        if not emp:
+            return None, 'Not Assigned'
+
+        assigned_projs = emp_to_projects.get(emp.id, [])
+        if not assigned_projs:
+            return None, 'Not Assigned'
+
+        if len(assigned_projs) == 1:
+            p = assigned_projs[0]
+            return p.id, p.project_name or p.client_name or f"Project #{p.id}"
+
+        # Multiple assignments: filter by project schedule/active dates matching leave dates
+        matching_date_projs = []
+        for p in assigned_projs:
+            if p.start_date and p.end_date:
+                if p.start_date <= leave.end_date and p.end_date >= leave.start_date:
+                    matching_date_projs.append(p)
+            elif p.start_date and not p.end_date:
+                if p.start_date <= leave.end_date:
+                    matching_date_projs.append(p)
+
+        if len(matching_date_projs) == 1:
+            p = matching_date_projs[0]
+            return p.id, p.project_name or p.client_name or f"Project #{p.id}"
+
+        # If multiple projects still overlap, or none have dates, return 'Not Assigned'
+        # to never show arbitrary guesses
+        return None, 'Not Assigned'
+
+    # Apply database-level filters
     if employee_filter and employee_filter.isdigit():
         qs = qs.filter(employee_id=int(employee_filter))
 
@@ -1299,6 +1355,17 @@ def leave_management_index(request):
         if department_filter and str(dept_id) != str(department_filter):
             continue
 
+        resolved_proj_id, resolved_proj_name = resolve_leave_project(leave)
+
+        # Apply project filter
+        if project_filter:
+            if project_filter.isdigit():
+                if resolved_proj_id != int(project_filter):
+                    continue
+            elif project_filter.lower() == 'unassigned':
+                if resolved_proj_id is not None:
+                    continue
+
         leaves_list.append({
             'id': leave.id,
             'employee_id': emp.id if emp else None,
@@ -1306,6 +1373,8 @@ def leave_management_index(request):
             'employee_code': f"EMP-{emp.id:04d}" if emp else '—',
             'designation': desig_name,
             'department': dept_name,
+            'project_id': resolved_proj_id,
+            'project_name': resolved_proj_name,
             'leave_type': leave.leave_type,
             'start_date': leave.start_date,
             'end_date': leave.end_date,
@@ -1331,9 +1400,11 @@ def leave_management_index(request):
         'approved_count': approved_count,
         'rejected_count': rejected_count,
         'employees': all_employees,
+        'projects': all_projects,
         'departments': all_departments,
         'leave_types': leave_types,
         'employee_filter': employee_filter,
+        'project_filter': project_filter,
         'department_filter': department_filter,
         'leave_type_filter': leave_type_filter,
         'status_filter': status_filter,
@@ -1347,10 +1418,34 @@ def leave_request_detail(request, id):
     """
     JSON detail endpoint for viewing the complete leave request in review modal.
     """
-    leave = get_object_or_404(LeaveRequest.objects.select_related('employee'), id=id)
+    leave = get_object_or_404(LeaveRequest.objects.select_related('employee', 'project'), id=id)
     emp = leave.employee
     desig = DesignationMaster.objects.filter(id=emp.role).first() if emp and emp.role else None
     dept = DepartmentMaster.objects.filter(id=desig.department_id).first() if desig and desig.department_id else None
+
+    # Determine project name
+    proj_name = 'Not Assigned'
+    if leave.project:
+        proj_name = leave.project.project_name or leave.project.client_name or f"Project #{leave.project.id}"
+    elif emp:
+        # Check active assignment
+        assigned_projs = []
+        for p in Project.objects.all():
+            is_sm = (p.site_manager == emp.id)
+            staff_list = p.field_staff if isinstance(p.field_staff, list) else []
+            is_staff = (emp.id in staff_list or str(emp.id) in [str(x) for x in staff_list])
+            if is_sm or is_staff:
+                assigned_projs.append(p)
+
+        if len(assigned_projs) == 1:
+            proj_name = assigned_projs[0].project_name or assigned_projs[0].client_name
+        elif len(assigned_projs) > 1:
+            matching_projs = [
+                p for p in assigned_projs
+                if p.start_date and p.end_date and p.start_date <= leave.end_date and p.end_date >= leave.start_date
+            ]
+            if len(matching_projs) == 1:
+                proj_name = matching_projs[0].project_name or matching_projs[0].client_name
 
     return JsonResponse({
         'success': True,
@@ -1363,6 +1458,7 @@ def leave_request_detail(request, id):
             'phone': emp.phone if emp else '',
             'designation': desig.designation_name if desig else '—',
             'department': dept.department_name if dept else '—',
+            'project_name': proj_name,
             'leave_type': leave.leave_type,
             'start_date': leave.start_date.strftime('%Y-%m-%d'),
             'end_date': leave.end_date.strftime('%Y-%m-%d'),
