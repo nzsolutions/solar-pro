@@ -71,4 +71,10 @@ urlpatterns = [
     path('admin/activity-schedules/generate', views.activity_schedule_generate_tasks, name='admin_activity_schedules_generate'),
     path('admin/activity-tasks/<int:id>/update-status', views.activity_task_update_status, name='admin_activity_tasks_update_status'),
     path('admin/activity-schedules/calendar-events', views.activity_calendar_events_json, name='admin_activity_schedules_calendar_events'),
+
+    # Unified Task Reassignment & Availability Endpoints
+    path('admin/reassignment/affected-tasks/<int:leave_id>', views.reassignment_affected_tasks_json, name='admin_reassignment_affected_tasks'),
+    path('admin/reassignment/candidates', views.reassignment_candidates_json, name='admin_reassignment_candidates'),
+    path('admin/reassignment/execute', views.reassignment_execute, name='admin_reassignment_execute'),
+    path('admin/reassignment/history', views.reassignment_history_json, name='admin_reassignment_history'),
 ]

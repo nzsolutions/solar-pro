@@ -1512,10 +1512,25 @@ def leave_request_approve(request, id):
             except Exception:
                 pass
 
-        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('format') == 'json':
-            return JsonResponse({'success': True, 'message': f'Leave request #{leave.id} approved successfully.'})
+        from apps.masters.availability_service import EmployeeAvailabilityService
+        affected_info = EmployeeAvailabilityService.get_affected_tasks_for_leave(leave)
+        total_affected = affected_info['total_affected']
 
-        messages.success(request, f'Leave request #{leave.id} for {emp.name} has been approved.')
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('format') == 'json':
+            return JsonResponse({
+                'success': True,
+                'message': f'Leave request #{leave.id} approved successfully.',
+                'total_affected': total_affected,
+                'leave_id': leave.id
+            })
+
+        if total_affected > 0:
+            messages.warning(
+                request,
+                f'Leave request #{leave.id} for {emp.name} approved. Notice: {total_affected} scheduled task(s) fall within this leave window and may require reassignment.'
+            )
+        else:
+            messages.success(request, f'Leave request #{leave.id} for {emp.name} has been approved.')
     return redirect('admin_leave_management_index')
 
 
@@ -1569,5 +1584,275 @@ def leave_request_reject(request, id):
 
         messages.success(request, f'Leave request #{leave.id} for {emp.name} has been rejected.')
     return redirect('admin_leave_management_index')
+
+
+# ==============================================================================
+# UNIFIED EMPLOYEE AVAILABILITY & TASK REASSIGNMENT ENDPOINTS
+# ==============================================================================
+
+def _check_admin_privilege(request):
+    """
+    Ensures that only users with active administrator privileges (is_admin == 1)
+    can access reassignment operations, rejecting regular employees (is_admin == 0)
+    with HTTP 403 Forbidden.
+    """
+    is_admin = request.session.get('is_admin')
+    # Treat 1 or '1' as admin; all other values (0, '0', None) are non-admin
+    if is_admin != 1 and str(is_admin) != '1':
+        return JsonResponse({
+            'success': False,
+            'message': 'Access denied. Administrator privileges required.'
+        }, status=403)
+    return None
+
+
+@admin_required
+def reassignment_affected_tasks_json(request, leave_id):
+    """
+    Returns JSON listing all affected tasks across both workflows (ActivityTask and
+    ProjectActivityInstance) scheduled during the specified leave request's approved dates.
+    """
+    auth_err = _check_admin_privilege(request)
+    if auth_err:
+        return auth_err
+
+    leave = get_object_or_404(LeaveRequest.objects.select_related('employee', 'project'), id=leave_id)
+    from apps.masters.availability_service import EmployeeAvailabilityService
+    affected = EmployeeAvailabilityService.get_affected_tasks_for_leave(leave)
+    return JsonResponse({
+        'success': True,
+        'leave_id': leave.id,
+        'employee_id': leave.employee_id,
+        'employee_name': leave.employee.name if leave.employee else 'Employee',
+        'start_date': str(leave.start_date),
+        'end_date': str(leave.end_date),
+        'days_count': str(leave.days_count),
+        'total_affected': affected['total_affected'],
+        'activity_tasks': affected['activity_tasks'],
+        'project_activity_instances': affected['project_activity_instances']
+    })
+
+
+@admin_required
+def reassignment_candidates_json(request):
+    """
+    Returns eligible replacement candidates strictly restricted to the target task's project team.
+    Calculates each candidate's global workload, approved leave, and availability classification.
+    """
+    auth_err = _check_admin_privilege(request)
+    if auth_err:
+        return auth_err
+
+    workflow_type = request.GET.get('workflow_type', 'activity_task').strip()
+    task_id = request.GET.get('task_id')
+    company_id = request.session.get('company_id', 1)
+
+    if not task_id or not str(task_id).isdigit():
+        return JsonResponse({'success': False, 'message': 'task_id is required.'}, status=400)
+
+    task_id = int(task_id)
+    project = None
+    target_date = None
+    current_employee_id = None
+    current_employee_name = 'Unassigned'
+    task_title = ''
+    task_code = ''
+    task_status = ''
+    in_progress = False
+    photos_count = 0
+    actual_start_time = None
+
+    if workflow_type == 'activity_task':
+        task = ActivityTask.objects.select_related('project', 'activity', 'assigned_to').filter(id=task_id, company_id=company_id).first()
+        if not task:
+            return JsonResponse({'success': False, 'message': 'Activity Task not found.'}, status=404)
+        project = task.project
+        target_date = task.task_date
+        current_employee_id = task.assigned_to_id
+        current_employee_name = task.assigned_to.name if task.assigned_to else 'Unassigned'
+        task_title = task.task_title
+        task_code = task.task_code or f"TSK-{task.id}"
+        task_status = task.status
+        in_progress = (task.status == 'In Progress')
+    elif workflow_type == 'project_activity_instance':
+        from apps.operations.models import ProjectActivityInstance
+        inst = ProjectActivityInstance.objects.select_related('project', 'activity', 'assigned_employee').filter(id=task_id, company_id=company_id).first()
+        if not inst:
+            return JsonResponse({'success': False, 'message': 'Project Activity Instance not found.'}, status=404)
+        project = inst.project
+        target_date = inst.scheduled_date
+        current_employee_id = inst.assigned_employee_id
+        current_employee_name = inst.assigned_employee.name if inst.assigned_employee else 'Unassigned'
+        task_title = inst.activity.activity_title if inst.activity else f"Activity #{inst.id}"
+        task_code = f"ACT-{inst.id:04d}"
+        task_status = inst.status
+        in_progress = (inst.status == 'In Progress')
+        photos_count = inst.photos.count()
+        actual_start_time = inst.actual_start_time.strftime('%d %b %Y, %H:%M') if inst.actual_start_time else None
+    else:
+        return JsonResponse({'success': False, 'message': f'Invalid workflow_type: {workflow_type}'}, status=400)
+
+    if not project:
+        return JsonResponse({'success': False, 'message': 'Task is not assigned to a valid project.'}, status=400)
+
+    # Strictly enforce: Task assignee must be on approved leave covering target_date
+    if not current_employee_id:
+        return JsonResponse({'success': False, 'message': 'Cannot perform leave-based reassignment on an unassigned task.'}, status=400)
+
+    has_approved_leave = LeaveRequest.objects.filter(
+        employee_id=current_employee_id,
+        status='approved',
+        start_date__lte=target_date,
+        end_date__gte=target_date
+    ).exists()
+    if not has_approved_leave:
+        return JsonResponse({
+            'success': False,
+            'message': f'Reassignment is only permitted for tasks where the assigned employee is on approved leave covering {target_date}.'
+        }, status=400)
+
+    from apps.masters.availability_service import EmployeeAvailabilityService
+    candidates = EmployeeAvailabilityService.get_project_team_candidates(
+        project_id=project.id,
+        target_date=target_date,
+        exclude_employee_id=current_employee_id,
+        company_id=company_id
+    )
+
+    return JsonResponse({
+        'success': True,
+        'task': {
+            'id': task_id,
+            'workflow_type': workflow_type,
+            'task_code': task_code,
+            'title': task_title,
+            'status': task_status,
+            'in_progress': in_progress,
+            'photos_count': photos_count,
+            'actual_start_time': actual_start_time,
+            'target_date': str(target_date),
+            'project_id': project.id,
+            'project_name': project.project_name or project.client_name or f"Project #{project.id}",
+            'current_employee_id': current_employee_id,
+            'current_employee_name': current_employee_name
+        },
+        'candidates': candidates,
+        'candidates_count': len(candidates)
+    })
+
+
+@admin_required
+def reassignment_execute(request):
+    """
+    Executes atomic manual reassignment of an ActivityTask or ProjectActivityInstance.
+    Enforces optimistic concurrency checks, project team validation, leave rules,
+    In-Progress handover policy, and audit logging.
+    """
+    auth_err = _check_admin_privilege(request)
+    if auth_err:
+        return auth_err
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Method not allowed. POST required.'}, status=405)
+
+    company_id = request.session.get('company_id', 1)
+    admin_user = request.session.get('name') or ('Admin' if request.session.get('is_admin') == 1 else 'Administrator')
+
+    workflow_type = request.POST.get('workflow_type', '').strip()
+    task_id = request.POST.get('task_id')
+    new_employee_id = request.POST.get('new_employee_id')
+    expected_previous_employee_id = request.POST.get('expected_previous_employee_id')
+    reason = request.POST.get('reason', '').strip()
+    handover_remarks = request.POST.get('handover_remarks', '').strip()
+
+    if not task_id or not str(task_id).isdigit():
+        return JsonResponse({'success': False, 'message': 'Valid task_id is required.'}, status=400)
+    if not new_employee_id or not str(new_employee_id).isdigit():
+        return JsonResponse({'success': False, 'message': 'Please select a replacement employee.'}, status=400)
+
+    task_id = int(task_id)
+    new_employee_id = int(new_employee_id)
+
+    from django.core.exceptions import ValidationError
+    from apps.masters.reassignment_service import TaskReassignmentService, ConcurrencyConflictError
+
+    try:
+        if workflow_type == 'activity_task':
+            res = TaskReassignmentService.reassign_activity_task(
+                task_id=task_id,
+                new_employee_id=new_employee_id,
+                admin_user=admin_user,
+                reason=reason,
+                handover_remarks=handover_remarks,
+                expected_previous_employee_id=expected_previous_employee_id,
+                company_id=company_id
+            )
+        elif workflow_type == 'project_activity_instance':
+            res = TaskReassignmentService.reassign_project_activity_instance(
+                instance_id=task_id,
+                new_employee_id=new_employee_id,
+                admin_user=admin_user,
+                reason=reason,
+                handover_remarks=handover_remarks,
+                expected_previous_employee_id=expected_previous_employee_id,
+                company_id=company_id
+            )
+        else:
+            return JsonResponse({'success': False, 'message': f'Invalid workflow_type: {workflow_type}'}, status=400)
+
+        return JsonResponse(res)
+
+    except ConcurrencyConflictError as ce:
+        return JsonResponse({'success': False, 'conflict': True, 'message': str(ce.message if hasattr(ce, 'message') else ce)}, status=409)
+    except ValidationError as e:
+        return JsonResponse({'success': False, 'message': str(e.message if hasattr(e, 'message') else e)}, status=422)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Reassignment failed: {str(e)}'}, status=500)
+
+
+@admin_required
+def reassignment_history_json(request):
+    """
+    Returns audit logs of reassignments for a specific task or project.
+    """
+    auth_err = _check_admin_privilege(request)
+    if auth_err:
+        return auth_err
+
+    workflow_type = request.GET.get('workflow_type')
+    task_id = request.GET.get('task_id')
+    project_id = request.GET.get('project_id')
+    company_id = request.session.get('company_id', 1)
+
+    qs = TaskReassignmentLog.objects.filter(company_id=company_id).select_related('project')
+
+    if workflow_type:
+        qs = qs.filter(workflow_type=workflow_type)
+    if task_id and task_id.isdigit():
+        if workflow_type == 'activity_task':
+            qs = qs.filter(activity_task_id=int(task_id))
+        elif workflow_type == 'project_activity_instance':
+            qs = qs.filter(project_activity_instance_id=int(task_id))
+    if project_id and project_id.isdigit():
+        qs = qs.filter(project_id=int(project_id))
+
+    logs = []
+    for l in qs[:50]:
+        logs.append({
+            'id': l.id,
+            'workflow_type': l.workflow_type,
+            'task_date': str(l.task_date),
+            'project_name': l.project.project_name or l.project.client_name if l.project else '—',
+            'previous_employee': l.previous_employee_name,
+            'new_employee': l.new_employee_name,
+            'reassigned_by': l.reassigned_by,
+            'reassigned_at': l.reassigned_at.strftime('%d %b %Y, %H:%M'),
+            'reason': l.reason or '—',
+            'handover_remarks': l.handover_remarks or '—'
+        })
+
+    return JsonResponse({'success': True, 'logs': logs, 'count': len(logs)})
+
+
 
 

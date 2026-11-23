@@ -645,4 +645,92 @@ class ActivityTask(models.Model):
         return False
 
 
+class TaskReassignmentLog(models.Model):
+    """
+    Audit log tracking manual task reassignments across both workflows:
+    - ActivityTask (Admin Activity Scheduling)
+    - ProjectActivityInstance (Operations / Mobile Activity Execution)
+    """
+    WORKFLOW_CHOICES = [
+        ('activity_task', 'Activity Task (Scheduling)'),
+        ('project_activity_instance', 'Project Activity Instance (Mobile)'),
+    ]
+
+    id = models.BigAutoField(primary_key=True)
+    company_id = models.IntegerField(default=1)
+    workflow_type = models.CharField(max_length=35, choices=WORKFLOW_CHOICES)
+    
+    activity_task = models.ForeignKey(
+        'masters.ActivityTask',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='reassignment_logs',
+        db_column='activity_task_id'
+    )
+    project_activity_instance = models.ForeignKey(
+        'operations.ProjectActivityInstance',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='reassignment_logs',
+        db_column='project_activity_instance_id'
+    )
+    
+    project = models.ForeignKey(
+        'operations.Project',
+        on_delete=models.CASCADE,
+        related_name='reassignment_logs',
+        db_column='project_id'
+    )
+    
+    previous_employee = models.ForeignKey(
+        'employees.Employee',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='reassignments_from',
+        db_column='previous_employee_id'
+    )
+    previous_employee_name = models.CharField(max_length=150, blank=True)
+    
+    new_employee = models.ForeignKey(
+        'employees.Employee',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='reassignments_to',
+        db_column='new_employee_id'
+    )
+    new_employee_name = models.CharField(max_length=150, blank=True)
+    
+    reassigned_by = models.CharField(max_length=150)
+    reassigned_at = models.DateTimeField(auto_now_add=True)
+    task_date = models.DateField()
+    reason = models.TextField(blank=True, null=True)
+    handover_remarks = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'task_reassignment_logs'
+        ordering = ['-reassigned_at']
+        indexes = [
+            models.Index(fields=['workflow_type', 'task_date']),
+            models.Index(fields=['project', 'task_date']),
+            models.Index(fields=['reassigned_at']),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(workflow_type='activity_task', activity_task__isnull=False, project_activity_instance__isnull=True) |
+                    models.Q(workflow_type='project_activity_instance', project_activity_instance__isnull=False, activity_task__isnull=True)
+                ),
+                name='reassignment_log_mutually_exclusive_task'
+            )
+        ]
+
+    def __str__(self):
+        return f"[{self.workflow_type}] {self.previous_employee_name} -> {self.new_employee_name} on {self.task_date}"
+
+
+
 
