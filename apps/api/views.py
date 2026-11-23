@@ -1862,7 +1862,10 @@ def authenticate_employee_request(request):
 def get_employee_activities(request):
     """
     1. Fetch activities assigned to the authenticated employee.
-    Filters instances where assigned_employee = employee, or employee is part of project field_staff.
+    Filters instances where assigned_employee = employee, or employee is part of project field_staff
+    (excluding activities specifically assigned to other team members).
+    This ensures that when a task is reassigned to Employee B, Employee B sees it, and previous
+    assignee Employee A no longer sees it in their assigned activities feed.
     """
     employee, err = authenticate_employee_request(request)
     if err:
@@ -1881,8 +1884,11 @@ def get_employee_activities(request):
             if p.site_manager == employee.id or str(employee.id) in [str(x) for x in staff]:
                 accessible_project_ids.append(p.id)
 
+        # Show activities strictly assigned to this employee, OR unassigned activities in projects they access.
+        # Tasks assigned to another employee are NOT shown in this employee's assigned feed.
         qs = ProjectActivityInstance.objects.filter(
-            Q(assigned_employee=employee) | Q(project_id__in=accessible_project_ids)
+            Q(assigned_employee=employee) |
+            (Q(project_id__in=accessible_project_ids) & Q(assigned_employee__isnull=True))
         ).select_related('project', 'activity', 'project_activity', 'project_activity__form')
 
         if project_id and str(project_id).isdigit():

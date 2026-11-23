@@ -1,0 +1,363 @@
+<!-- ==============================================================================
+     UNIFIED TASK REASSIGNMENT MODAL
+     Works across both workflows:
+     - workflow_type: 'activity_task' (Admin Activity Scheduling)
+     - workflow_type: 'project_activity_instance' (Operations / Mobile Activity Execution)
+     ============================================================================== -->
+<div class="modal fade" id="unifiedReassignModal" tabindex="-1" aria-labelledby="unifiedReassignModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-light py-3 border-bottom">
+                <div>
+                    <h5 class="modal-title fw-bold text-dark mb-0" id="unifiedReassignModalLabel">
+                        <i class="bi bi-person-gear text-primary me-2"></i>Leave-Based Task Reassignment
+                    </h5>
+                    <small class="text-muted" id="reassignTaskSubtitle">Select an eligible replacement employee from the project team to cover approved leave</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            
+            <div class="modal-body p-4">
+                <!-- Task Context Info Card -->
+                <div class="card border bg-light mb-4 shadow-none">
+                    <div class="card-body p-3">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-3">
+                                <span class="text-muted small d-block">Task Reference</span>
+                                <span class="fw-bold text-dark" id="modalTaskCode">—</span>
+                            </div>
+                            <div class="col-md-3">
+                                <span class="text-muted small d-block">Target Project</span>
+                                <span class="fw-bold text-dark text-truncate d-block" id="modalProjectName">—</span>
+                            </div>
+                            <div class="col-md-3">
+                                <span class="text-muted small d-block">Scheduled Date</span>
+                                <span class="fw-bold text-dark" id="modalTaskDate">—</span>
+                            </div>
+                            <div class="col-md-3">
+                                <span class="text-muted small d-block">Current Assignee</span>
+                                <span class="badge bg-secondary text-white" id="modalCurrentAssignee">—</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- In-Progress Warning Alert (Conditional) -->
+                <div id="modalInProgressWarning" class="alert alert-warning border-warning d-none mb-4" role="alert">
+                    <div class="d-flex align-items-start">
+                        <i class="bi bi-exclamation-triangle-fill fs-4 me-3 text-warning"></i>
+                        <div>
+                            <h6 class="alert-heading fw-bold mb-1">In-Progress Task Reassignment Notice</h6>
+                            <p class="mb-1 small">
+                                This task is currently <strong>In Progress</strong> (Started: <span id="modalStartTime">—</span>).
+                                Uploaded photos (<span id="modalPhotoCount">0</span>) and submitted form answers will be strictly preserved.
+                            </p>
+                            <small class="fw-semibold text-dark">
+                                Policy Requirement: Enter mandatory handover remarks explaining the transition before confirming.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reassignment Form -->
+                <form id="unifiedReassignForm" onsubmit="submitUnifiedReassignment(event)">
+                    {% csrf_token %}
+                    <input type="hidden" name="workflow_type" id="reassignWorkflowType" value="">
+                    <input type="hidden" name="task_id" id="reassignTaskId" value="">
+                    <input type="hidden" name="expected_previous_employee_id" id="reassignExpectedPreviousEmployeeId" value="">
+
+                    <!-- Candidate Selection Section -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-bold mb-0">
+                                Eligible Project Team Members <span class="text-danger">*</span>
+                            </label>
+                            <small class="text-muted">Sorted by availability & lowest workload</small>
+                        </div>
+
+                        <!-- Loading State -->
+                        <div id="candidatesLoading" class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span class="ms-2 text-muted small">Loading project candidates and calculating global workload...</span>
+                        </div>
+
+                        <!-- Candidates List Container -->
+                        <div id="candidatesContainer" class="d-none">
+                            <div class="table-responsive border rounded" style="max-height: 280px; overflow-y: auto;">
+                                <table class="table table-hover align-middle mb-0 candidate-table">
+                                    <thead class="table-light sticky-top">
+                                        <tr class="small text-muted">
+                                            <th style="width: 40px;">Select</th>
+                                            <th>Employee</th>
+                                            <th>Project Role</th>
+                                            <th>Availability</th>
+                                            <th class="text-center">Target Date Tasks</th>
+                                            <th class="text-center">Global Pending</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="candidatesTableBody">
+                                        <!-- Rendered via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="noCandidatesAlert" class="alert alert-info small mt-2 d-none">
+                                <i class="bi bi-info-circle me-1"></i> No other eligible members found in this project's team.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Handover Remarks (Mandatory for In-Progress) -->
+                    <div class="mb-3 d-none" id="handoverRemarksContainer">
+                        <label class="form-label fw-bold small text-danger" for="reassignHandoverRemarks">
+                            Handover Remarks (Mandatory for In-Progress) <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control form-control-sm" id="reassignHandoverRemarks" name="handover_remarks" rows="2" placeholder="Describe the current progress, completed steps, and next actions for the replacement employee..."></textarea>
+                    </div>
+
+                    <!-- Reason for Reassignment -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small" for="reassignReason">Reason for Reassignment</label>
+                        <input type="text" class="form-control form-control-sm" id="reassignReason" name="reason" placeholder="e.g. Employee on approved medical leave / Site workload balancing">
+                    </div>
+
+                    <div id="reassignErrorMessage" class="alert alert-danger small d-none py-2 mb-3"></div>
+
+                    <div class="modal-footer px-0 pb-0 pt-3 border-top">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-sm btn-primary px-4 fw-semibold" id="confirmReassignBtn" disabled>
+                            <i class="bi bi-check-circle me-1"></i>Confirm Reassignment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentTaskData = null;
+
+function openUnifiedReassignModal(workflowType, taskId) {
+    const modalEl = document.getElementById('unifiedReassignModal');
+    const bsModal = new bootstrap.Modal(modalEl);
+
+    document.getElementById('reassignWorkflowType').value = workflowType;
+    document.getElementById('reassignTaskId').value = taskId;
+    document.getElementById('reassignExpectedPreviousEmployeeId').value = '';
+    document.getElementById('reassignReason').value = '';
+    document.getElementById('reassignHandoverRemarks').value = '';
+    document.getElementById('reassignErrorMessage').classList.add('d-none');
+    document.getElementById('confirmReassignBtn').disabled = true;
+
+    document.getElementById('candidatesLoading').classList.remove('d-none');
+    document.getElementById('candidatesContainer').classList.add('d-none');
+    document.getElementById('modalInProgressWarning').classList.add('d-none');
+    document.getElementById('handoverRemarksContainer').classList.add('d-none');
+    document.getElementById('retainSupportingContainer').classList.add('d-none');
+
+    bsModal.show();
+
+    // Fetch candidate options and task info
+    fetch(`/admin/reassignment/candidates?workflow_type=${encodeURIComponent(workflowType)}&task_id=${encodeURIComponent(taskId)}`)
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('candidatesLoading').classList.add('d-none');
+            document.getElementById('candidatesContainer').classList.remove('d-none');
+
+            if (!data.success) {
+                document.getElementById('reassignErrorMessage').textContent = data.message || 'Failed to load candidates.';
+                document.getElementById('reassignErrorMessage').classList.remove('d-none');
+                return;
+            }
+
+            currentTaskData = data.task;
+            document.getElementById('modalTaskCode').textContent = data.task.task_code;
+            document.getElementById('modalProjectName').textContent = data.task.project_name;
+            document.getElementById('modalTaskDate').textContent = data.task.target_date;
+            document.getElementById('modalCurrentAssignee').textContent = data.task.current_employee_name;
+            document.getElementById('reassignExpectedPreviousEmployeeId').value = data.task.current_employee_id || '';
+
+            // In-Progress handling
+            if (data.task.in_progress) {
+                document.getElementById('modalInProgressWarning').classList.remove('d-none');
+                document.getElementById('handoverRemarksContainer').classList.remove('d-none');
+                document.getElementById('modalStartTime').textContent = data.task.actual_start_time || 'Earlier today';
+                document.getElementById('modalPhotoCount').textContent = data.task.photos_count || 0;
+            }
+
+            renderCandidatesTable(data.candidates);
+        })
+        .catch(err => {
+            document.getElementById('candidatesLoading').classList.add('d-none');
+            document.getElementById('reassignErrorMessage').textContent = 'Network error while fetching candidate options.';
+            document.getElementById('reassignErrorMessage').classList.remove('d-none');
+        });
+}
+
+function renderCandidatesTable(candidates) {
+    const tbody = document.getElementById('candidatesTableBody');
+    tbody.innerHTML = '';
+
+    if (!candidates || candidates.length === 0) {
+        document.getElementById('noCandidatesAlert').classList.remove('d-none');
+        return;
+    }
+    document.getElementById('noCandidatesAlert').classList.add('d-none');
+
+    candidates.forEach(c => {
+        const tr = document.createElement('tr');
+        if (!c.is_selectable) {
+            tr.classList.add('table-light', 'text-muted');
+        }
+
+        const isChecked = false;
+        const disabledAttr = c.is_selectable ? '' : 'disabled';
+        
+        // Availability badge
+        let badgeHtml = '';
+        if (c.classification === 'On Leave') {
+            badgeHtml = `<span class="badge bg-danger text-white"><i class="bi bi-x-circle me-1"></i>On Leave</span>`;
+        } else if (c.classification === 'Half-Day Leave') {
+            badgeHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Half-Day Leave</span>`;
+        } else if (c.classification === 'Busy') {
+            badgeHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Busy (${c.target_date_tasks_count})</span>`;
+        } else {
+            badgeHtml = `<span class="badge bg-success text-white"><i class="bi bi-check-circle me-1"></i>Available</span>`;
+        }
+
+        const radioName = 'selected_candidate_id';
+        const radioId = `cand_${c.employee_id}`;
+
+        tr.innerHTML = `
+            <td>
+                <input class="form-check-input" type="radio" name="${radioName}" id="${radioId}" value="${c.employee_id}" ${disabledAttr} onchange="onCandidateSelected(${c.employee_id})">
+            </td>
+            <td>
+                <label class="form-check-label d-block fw-semibold text-dark mb-0 cursor-pointer" for="${radioId}">
+                    ${c.employee_name}
+                </label>
+                <small class="text-muted">${c.employee_code}</small>
+            </td>
+            <td>
+                <span class="badge bg-light text-dark border">${c.project_role}</span>
+            </td>
+            <td>
+                ${badgeHtml}
+                ${c.attendance.punched_in ? `<small class="d-block text-success"><i class="bi bi-geo-alt"></i> ${c.attendance.status_label}</small>` : ''}
+            </td>
+            <td class="text-center fw-bold ${c.target_date_tasks_count > 0 ? 'text-warning' : 'text-muted'}">
+                ${c.target_date_tasks_count}
+            </td>
+            <td class="text-center">
+                <span class="fw-semibold text-dark">${c.global_workload.total_pending_all}</span>
+                <small class="text-muted d-block">(Sched: ${c.global_workload.activity_tasks.total_open} | Mob: ${c.global_workload.mobile_activities.total_open})</small>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+}
+
+function onCandidateSelected(candidateId) {
+    document.getElementById('confirmReassignBtn').disabled = false;
+}
+
+function submitUnifiedReassignment(event) {
+    event.preventDefault();
+    const btn = document.getElementById('confirmReassignBtn');
+    const errorEl = document.getElementById('reassignErrorMessage');
+    errorEl.classList.add('d-none');
+
+    const selectedRadio = document.querySelector('input[name="selected_candidate_id"]:checked');
+    if (!selectedRadio) {
+        errorEl.textContent = 'Please select a replacement employee.';
+        errorEl.classList.remove('d-none');
+        return;
+    }
+
+    const workflowType = document.getElementById('reassignWorkflowType').value;
+    const taskId = document.getElementById('reassignTaskId').value;
+    const expectedPrevEmpId = document.getElementById('reassignExpectedPreviousEmployeeId').value;
+    const newEmployeeId = selectedRadio.value;
+    const reason = document.getElementById('reassignReason').value.trim();
+    const handoverRemarks = document.getElementById('reassignHandoverRemarks').value.trim();
+    const retainSupporting = document.getElementById('retainSupportingCheck').checked;
+
+    if (currentTaskData && currentTaskData.in_progress && !handoverRemarks) {
+        errorEl.textContent = 'Handover remarks are required when reassigning an In-Progress task.';
+        errorEl.classList.remove('d-none');
+        document.getElementById('reassignHandoverRemarks').focus();
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status"></span>Reassigning...`;
+
+    const formData = new FormData();
+    formData.append('workflow_type', workflowType);
+    formData.append('task_id', taskId);
+    formData.append('new_employee_id', newEmployeeId);
+    formData.append('expected_previous_employee_id', expectedPrevEmpId);
+    formData.append('reason', reason);
+    formData.append('handover_remarks', handoverRemarks);
+    formData.append('retain_previous_as_supporting', retainSupporting ? '1' : '0');
+
+    // Get CSRF token
+    const csrfToken = document.querySelector('#unifiedReassignForm input[name="csrfmiddlewaretoken"]').value;
+
+    fetch('/admin/reassignment/execute', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(async res => {
+        const isJson = res.headers.get('content-type') && res.headers.get('content-type').includes('application/json');
+        const data = isJson ? await res.json() : { success: false, message: 'Server returned unexpected response' };
+
+        btn.disabled = false;
+        btn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Confirm Reassignment`;
+
+        if (res.status === 409 || data.conflict) {
+            // Optimistic concurrency conflict detected
+            errorEl.innerHTML = `
+                <div class="d-flex align-items-start">
+                    <i class="bi bi-exclamation-triangle-fill fs-5 me-2 text-danger"></i>
+                    <div>
+                        <strong class="d-block mb-1">Concurrency Conflict Detected</strong>
+                        <span>${data.message || 'This task has already been reassigned by another administrator.'}</span>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2" onclick="openUnifiedReassignModal('${workflowType}', ${taskId})">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Reload Task & Candidates
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+            errorEl.classList.remove('d-none');
+            return;
+        }
+
+        if (!res.ok || !data.success) {
+            errorEl.textContent = data.message || `Reassignment failed (${res.status}).`;
+            errorEl.classList.remove('d-none');
+            return;
+        }
+
+        // Close modal and show success toast / reload page
+        const modalEl = document.getElementById('unifiedReassignModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+
+        alert(data.message || 'Task reassigned successfully.');
+        window.location.reload();
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Confirm Reassignment`;
+        errorEl.textContent = 'Server error during reassignment. Please try again.';
+        errorEl.classList.remove('d-none');
+    });
+}
+</script>

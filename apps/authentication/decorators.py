@@ -99,6 +99,10 @@ MODULE_ROUTE_MAPPING = {
         'admin_activity_schedules_generate',
         'admin_activity_tasks_update_status',
         'admin_activity_schedules_calendar_events',
+        'admin_reassignment_affected_tasks',
+        'admin_reassignment_candidates',
+        'admin_reassignment_execute',
+        'admin_reassignment_history',
     ],
     'leave-management': [
         'admin_leave_management_index',
