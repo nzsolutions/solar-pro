@@ -312,13 +312,14 @@ class EmployeeAvailabilityService:
         if not s_date or not e_date or not emp_id:
             return {'activity_tasks': [], 'project_activity_instances': [], 'total_affected': 0}
 
-        # 1. ActivityTasks overlapping leave period
+        # 1. ActivityTasks overlapping leave period (primary assignee on leave)
         at_qs = ActivityTask.objects.filter(
-            Q(assigned_to_id=emp_id) | Q(assigned_staff__contains=str(emp_id)),
+            company_id=leave_request.company_id,
+            assigned_to_id=emp_id,
             task_date__gte=s_date,
             task_date__lte=e_date,
             status__in=['Pending', 'Scheduled', 'In Progress']
-        ).select_related('project', 'activity', 'assigned_to').order_by('task_date', 'id').distinct()
+        ).select_related('project', 'activity', 'assigned_to').order_by('task_date', 'id')
 
         at_items = []
         for t in at_qs:
@@ -329,21 +330,23 @@ class EmployeeAvailabilityService:
                 'title': t.task_title,
                 'activity_title': t.activity.activity_title if t.activity else 'Activity',
                 'project_id': t.project_id,
-                'project_name': t.project.project_name or t.project.client_name if t.project else 'General',
+                'project_name': (t.project.project_name or t.project.client_name) if t.project else 'General',
                 'task_date': str(t.task_date),
                 'due_datetime': t.due_datetime.strftime('%d %b, %H:%M') if t.due_datetime else '—',
                 'status': t.status,
                 'priority': t.priority,
-                'is_primary': t.assigned_to_id == emp_id,
+                'is_primary': True,
+                'assigned_to_id': t.assigned_to_id,
                 'assigned_to_name': t.assigned_to.name if t.assigned_to else 'Unassigned'
             })
 
         # 2. ProjectActivityInstances overlapping leave period
         pai_qs = ProjectActivityInstance.objects.filter(
+            company_id=leave_request.company_id,
             assigned_employee_id=emp_id,
             scheduled_date__gte=s_date,
             scheduled_date__lte=e_date,
-            status__in=['Pending', 'In Progress', 'Under Review', 'Unable to Complete']
+            status__in=['Pending', 'In Progress', 'Unable to Complete']
         ).select_related('project', 'activity', 'assigned_employee').order_by('scheduled_date', 'id')
 
         pai_items = []
@@ -355,13 +358,14 @@ class EmployeeAvailabilityService:
                 'title': inst.activity.activity_title if inst.activity else 'Operational Activity',
                 'activity_title': inst.activity.activity_title if inst.activity else 'Operational Activity',
                 'project_id': inst.project_id,
-                'project_name': inst.project.project_name or inst.project.client_name if inst.project else 'General',
+                'project_name': (inst.project.project_name or inst.project.client_name) if inst.project else 'General',
                 'task_date': str(inst.scheduled_date),
                 'due_datetime': str(inst.due_date) if inst.due_date else '—',
                 'status': inst.status,
                 'photos_count': inst.photos.count(),
                 'has_issues': inst.issues.exists(),
                 'actual_start_time': inst.actual_start_time.strftime('%d %b, %H:%M') if inst.actual_start_time else None,
+                'assigned_to_id': inst.assigned_employee_id,
                 'assigned_to_name': inst.assigned_employee.name if inst.assigned_employee else 'Unassigned'
             })
 
@@ -373,4 +377,226 @@ class EmployeeAvailabilityService:
             'start_date': str(s_date),
             'end_date': str(e_date),
             'days_count': str(leave_request.days_count)
+        }
+
+    @classmethod
+    def get_approved_leaves_reassignment_data(cls, company_id=1, search='', employee_id='', project_id='', date_from='', date_to=''):
+        """
+        Automatically fetches all approved leaves for the company and resolves:
+        1. Employees with approved leaves (pending/rejected/cancelled excluded).
+        2. Active tasks overlapping each approved leave window that still require reassignment.
+        3. Tasks already reassigned during each approved leave window (from TaskReassignmentLog).
+        """
+        leaves_qs = LeaveRequest.objects.filter(
+            company_id=company_id,
+            status='approved'
+        ).select_related('employee', 'project').order_by('-start_date', '-id')
+
+        if employee_id and str(employee_id).isdigit():
+            leaves_qs = leaves_qs.filter(employee_id=int(employee_id))
+
+        d_from = _parse_date(date_from)
+        d_to = _parse_date(date_to)
+        if d_from:
+            leaves_qs = leaves_qs.filter(end_date__gte=d_from)
+        if d_to:
+            leaves_qs = leaves_qs.filter(start_date__lte=d_to)
+
+        approved_leaves = []
+        pending_tasks = []
+        reassigned_tasks = []
+
+        search_low = (search or '').strip().lower()
+        proj_filter_id = int(project_id) if project_id and str(project_id).isdigit() else None
+
+        for leave in leaves_qs:
+            emp = leave.employee
+            if not emp:
+                continue
+
+            affected = cls.get_affected_tasks_for_leave(leave)
+            combined_pending = []
+            for t in affected['activity_tasks']:
+                if proj_filter_id and t.get('project_id') != proj_filter_id:
+                    continue
+                combined_pending.append({
+                    'leave_id': leave.id,
+                    'leave_employee_id': emp.id,
+                    'leave_employee_name': emp.name,
+                    'leave_employee_code': f"EMP-{emp.id:04d}",
+                    'leave_type': leave.leave_type,
+                    'leave_start_date': str(leave.start_date),
+                    'leave_end_date': str(leave.end_date),
+                    'leave_days_count': str(leave.days_count),
+                    'workflow_type': 'activity_task',
+                    'workflow_label': 'Scheduled Task',
+                    'task_id': t['id'],
+                    'task_code': t['task_code'],
+                    'project_id': t['project_id'],
+                    'project_name': t['project_name'],
+                    'activity_title': t['activity_title'],
+                    'scheduled_date': t['task_date'],
+                    'status': t['status'],
+                    'assigned_employee_id': t['assigned_to_id'],
+                    'assigned_employee_name': t['assigned_to_name'],
+                })
+
+            for inst in affected['project_activity_instances']:
+                if proj_filter_id and inst.get('project_id') != proj_filter_id:
+                    continue
+                combined_pending.append({
+                    'leave_id': leave.id,
+                    'leave_employee_id': emp.id,
+                    'leave_employee_name': emp.name,
+                    'leave_employee_code': f"EMP-{emp.id:04d}",
+                    'leave_type': leave.leave_type,
+                    'leave_start_date': str(leave.start_date),
+                    'leave_end_date': str(leave.end_date),
+                    'leave_days_count': str(leave.days_count),
+                    'workflow_type': 'project_activity_instance',
+                    'workflow_label': 'Mobile Activity',
+                    'task_id': inst['id'],
+                    'task_code': inst['task_code'],
+                    'project_id': inst['project_id'],
+                    'project_name': inst['project_name'],
+                    'activity_title': inst['activity_title'],
+                    'scheduled_date': inst['task_date'],
+                    'status': inst['status'],
+                    'assigned_employee_id': inst['assigned_to_id'],
+                    'assigned_employee_name': inst['assigned_to_name'],
+                })
+
+            # Already reassigned tasks for this employee during this leave window
+            logs_qs = TaskReassignmentLog.objects.filter(
+                company_id=company_id,
+                previous_employee_id=emp.id,
+                task_date__gte=leave.start_date,
+                task_date__lte=leave.end_date,
+            ).select_related(
+                'project',
+                'activity_task',
+                'activity_task__activity',
+                'activity_task__assigned_to',
+                'project_activity_instance',
+                'project_activity_instance__activity',
+                'project_activity_instance__assigned_employee',
+                'new_employee',
+            ).order_by('-reassigned_at', '-id')
+
+            if proj_filter_id:
+                logs_qs = logs_qs.filter(project_id=proj_filter_id)
+
+            seen_reassigned_keys = set()
+            leave_reassigned = []
+            for log in logs_qs:
+                if log.workflow_type == 'activity_task' and log.activity_task:
+                    task_obj = log.activity_task
+                    t_key = ('activity_task', task_obj.id)
+                    if t_key in seen_reassigned_keys:
+                        continue
+                    # Only treat as reassigned if current assignee is no longer the employee on leave
+                    if task_obj.assigned_to_id == emp.id:
+                        continue
+                    seen_reassigned_keys.add(t_key)
+                    t_code = task_obj.task_code or f"TSK-{task_obj.id}"
+                    act_title = task_obj.activity.activity_title if task_obj.activity else task_obj.task_title
+                    curr_emp_name = task_obj.assigned_to.name if task_obj.assigned_to else (log.new_employee_name or '—')
+                    curr_status = task_obj.status
+                    wf_label = 'Scheduled Task'
+                    t_id = task_obj.id
+                elif log.workflow_type == 'project_activity_instance' and log.project_activity_instance:
+                    inst_obj = log.project_activity_instance
+                    t_key = ('project_activity_instance', inst_obj.id)
+                    if t_key in seen_reassigned_keys:
+                        continue
+                    if inst_obj.assigned_employee_id == emp.id:
+                        continue
+                    seen_reassigned_keys.add(t_key)
+                    t_code = f"ACT-{inst_obj.id:04d}"
+                    act_title = inst_obj.activity.activity_title if inst_obj.activity else 'Operational Activity'
+                    curr_emp_name = inst_obj.assigned_employee.name if inst_obj.assigned_employee else (log.new_employee_name or '—')
+                    curr_status = inst_obj.status
+                    wf_label = 'Mobile Activity'
+                    t_id = inst_obj.id
+                else:
+                    continue
+
+                proj_name = (log.project.project_name or log.project.client_name) if log.project else 'General'
+                leave_reassigned.append({
+                    'leave_id': leave.id,
+                    'leave_employee_id': emp.id,
+                    'leave_employee_name': emp.name,
+                    'leave_employee_code': f"EMP-{emp.id:04d}",
+                    'leave_start_date': str(leave.start_date),
+                    'leave_end_date': str(leave.end_date),
+                    'leave_days_count': str(leave.days_count),
+                    'workflow_type': log.workflow_type,
+                    'workflow_label': wf_label,
+                    'task_id': t_id,
+                    'task_code': t_code,
+                    'project_name': proj_name,
+                    'activity_title': act_title,
+                    'scheduled_date': str(log.task_date),
+                    'previous_employee_name': log.previous_employee_name or emp.name,
+                    'new_employee_name': curr_emp_name,
+                    'task_status': curr_status,
+                    'reassigned_by': log.reassigned_by,
+                    'reassigned_at': log.reassigned_at.strftime('%d %b %Y, %H:%M') if log.reassigned_at else '—',
+                    'reason': log.reason or '',
+                })
+
+            if search_low:
+                emp_match = search_low in emp.name.lower() or search_low in f"emp-{emp.id:04d}"
+                if not emp_match:
+                    combined_pending = [
+                        row for row in combined_pending
+                        if search_low in row['task_code'].lower()
+                        or search_low in row['project_name'].lower()
+                        or search_low in row['activity_title'].lower()
+                        or search_low in row['assigned_employee_name'].lower()
+                    ]
+                    leave_reassigned = [
+                        row for row in leave_reassigned
+                        if search_low in row['task_code'].lower()
+                        or search_low in row['project_name'].lower()
+                        or search_low in row['activity_title'].lower()
+                        or search_low in row['new_employee_name'].lower()
+                    ]
+                    if not combined_pending and not leave_reassigned:
+                        continue
+
+            pending_tasks.extend(combined_pending)
+            reassigned_tasks.extend(leave_reassigned)
+
+            leave_proj_name = 'Not Assigned'
+            if leave.project:
+                leave_proj_name = leave.project.project_name or leave.project.client_name or f"Project #{leave.project.id}"
+
+            approved_leaves.append({
+                'leave_id': leave.id,
+                'employee_id': emp.id,
+                'employee_name': emp.name,
+                'employee_code': f"EMP-{emp.id:04d}",
+                'leave_type': leave.leave_type,
+                'project_name': leave_proj_name,
+                'start_date': leave.start_date,
+                'end_date': leave.end_date,
+                'start_date_str': str(leave.start_date),
+                'end_date_str': str(leave.end_date),
+                'days_count': str(leave.days_count),
+                'status': leave.status,
+                'pending_count': len(combined_pending),
+                'reassigned_count': len(leave_reassigned),
+                'total_affected': len(combined_pending) + len(leave_reassigned),
+            })
+
+        pending_tasks.sort(key=lambda x: (x['scheduled_date'], x['task_code']))
+
+        return {
+            'approved_leaves': approved_leaves,
+            'pending_tasks': pending_tasks,
+            'reassigned_tasks': reassigned_tasks,
+            'approved_leaves_count': len(approved_leaves),
+            'pending_count': len(pending_tasks),
+            'reassigned_count': len(reassigned_tasks),
         }

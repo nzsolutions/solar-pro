@@ -120,6 +120,13 @@
                         <input type="text" class="form-control form-control-sm" id="reassignReason" name="reason" placeholder="e.g. Employee on approved medical leave / Site workload balancing">
                     </div>
 
+                    <!-- Selected Candidate Confirmation Summary -->
+                    <div id="selectedCandidateBanner" class="alert alert-info border-info small d-none py-2 mb-3">
+                        <i class="bi bi-person-check-fill me-1"></i>
+                        Selected Replacement: <strong id="selectedCandidateNameDisplay">—</strong>
+                        <span class="text-muted ms-1" id="selectedCandidateRoleDisplay"></span>
+                    </div>
+
                     <div id="reassignErrorMessage" class="alert alert-danger small d-none py-2 mb-3"></div>
 
                     <div class="modal-footer px-0 pb-0 pt-3 border-top">
@@ -136,10 +143,11 @@
 
 <script>
 let currentTaskData = null;
+let currentCandidatesMap = {};
 
 function openUnifiedReassignModal(workflowType, taskId) {
     const modalEl = document.getElementById('unifiedReassignModal');
-    const bsModal = new bootstrap.Modal(modalEl);
+    const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
     document.getElementById('reassignWorkflowType').value = workflowType;
     document.getElementById('reassignTaskId').value = taskId;
@@ -147,13 +155,17 @@ function openUnifiedReassignModal(workflowType, taskId) {
     document.getElementById('reassignReason').value = '';
     document.getElementById('reassignHandoverRemarks').value = '';
     document.getElementById('reassignErrorMessage').classList.add('d-none');
+    document.getElementById('selectedCandidateBanner').classList.add('d-none');
     document.getElementById('confirmReassignBtn').disabled = true;
 
     document.getElementById('candidatesLoading').classList.remove('d-none');
     document.getElementById('candidatesContainer').classList.add('d-none');
     document.getElementById('modalInProgressWarning').classList.add('d-none');
     document.getElementById('handoverRemarksContainer').classList.add('d-none');
-    document.getElementById('retainSupportingContainer').classList.add('d-none');
+    const retainContainer = document.getElementById('retainSupportingContainer');
+    if (retainContainer) {
+        retainContainer.classList.add('d-none');
+    }
 
     bsModal.show();
 
@@ -197,27 +209,28 @@ function openUnifiedReassignModal(workflowType, taskId) {
 function renderCandidatesTable(candidates) {
     const tbody = document.getElementById('candidatesTableBody');
     tbody.innerHTML = '';
+    currentCandidatesMap = {};
 
-    if (!candidates || candidates.length === 0) {
-        document.getElementById('noCandidatesAlert').classList.remove('d-none');
+    const eligibleCandidates = (candidates || []).filter(c => c.is_selectable);
+    const excludedCount = (candidates || []).length - eligibleCandidates.length;
+
+    if (eligibleCandidates.length === 0) {
+        const noCandEl = document.getElementById('noCandidatesAlert');
+        noCandEl.innerHTML = excludedCount > 0
+            ? `<i class="bi bi-info-circle me-1"></i> No eligible replacement members available (${excludedCount} project team member(s) currently on approved leave).`
+            : `<i class="bi bi-info-circle me-1"></i> No other eligible members found in this project's team.`;
+        noCandEl.classList.remove('d-none');
         return;
     }
     document.getElementById('noCandidatesAlert').classList.add('d-none');
 
-    candidates.forEach(c => {
+    eligibleCandidates.forEach(c => {
+        currentCandidatesMap[String(c.employee_id)] = c;
         const tr = document.createElement('tr');
-        if (!c.is_selectable) {
-            tr.classList.add('table-light', 'text-muted');
-        }
 
-        const isChecked = false;
-        const disabledAttr = c.is_selectable ? '' : 'disabled';
-        
         // Availability badge
         let badgeHtml = '';
-        if (c.classification === 'On Leave') {
-            badgeHtml = `<span class="badge bg-danger text-white"><i class="bi bi-x-circle me-1"></i>On Leave</span>`;
-        } else if (c.classification === 'Half-Day Leave') {
+        if (c.classification === 'Half-Day Leave') {
             badgeHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Half-Day Leave</span>`;
         } else if (c.classification === 'Busy') {
             badgeHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Busy (${c.target_date_tasks_count})</span>`;
@@ -230,7 +243,7 @@ function renderCandidatesTable(candidates) {
 
         tr.innerHTML = `
             <td>
-                <input class="form-check-input" type="radio" name="${radioName}" id="${radioId}" value="${c.employee_id}" ${disabledAttr} onchange="onCandidateSelected(${c.employee_id})">
+                <input class="form-check-input" type="radio" name="${radioName}" id="${radioId}" value="${c.employee_id}" onchange="onCandidateSelected(${c.employee_id})">
             </td>
             <td>
                 <label class="form-check-label d-block fw-semibold text-dark mb-0 cursor-pointer" for="${radioId}">
@@ -259,6 +272,13 @@ function renderCandidatesTable(candidates) {
 }
 
 function onCandidateSelected(candidateId) {
+    const cand = currentCandidatesMap[String(candidateId)];
+    const banner = document.getElementById('selectedCandidateBanner');
+    if (cand && banner) {
+        document.getElementById('selectedCandidateNameDisplay').textContent = `${cand.employee_name} (${cand.employee_code})`;
+        document.getElementById('selectedCandidateRoleDisplay').textContent = `• ${cand.project_role} • ${cand.classification}`;
+        banner.classList.remove('d-none');
+    }
     document.getElementById('confirmReassignBtn').disabled = false;
 }
 
@@ -281,7 +301,8 @@ function submitUnifiedReassignment(event) {
     const newEmployeeId = selectedRadio.value;
     const reason = document.getElementById('reassignReason').value.trim();
     const handoverRemarks = document.getElementById('reassignHandoverRemarks').value.trim();
-    const retainSupporting = document.getElementById('retainSupportingCheck').checked;
+    const retainCheckEl = document.getElementById('retainSupportingCheck');
+    const retainSupporting = retainCheckEl ? retainCheckEl.checked : false;
 
     if (currentTaskData && currentTaskData.in_progress && !handoverRemarks) {
         errorEl.textContent = 'Handover remarks are required when reassigning an In-Progress task.';
@@ -345,13 +366,17 @@ function submitUnifiedReassignment(event) {
             return;
         }
 
-        // Close modal and show success toast / reload page
+        // Close modal and update UI or reload page
         const modalEl = document.getElementById('unifiedReassignModal');
         const modal = bootstrap.Modal.getInstance(modalEl);
         if (modal) modal.hide();
 
-        alert(data.message || 'Task reassigned successfully.');
-        window.location.reload();
+        if (typeof window.onUnifiedReassignmentSuccess === 'function') {
+            window.onUnifiedReassignmentSuccess(data);
+        } else {
+            alert(data.message || 'Task reassigned successfully.');
+            window.location.reload();
+        }
     })
     .catch(err => {
         btn.disabled = false;

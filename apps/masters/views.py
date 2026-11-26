@@ -944,6 +944,17 @@ def activity_schedules_index(request):
     # Calculate KPIs using service
     kpis = ActivityScheduleService.get_kpis(company_id=company_id)
 
+    # Automatically discover approved leaves and affected tasks for leave-based reassignment
+    from apps.masters.availability_service import EmployeeAvailabilityService
+    leave_reassignment = EmployeeAvailabilityService.get_approved_leaves_reassignment_data(
+        company_id=company_id,
+        search=search,
+        employee_id=emp_filter,
+        project_id=proj_filter,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
     # Master options for dropdowns & modals
     activities = ActivityMaster.objects.filter(
         company_id=company_id, status='active'
@@ -954,6 +965,12 @@ def activity_schedules_index(request):
     context = {
         'schedules': schedules_qs,
         'tasks': tasks_qs[:100],  # Limit to 100 recent for performance
+        'approved_leaves': leave_reassignment['approved_leaves'],
+        'pending_reassignment_tasks': leave_reassignment['pending_tasks'],
+        'reassigned_tasks': leave_reassignment['reassigned_tasks'],
+        'approved_leaves_count': leave_reassignment['approved_leaves_count'],
+        'pending_reassignment_count': leave_reassignment['pending_count'],
+        'reassigned_count': leave_reassignment['reassigned_count'],
         'activities': activities,
         'projects': projects,
         'employees': employees,

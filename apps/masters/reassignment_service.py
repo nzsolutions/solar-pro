@@ -23,6 +23,26 @@ class TaskReassignmentService:
     """
 
     @classmethod
+    def _notify_reassigned_employee(cls, new_emp, project_name, activity_title, task_date, prev_emp_name, task_code):
+        """
+        Dispatches a mobile push notification to the newly assigned employee using the
+        existing FCM notification infrastructure. Invoked strictly AFTER successful commit.
+        """
+        if not new_emp or not getattr(new_emp, 'fcm_token', None):
+            return False
+        try:
+            from apps.expenses.views import send_fcm_notification
+            title = f"Task Reassigned: {activity_title}"
+            body = (
+                f"Project: {project_name} | Activity: {activity_title} ({task_code}) | "
+                f"Date: {task_date} | Reassigned from {prev_emp_name} to you."
+            )
+            send_fcm_notification(new_emp.fcm_token, title, body)
+            return True
+        except Exception:
+            return False
+
+    @classmethod
     def reassign_activity_task(cls, task_id, new_employee_id, admin_user, reason=None, handover_remarks=None, expected_previous_employee_id=None, company_id=1):
         """
         Reassigns an ActivityTask to a new employee.
@@ -30,7 +50,7 @@ class TaskReassignmentService:
         STRICT REQUIREMENT: Can only reassign if current assignee is on approved leave overlapping task_date.
         """
         with transaction.atomic():
-            task = ActivityTask.objects.select_for_update().filter(id=task_id, company_id=company_id).first()
+            task = ActivityTask.objects.select_for_update().select_related('project', 'activity', 'assigned_to').filter(id=task_id, company_id=company_id).first()
             if not task:
                 raise ValidationError("Activity Task not found.")
 
@@ -157,15 +177,37 @@ class TaskReassignmentService:
                 handover_remarks=handover_remarks if task.status == 'In Progress' else None
             )
 
-            return {
+            proj_name = (project.project_name or project.client_name) if project else 'General'
+            act_title = task.activity.activity_title if task.activity else task.task_title
+            t_code = task.task_code or f"TSK-{task.id}"
+            result = {
                 'success': True,
-                'message': f"Task {task.task_code or task.id} reassigned from {prev_emp_name} to {new_emp.name}.",
+                'message': f"Task {t_code} reassigned from {prev_emp_name} to {new_emp.name}.",
+                'workflow_type': 'activity_task',
                 'task_id': task.id,
-                'task_code': task.task_code,
+                'task_code': t_code,
+                'project_name': proj_name,
+                'activity_title': act_title,
+                'task_date': str(task.task_date),
+                'task_status': task.status,
                 'previous_employee': prev_emp_name,
+                'previous_employee_id': prev_emp_id,
                 'new_employee': new_emp.name,
-                'log_id': log.id
+                'new_employee_id': new_emp.id,
+                'reassigned_by': admin_identifier,
+                'reassigned_at': log.reassigned_at.strftime('%d %b %Y, %H:%M') if log.reassigned_at else timezone.now().strftime('%d %b %Y, %H:%M'),
+                'log_id': log.id,
             }
+
+        result['notification_sent'] = cls._notify_reassigned_employee(
+            new_emp=new_emp,
+            project_name=proj_name,
+            activity_title=act_title,
+            task_date=str(task.task_date),
+            prev_emp_name=prev_emp_name,
+            task_code=t_code,
+        )
+        return result
 
     @classmethod
     def reassign_project_activity_instance(cls, instance_id, new_employee_id, admin_user, reason=None, handover_remarks=None, expected_previous_employee_id=None, company_id=1):
@@ -175,7 +217,7 @@ class TaskReassignmentService:
         Enforces atomic transaction with row locking (select_for_update) and optimistic concurrency check.
         """
         with transaction.atomic():
-            inst = ProjectActivityInstance.objects.select_for_update().filter(id=instance_id, company_id=company_id).first()
+            inst = ProjectActivityInstance.objects.select_for_update().select_related('project', 'activity', 'assigned_employee').filter(id=instance_id, company_id=company_id).first()
             if not inst:
                 raise ValidationError("Project Activity Instance not found.")
 
@@ -282,11 +324,35 @@ class TaskReassignmentService:
                 handover_remarks=handover_remarks if inst.status == 'In Progress' else None
             )
 
-            return {
+            proj_name = (project.project_name or project.client_name) if project else 'General'
+            act_title = inst.activity.activity_title if inst.activity else 'Operational Activity'
+            t_code = f"ACT-{inst.id:04d}"
+            result = {
                 'success': True,
-                'message': f"Activity instance #{inst.id} reassigned from {prev_emp_name} to {new_emp.name}.",
+                'message': f"Activity {t_code} reassigned from {prev_emp_name} to {new_emp.name}.",
+                'workflow_type': 'project_activity_instance',
                 'instance_id': inst.id,
+                'task_id': inst.id,
+                'task_code': t_code,
+                'project_name': proj_name,
+                'activity_title': act_title,
+                'task_date': str(inst.scheduled_date),
+                'task_status': inst.status,
                 'previous_employee': prev_emp_name,
+                'previous_employee_id': prev_emp_id,
                 'new_employee': new_emp.name,
-                'log_id': log.id
+                'new_employee_id': new_emp.id,
+                'reassigned_by': admin_identifier,
+                'reassigned_at': log.reassigned_at.strftime('%d %b %Y, %H:%M') if log.reassigned_at else timezone.now().strftime('%d %b %Y, %H:%M'),
+                'log_id': log.id,
             }
+
+        result['notification_sent'] = cls._notify_reassigned_employee(
+            new_emp=new_emp,
+            project_name=proj_name,
+            activity_title=act_title,
+            task_date=str(inst.scheduled_date),
+            prev_emp_name=prev_emp_name,
+            task_code=t_code,
+        )
+        return result

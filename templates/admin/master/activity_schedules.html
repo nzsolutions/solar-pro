@@ -207,22 +207,18 @@
 <!-- Header -->
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
-        <h2 class="page-title mb-1">Activity Scheduling &amp; Task Generation</h2>
+        <h2 class="page-title mb-1">Activity Scheduling</h2>
         <div class="text-muted" style="font-size:0.9rem;">
-            Plan recurring solar maintenance activities, automate task creation, and monitor employee assignments.
+            Review employees with approved leaves, inspect overlapping tasks, and reassign tasks to eligible project team members.
         </div>
     </div>
-    <div class="d-flex gap-2">
-        <a href="{% url 'admin_activity_schedules_generate' %}" class="btn btn-outline-secondary hover-lift"
-           title="Process all active schedules and generate upcoming tasks"
-           style="border-radius: 10px; padding: 0.6rem 1rem; font-weight: 500; font-size: 0.88rem;">
-            <i class="bi bi-arrow-repeat me-1"></i> Generate Tasks Now
-        </a>
-        <button type="button" class="btn hover-lift" data-bs-toggle="modal" data-bs-target="#addScheduleModal"
-                style="background-color: var(--accent-orange, #F59E0B); color: white; font-weight: 500; border-radius: 10px; padding: 0.6rem 1.25rem;">
-            <i class="bi bi-plus-lg me-1"></i> Schedule Activity
-        </button>
-    </div>
+</div>
+
+<!-- Reassignment Feedback Banner -->
+<div id="reassignmentAlertBanner" class="alert alert-success alert-dismissible fade show d-none mb-3 shadow-sm" role="alert">
+    <i class="bi bi-check-circle-fill me-2"></i>
+    <span id="reassignmentAlertText"></span>
+    <button type="button" class="btn-close" onclick="document.getElementById('reassignmentAlertBanner').classList.add('d-none')" aria-label="Close"></button>
 </div>
 
 <!-- KPI Stat Cards -->
@@ -230,22 +226,33 @@
     <div class="col-6 col-md-4 col-xl-2">
         <div class="stat-card">
             <div>
-                <div class="stat-val">{{ kpis.total_schedules }}</div>
-                <div class="stat-label">Schedules</div>
+                <div class="stat-val text-primary" id="kpiApprovedLeaves">{{ approved_leaves_count }}</div>
+                <div class="stat-label">Approved Leaves</div>
             </div>
-            <div class="stat-icon" style="background:#EFF6FF; color:#3B82F6;">
-                <i class="bi bi-calendar3"></i>
+            <div class="stat-icon" style="background:#EFF6FF; color:#2563EB;">
+                <i class="bi bi-calendar-check"></i>
             </div>
         </div>
     </div>
     <div class="col-6 col-md-4 col-xl-2">
         <div class="stat-card">
             <div>
-                <div class="stat-val text-primary">{{ kpis.scheduled_schedules }}</div>
-                <div class="stat-label">Scheduled</div>
+                <div class="stat-val {% if pending_reassignment_count > 0 %}text-warning{% else %}text-muted{% endif %}" id="kpiPendingReassign">{{ pending_reassignment_count }}</div>
+                <div class="stat-label">Pending Reassign</div>
             </div>
-            <div class="stat-icon" style="background:#EFF6FF; color:#2563EB;">
-                <i class="bi bi-clock"></i>
+            <div class="stat-icon" style="background:#FFFBEB; color:#D97706;">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="stat-card">
+            <div>
+                <div class="stat-val text-success" id="kpiReassignedTasks">{{ reassigned_count }}</div>
+                <div class="stat-label">Reassigned</div>
+            </div>
+            <div class="stat-icon" style="background:#ECFDF5; color:#10B981;">
+                <i class="bi bi-person-check"></i>
             </div>
         </div>
     </div>
@@ -274,19 +281,6 @@
     <div class="col-6 col-md-4 col-xl-2">
         <div class="stat-card">
             <div>
-                <div class="stat-val {% if kpis.overdue_tasks > 0 or kpis.overdue_schedules > 0 %}text-danger{% else %}text-muted{% endif %}">
-                    {{ kpis.overdue_tasks|add:kpis.overdue_schedules }}
-                </div>
-                <div class="stat-label">Overdue</div>
-            </div>
-            <div class="stat-icon" style="background:#FEE2E2; color:#DC2626;">
-                <i class="bi bi-exclamation-triangle"></i>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-4 col-xl-2">
-        <div class="stat-card">
-            <div>
                 <div class="stat-val text-info">{{ kpis.today_tasks }}</div>
                 <div class="stat-label">Today's Tasks</div>
             </div>
@@ -294,6 +288,214 @@
                 <i class="bi bi-calendar-event"></i>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- ================= APPROVED LEAVES SECTION ================= -->
+<div class="form-card" id="approvedLeavesSection">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <h5 class="mb-0"><i class="bi bi-calendar2-check"></i> Employees with Approved Leaves</h5>
+            <small class="text-muted">Automatically fetched approved leave requests (pending, rejected, and cancelled leaves excluded).</small>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge-count" id="approvedLeavesBadge">{{ approved_leaves_count }} Approved</span>
+            <button type="button" id="clearLeaveFilterBtn" class="btn btn-sm btn-outline-secondary d-none" onclick="filterByApprovedLeave(null)">
+                <i class="bi bi-x-circle me-1"></i> Show All Leaves' Tasks
+            </button>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table modern-table" id="approvedLeavesTable">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Leave Type &amp; Project</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Duration</th>
+                    <th>Leave Status</th>
+                    <th>Affected Tasks</th>
+                    <th class="text-end">Filter</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lv in approved_leaves %}
+                <tr data-leave-row-id="{{ lv.leave_id }}" data-pending-count="{{ lv.pending_count }}" data-reassigned-count="{{ lv.reassigned_count }}">
+                    <td>
+                        <div class="fw-bold text-dark">{{ lv.employee_name }}</div>
+                        <small class="text-muted">{{ lv.employee_code }}</small>
+                    </td>
+                    <td>
+                        <div class="fw-semibold text-dark">{{ lv.leave_type }}</div>
+                        <small class="text-muted">{{ lv.project_name }}</small>
+                    </td>
+                    <td class="text-nowrap">{{ lv.start_date_str }}</td>
+                    <td class="text-nowrap">{{ lv.end_date_str }}</td>
+                    <td><span class="badge bg-light text-dark border">{{ lv.days_count }} day(s)</span></td>
+                    <td>
+                        <span class="badge-status-completed"><i class="bi bi-check-circle-fill me-1"></i>Approved</span>
+                    </td>
+                    <td class="leave-impact-cell">
+                        {% if lv.pending_count > 0 %}
+                            <span class="badge bg-warning text-dark leave-pending-badge">{{ lv.pending_count }} Pending Reassignment</span>
+                        {% elif lv.reassigned_count > 0 %}
+                            <span class="badge bg-success text-white leave-reassigned-badge">{{ lv.reassigned_count }} Reassigned</span>
+                        {% else %}
+                            <span class="badge bg-light text-muted border leave-none-badge">No Affected Tasks</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2" onclick="filterByApprovedLeave({{ lv.leave_id }})">
+                            <i class="bi bi-funnel me-1"></i> View Tasks
+                        </button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center py-4 text-muted">
+                        <i class="bi bi-calendar-x d-block mb-2" style="font-size: 1.75rem; color: #CBD5E1;"></i>
+                        No approved employee leaves currently require review.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ================= TASKS AFFECTED BY APPROVED LEAVES ================= -->
+<div class="form-card" id="affectedTasksSection">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <h5 class="mb-0"><i class="bi bi-person-gear"></i> Tasks Requiring Reassignment</h5>
+            <small class="text-muted" id="pendingTasksSubtitle">Active tasks overlapping approved leave periods that must be reassigned to eligible project team members.</small>
+        </div>
+        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-bold" id="pendingReassignBadge">
+            {{ pending_reassignment_count }} Pending Reassignment
+        </span>
+    </div>
+    <div class="table-responsive mb-4">
+        <table class="table modern-table" id="pendingReassignmentTable">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Leave Period</th>
+                    <th>Task Reference</th>
+                    <th>Project Name</th>
+                    <th>Activity Title</th>
+                    <th>Scheduled Date</th>
+                    <th>Task Status</th>
+                    <th>Assigned Employee</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in pending_reassignment_tasks %}
+                <tr data-leave-id="{{ t.leave_id }}" data-workflow-type="{{ t.workflow_type }}" data-task-id="{{ t.task_id }}">
+                    <td>
+                        <div class="fw-bold text-dark">{{ t.leave_employee_name }}</div>
+                        <small class="text-muted">{{ t.leave_employee_code }}</small>
+                    </td>
+                    <td class="text-nowrap">
+                        <div class="small fw-semibold">{{ t.leave_start_date }} to {{ t.leave_end_date }}</div>
+                        <small class="text-muted">{{ t.leave_days_count }} day(s)</small>
+                    </td>
+                    <td>
+                        <span class="fw-bold text-dark">{{ t.task_code }}</span>
+                        <small class="d-block text-muted">{{ t.workflow_label }}</small>
+                    </td>
+                    <td class="fw-semibold">{{ t.project_name }}</td>
+                    <td>{{ t.activity_title }}</td>
+                    <td class="text-nowrap fw-semibold">{{ t.scheduled_date }}</td>
+                    <td>
+                        {% if t.status == 'In Progress' %}
+                            <span class="badge-status-inprogress">{{ t.status }}</span>
+                        {% elif t.status == 'Scheduled' %}
+                            <span class="badge-status-scheduled">{{ t.status }}</span>
+                        {% else %}
+                            <span class="badge-status-pending">{{ t.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary text-white">{{ t.assigned_employee_name }}</span>
+                    </td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-primary px-3" onclick="openUnifiedReassignModal('{{ t.workflow_type }}', {{ t.task_id }})">
+                            <i class="bi bi-person-gear me-1"></i> Reassign
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr id="pendingEmptyStateRow" class="{% if pending_reassignment_tasks %}d-none{% endif %}">
+                    <td colspan="9" class="text-center py-4 text-muted">
+                        <i class="bi bi-check-circle-fill text-success d-block mb-2" style="font-size: 1.75rem;"></i>
+                        <span id="pendingEmptyStateText">No tasks currently require reassignment for approved leaves.</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3 pt-3 border-top flex-wrap gap-2">
+        <div>
+            <h5 class="mb-0"><i class="bi bi-check2-all"></i> Already Reassigned Tasks</h5>
+            <small class="text-muted">Tasks overlapping approved leaves that have already been reassigned to replacement team members.</small>
+        </div>
+        <span class="badge bg-success text-white px-3 py-2 rounded-pill fw-bold" id="reassignedTasksBadge">
+            {{ reassigned_count }} Reassigned
+        </span>
+    </div>
+    <div class="table-responsive">
+        <table class="table modern-table" id="reassignedTasksTable">
+            <thead>
+                <tr>
+                    <th>Task Reference</th>
+                    <th>Project Name</th>
+                    <th>Activity Title</th>
+                    <th>Scheduled Date</th>
+                    <th>Previous Assignee (On Leave)</th>
+                    <th>New Assigned Employee</th>
+                    <th>Task Status</th>
+                    <th>Reassignment Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in reassigned_tasks %}
+                <tr data-leave-id="{{ r.leave_id }}" data-workflow-type="{{ r.workflow_type }}" data-task-id="{{ r.task_id }}">
+                    <td>
+                        <span class="fw-bold text-dark">{{ r.task_code }}</span>
+                        <small class="d-block text-muted">{{ r.workflow_label }}</small>
+                    </td>
+                    <td class="fw-semibold">{{ r.project_name }}</td>
+                    <td>{{ r.activity_title }}</td>
+                    <td class="text-nowrap">{{ r.scheduled_date }}</td>
+                    <td><span class="text-muted">{{ r.previous_employee_name }}</span></td>
+                    <td>
+                        <span class="badge bg-success text-white"><i class="bi bi-person-check me-1"></i>{{ r.new_employee_name }}</span>
+                    </td>
+                    <td>
+                        {% if r.task_status == 'Completed' %}
+                            <span class="badge-status-completed">{{ r.task_status }}</span>
+                        {% elif r.task_status == 'In Progress' %}
+                            <span class="badge-status-inprogress">{{ r.task_status }}</span>
+                        {% else %}
+                            <span class="badge-status-pending">{{ r.task_status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge bg-light text-success border border-success"><i class="bi bi-check-circle me-1"></i>Reassigned</span>
+                        <small class="d-block text-muted">{{ r.reassigned_at }} by {{ r.reassigned_by }}</small>
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr id="reassignedEmptyStateRow" class="{% if reassigned_tasks %}d-none{% endif %}">
+                    <td colspan="8" class="text-center py-4 text-muted">
+                        No leave-based task reassignments recorded yet.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -999,6 +1201,8 @@
 </div>
 {% endfor %}
 
+{% include 'admin/common/reassign_task_modal.html' %}
+
 {% endblock %}
 
 {% block extra_scripts %}
@@ -1065,7 +1269,7 @@
                 search: "_INPUT_",
                 searchPlaceholder: "Search schedules...",
                 lengthMenu: "Show _MENU_ entries",
-                emptyTable: "No activity schedules created yet. Click '+ Schedule Activity' above to add one.",
+                emptyTable: "No activity schedules created yet.",
                 zeroRecords: "No matching activity schedules found"
             }
         });
@@ -1082,7 +1286,7 @@
                 search: "_INPUT_",
                 searchPlaceholder: "Search tasks...",
                 lengthMenu: "Show _MENU_ entries",
-                emptyTable: "No tasks generated yet. Click 'Generate Tasks Now' to generate tasks for active schedules.",
+                emptyTable: "No generated tasks found.",
                 zeroRecords: "No matching tasks found"
             }
         });
@@ -1092,5 +1296,183 @@
             renderCalendar();
         }
     });
+
+    let activeLeaveFilterId = null;
+
+    function escapeHtmlSafe(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function updatePendingEmptyState() {
+        const rows = document.querySelectorAll('#pendingReassignmentTable tbody tr[data-task-id]');
+        let visibleCount = 0;
+        rows.forEach(r => {
+            if (!r.classList.contains('d-none')) {
+                visibleCount++;
+            }
+        });
+        const emptyRow = document.getElementById('pendingEmptyStateRow');
+        const emptyText = document.getElementById('pendingEmptyStateText');
+        if (visibleCount === 0) {
+            emptyRow.classList.remove('d-none');
+            if (activeLeaveFilterId) {
+                emptyText.textContent = 'No pending tasks require reassignment for this approved leave.';
+            } else {
+                emptyText.textContent = 'No tasks currently require reassignment for approved leaves.';
+            }
+        } else {
+            emptyRow.classList.add('d-none');
+        }
+    }
+
+    function filterByApprovedLeave(leaveId) {
+        activeLeaveFilterId = leaveId;
+        const clearBtn = document.getElementById('clearLeaveFilterBtn');
+        const leaveRows = document.querySelectorAll('#approvedLeavesTable tbody tr[data-leave-row-id]');
+        const pendingRows = document.querySelectorAll('#pendingReassignmentTable tbody tr[data-task-id]');
+        const reassignedRows = document.querySelectorAll('#reassignedTasksTable tbody tr[data-task-id]');
+
+        leaveRows.forEach(r => {
+            if (leaveId && String(r.dataset.leaveRowId) === String(leaveId)) {
+                r.classList.add('table-warning');
+            } else {
+                r.classList.remove('table-warning');
+            }
+        });
+
+        if (leaveId) {
+            clearBtn.classList.remove('d-none');
+        } else {
+            clearBtn.classList.add('d-none');
+        }
+
+        pendingRows.forEach(r => {
+            if (!leaveId || String(r.dataset.leaveId) === String(leaveId)) {
+                r.classList.remove('d-none');
+            } else {
+                r.classList.add('d-none');
+            }
+        });
+
+        let visibleReassigned = 0;
+        reassignedRows.forEach(r => {
+            if (!leaveId || String(r.dataset.leaveId) === String(leaveId)) {
+                r.classList.remove('d-none');
+                visibleReassigned++;
+            } else {
+                r.classList.add('d-none');
+            }
+        });
+        const reassignedEmptyRow = document.getElementById('reassignedEmptyStateRow');
+        if (reassignedEmptyRow) {
+            if (visibleReassigned === 0) {
+                reassignedEmptyRow.classList.remove('d-none');
+            } else {
+                reassignedEmptyRow.classList.add('d-none');
+            }
+        }
+
+        updatePendingEmptyState();
+    }
+
+    window.onUnifiedReassignmentSuccess = function(data) {
+        const wf = data.workflow_type;
+        const tId = data.task_id || data.instance_id;
+        const rowSelector = `#pendingReassignmentTable tbody tr[data-workflow-type="${wf}"][data-task-id="${tId}"]`;
+        const pendingRow = document.querySelector(rowSelector);
+
+        let leaveId = null;
+        if (pendingRow) {
+            leaveId = pendingRow.dataset.leaveId;
+            pendingRow.remove();
+        }
+
+        // Update total counters
+        const pendingBadge = document.getElementById('pendingReassignBadge');
+        const kpiPending = document.getElementById('kpiPendingReassign');
+        const currentPendingCount = document.querySelectorAll('#pendingReassignmentTable tbody tr[data-task-id]').length;
+        if (pendingBadge) pendingBadge.textContent = `${currentPendingCount} Pending Reassignment`;
+        if (kpiPending) kpiPending.textContent = currentPendingCount;
+
+        // Prepend to Reassigned Tasks table
+        const reassignedBody = document.querySelector('#reassignedTasksTable tbody');
+        const reassignedEmptyRow = document.getElementById('reassignedEmptyStateRow');
+        if (reassignedBody) {
+            const wfLabel = wf === 'activity_task' ? 'Scheduled Task' : 'Mobile Activity';
+            const newTr = document.createElement('tr');
+            if (leaveId) newTr.dataset.leaveId = leaveId;
+            newTr.dataset.workflowType = wf;
+            newTr.dataset.taskId = tId;
+
+            if (activeLeaveFilterId && leaveId && String(leaveId) !== String(activeLeaveFilterId)) {
+                newTr.classList.add('d-none');
+            }
+
+            newTr.innerHTML = `
+                <td>
+                    <span class="fw-bold text-dark">${escapeHtmlSafe(data.task_code)}</span>
+                    <small class="d-block text-muted">${escapeHtmlSafe(wfLabel)}</small>
+                </td>
+                <td class="fw-semibold">${escapeHtmlSafe(data.project_name)}</td>
+                <td>${escapeHtmlSafe(data.activity_title)}</td>
+                <td class="text-nowrap">${escapeHtmlSafe(data.task_date)}</td>
+                <td><span class="text-muted">${escapeHtmlSafe(data.previous_employee)}</span></td>
+                <td>
+                    <span class="badge bg-success text-white"><i class="bi bi-person-check me-1"></i>${escapeHtmlSafe(data.new_employee)}</span>
+                </td>
+                <td><span class="badge-status-pending">${escapeHtmlSafe(data.task_status || 'Pending')}</span></td>
+                <td>
+                    <span class="badge bg-light text-success border border-success"><i class="bi bi-check-circle me-1"></i>Reassigned</span>
+                    <small class="d-block text-muted">${escapeHtmlSafe(data.reassigned_at || 'Just now')} by ${escapeHtmlSafe(data.reassigned_by || 'Admin')}</small>
+                </td>
+            `;
+            reassignedBody.insertBefore(newTr, reassignedBody.firstChild);
+            if (reassignedEmptyRow && (!activeLeaveFilterId || String(leaveId) === String(activeLeaveFilterId))) {
+                reassignedEmptyRow.classList.add('d-none');
+            }
+        }
+
+        const totalReassigned = document.querySelectorAll('#reassignedTasksTable tbody tr[data-task-id]').length;
+        const reassignedBadge = document.getElementById('reassignedTasksBadge');
+        const kpiReassigned = document.getElementById('kpiReassignedTasks');
+        if (reassignedBadge) reassignedBadge.textContent = `${totalReassigned} Reassigned`;
+        if (kpiReassigned) kpiReassigned.textContent = totalReassigned;
+
+        // Update Approved Leave impact badge
+        if (leaveId) {
+            const leaveRow = document.querySelector(`#approvedLeavesTable tbody tr[data-leave-row-id="${leaveId}"]`);
+            if (leaveRow) {
+                const newPending = Math.max(0, (parseInt(leaveRow.dataset.pendingCount || '0', 10) - 1));
+                const newReassigned = (parseInt(leaveRow.dataset.reassignedCount || '0', 10) + 1);
+                leaveRow.dataset.pendingCount = newPending;
+                leaveRow.dataset.reassignedCount = newReassigned;
+                const impactCell = leaveRow.querySelector('.leave-impact-cell');
+                if (impactCell) {
+                    if (newPending > 0) {
+                        impactCell.innerHTML = `<span class="badge bg-warning text-dark leave-pending-badge">${newPending} Pending Reassignment</span>`;
+                    } else {
+                        impactCell.innerHTML = `<span class="badge bg-success text-white leave-reassigned-badge">${newReassigned} Reassigned</span>`;
+                    }
+                }
+            }
+        }
+
+        updatePendingEmptyState();
+
+        // Show feedback banner
+        const banner = document.getElementById('reassignmentAlertBanner');
+        const bannerText = document.getElementById('reassignmentAlertText');
+        if (banner && bannerText) {
+            const notifSuffix = data.notification_sent ? ' Mobile notification dispatched to replacement employee.' : '';
+            bannerText.textContent = `${data.message || 'Task reassigned successfully.'}${notifSuffix}`;
+            banner.classList.remove('d-none');
+        }
+    };
 </script>
 {% endblock %}
