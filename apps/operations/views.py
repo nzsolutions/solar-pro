@@ -6,6 +6,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Sum, F, DecimalField, ExpressionWrapper, Count, Q
 from django.contrib import messages
 from django.conf import settings
@@ -272,7 +273,7 @@ def project_create(request):
     sites = SiteMaster.objects.order_by('site_name')
     document_types = DocumentTypeMaster.objects.filter(status='active').order_by('type_name')
 
-    # Available master activities & forms for Step 3: Add Activity
+    # Available master activities & forms for Step 4: Add Activity
     master_activities = ActivityMaster.objects.filter(status='active').select_related('form').order_by('activity_title')
     available_forms = DynamicForm.objects.filter(is_active=1).order_by('form_name')
     frequency_choices = [f[0] for f in ActivityMaster.FREQUENCY_CHOICES]
@@ -306,7 +307,24 @@ def project_store(request):
             messages.error(request, 'Client name and site are required.')
             return redirect('admin_projects_create')
 
-        staff_list = [int(x) for x in request.POST.getlist('field_staff[]') if x.isdigit()]
+        site_manager_raw = request.POST.get('site_manager', '').strip()
+        site_manager_id = int(site_manager_raw) if site_manager_raw.isdigit() else None
+        if site_manager_id and not Employee.objects.filter(id=site_manager_id).exists():
+            messages.error(request, 'Selected Site Manager does not exist.')
+            return redirect('admin_projects_create')
+
+        staff_list = []
+        seen_staff = set()
+        for x in request.POST.getlist('field_staff[]'):
+            if str(x).isdigit():
+                eid = int(x)
+                if eid not in seen_staff:
+                    seen_staff.add(eid)
+                    staff_list.append(eid)
+
+        team_member_ids = set(staff_list)
+        if site_manager_id:
+            team_member_ids.add(site_manager_id)
 
         agreement = request.POST.get('agreement', 'No').strip()
         if agreement == 'Yes':
@@ -343,88 +361,126 @@ def project_store(request):
             free_period_end_date = request.POST.get('free_period_end_date') or None
             agreement_doc = None
 
-        project = Project.objects.create(
-            company_id=request.session.get('company_id', 1),
-            project_name=project_name,
-            client_name=client_name,
-            site_id=int(site_id),
-            site_manager=int(request.POST.get('site_manager')) if request.POST.get('site_manager') else None,
-            field_staff=staff_list,
-            status=status,
-            start_date=request.POST.get('start_date') or None,
-            end_date=request.POST.get('end_date') or None,
-            reporting_frequency=request.POST.get('reporting_frequency', 'Weekly'),
-            agreement=agreement,
-            agreement_document=agreement_doc,
-            agreement_start_date=agreement_start_date,
-            agreement_end_date=agreement_end_date,
-            billing_frequency=billing_frequency,
-            billing_day=billing_day,
-            billing_month=billing_month,
-            charge_frequency=charge_frequency,
-            bill_date=None,
-            prepaid=prepaid,
-            free_period_check=free_period_check,
-            free_period_end_date=free_period_end_date,
-            notes=request.POST.get('notes', ''),
-        )
-
-        # Synchronize billing notifications for the agreement period
-        sync_project_billing_notifications(project)
-
-        # Handle Assigned Stock
-        stock_ids = request.POST.getlist('stock_selected[]')
-        for item_id in stock_ids:
-            if item_id.isdigit():
-                qty = request.POST.get(f'stock_qty[{item_id}]', 1)
-                AssignedStock.objects.create(
-                    project_id=project.id,
-                    item_id=int(item_id),
-                    qty=float(qty),
-                )
-
-        # Handle Project Activities & Automatic Instance Generation (Step 3)
+        # Validate Project Activities & Activity-wise Staff Assignments (Step 4) before saving
         activity_ids = request.POST.getlist('selected_activities[]')
         activities_data = []
+        seen_activities = set()
         for a_id in activity_ids:
-            if a_id.isdigit():
-                form_id = request.POST.get(f'activity_form_{a_id}')
-                freq = request.POST.get(f'activity_frequency_{a_id}')
-                duration = request.POST.get(f'activity_duration_{a_id}', '')
-                activities_data.append({
-                    'activity_id': int(a_id),
-                    'form_id': int(form_id) if form_id and form_id.isdigit() else None,
-                    'frequency': freq,
-                    'estimated_duration': duration,
-                })
+            if not str(a_id).isdigit():
+                continue
+            act_id_int = int(a_id)
+            if act_id_int in seen_activities:
+                continue
+            seen_activities.add(act_id_int)
 
-        added_by = request.session.get('name') or ('Admin' if request.session.get('is_admin') == 1 else 'Staff')
-        ProjectActivityService.sync_project_activities(project, activities_data, user_name=added_by)
+            activity_obj = ActivityMaster.objects.filter(id=act_id_int).first()
+            if not activity_obj:
+                messages.error(request, f'Selected activity (ID {act_id_int}) does not exist.')
+                return redirect('admin_projects_create')
 
-        # Handle Multi-Document Uploads
-        upload_dir = os.path.join(settings.MEDIA_ROOT, 'project_documents')
-        os.makedirs(upload_dir, exist_ok=True)
-
-        type_ids = request.POST.getlist('document_type_id[]')
-        for idx, type_id in enumerate(type_ids):
-            files = request.FILES.getlist(f'document[{idx}][]')
-            saved_paths = []
-            for f in files:
-                ext = os.path.splitext(f.name)[1]
-                fname = f"{uuid.uuid4().hex}{ext}"
-                dest = os.path.join(upload_dir, fname)
-                with open(dest, 'wb+') as d:
-                    for chunk in f.chunks():
-                        d.write(chunk)
-                saved_paths.append(f"project_documents/{fname}")
-
-            if saved_paths and type_id.isdigit():
-                ProjectDocument.objects.create(
-                    project_id=project.id,
-                    document_type_id=int(type_id),
-                    file=",".join(saved_paths),
-                    name=",".join(saved_paths),
+            assigned_staff_raw = request.POST.get(f'activity_staff_{act_id_int}', '').strip()
+            if not assigned_staff_raw or not assigned_staff_raw.isdigit():
+                messages.error(
+                    request,
+                    f'Please select a staff member for activity "{activity_obj.activity_title}".'
                 )
+                return redirect('admin_projects_create')
+
+            assigned_emp_id = int(assigned_staff_raw)
+            if assigned_emp_id not in team_member_ids:
+                messages.error(
+                    request,
+                    f'Assigned staff member for "{activity_obj.activity_title}" must belong to the selected project team.'
+                )
+                return redirect('admin_projects_create')
+
+            if not Employee.objects.filter(id=assigned_emp_id).exists():
+                messages.error(
+                    request,
+                    f'Selected staff member for "{activity_obj.activity_title}" does not exist.'
+                )
+                return redirect('admin_projects_create')
+
+            form_id = request.POST.get(f'activity_form_{act_id_int}')
+            freq = request.POST.get(f'activity_frequency_{act_id_int}')
+            duration = request.POST.get(f'activity_duration_{act_id_int}', '')
+            activities_data.append({
+                'activity_id': act_id_int,
+                'form_id': int(form_id) if form_id and str(form_id).isdigit() else None,
+                'frequency': freq,
+                'estimated_duration': duration,
+                'assigned_employee_id': assigned_emp_id,
+            })
+
+        with transaction.atomic():
+            project = Project.objects.create(
+                company_id=request.session.get('company_id', 1),
+                project_name=project_name,
+                client_name=client_name,
+                site_id=int(site_id),
+                site_manager=site_manager_id,
+                field_staff=staff_list,
+                status=status,
+                start_date=request.POST.get('start_date') or None,
+                end_date=request.POST.get('end_date') or None,
+                reporting_frequency=request.POST.get('reporting_frequency', 'Weekly'),
+                agreement=agreement,
+                agreement_document=agreement_doc,
+                agreement_start_date=agreement_start_date,
+                agreement_end_date=agreement_end_date,
+                billing_frequency=billing_frequency,
+                billing_day=billing_day,
+                billing_month=billing_month,
+                charge_frequency=charge_frequency,
+                bill_date=None,
+                prepaid=prepaid,
+                free_period_check=free_period_check,
+                free_period_end_date=free_period_end_date,
+                notes=request.POST.get('notes', ''),
+            )
+
+            # Synchronize billing notifications for the agreement period
+            sync_project_billing_notifications(project)
+
+            # Handle Assigned Stock
+            stock_ids = request.POST.getlist('stock_selected[]')
+            for item_id in stock_ids:
+                if item_id.isdigit():
+                    qty = request.POST.get(f'stock_qty[{item_id}]', 1)
+                    AssignedStock.objects.create(
+                        project_id=project.id,
+                        item_id=int(item_id),
+                        qty=float(qty),
+                    )
+
+            # Handle Project Activities & Automatic Instance Generation (Step 4)
+            added_by = request.session.get('name') or ('Admin' if request.session.get('is_admin') == 1 else 'Staff')
+            ProjectActivityService.sync_project_activities(project, activities_data, user_name=added_by)
+
+            # Handle Multi-Document Uploads
+            upload_dir = os.path.join(settings.MEDIA_ROOT, 'project_documents')
+            os.makedirs(upload_dir, exist_ok=True)
+
+            type_ids = request.POST.getlist('document_type_id[]')
+            for idx, type_id in enumerate(type_ids):
+                files = request.FILES.getlist(f'document[{idx}][]')
+                saved_paths = []
+                for f in files:
+                    ext = os.path.splitext(f.name)[1]
+                    fname = f"{uuid.uuid4().hex}{ext}"
+                    dest = os.path.join(upload_dir, fname)
+                    with open(dest, 'wb+') as d:
+                        for chunk in f.chunks():
+                            d.write(chunk)
+                    saved_paths.append(f"project_documents/{fname}")
+
+                if saved_paths and type_id.isdigit():
+                    ProjectDocument.objects.create(
+                        project_id=project.id,
+                        document_type_id=int(type_id),
+                        file=",".join(saved_paths),
+                        name=",".join(saved_paths),
+                    )
 
         messages.success(request, f'Project "{client_name}" created successfully.')
         return redirect('admin_projects_index')

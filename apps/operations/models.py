@@ -141,6 +141,14 @@ class ProjectActivity(models.Model):
         related_name='project_activities',
         db_column='form_id'
     )
+    assigned_employee = models.ForeignKey(
+        'employees.Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_project_activities',
+        db_column='assigned_employee_id'
+    )
     frequency = models.CharField(max_length=50, choices=FREQUENCY_CHOICES, default='Monthly')
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)

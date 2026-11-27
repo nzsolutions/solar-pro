@@ -57,7 +57,7 @@ def run_tests():
     assert act_monthly, "Monthly activity fixture required"
     print(" [PASS] Test fixtures verified: employee, site, activities, forms")
 
-    # 2. Test Step 3 rendering in Add Project
+    # 2. Test Step 3 (Team Assignment) & Step 4 (Add Activity) rendering in Add Project
     session = client.session
     session['user_id'] = 1
     session['is_admin'] = 1
@@ -67,12 +67,14 @@ def run_tests():
     res = client.get('/admin/projects/create')
     assert res.status_code == 200, f"Expected 200, got {res.status_code}"
     html = res.content.decode('utf-8')
+    assert 'Team Assignment' in html, "Team Assignment step not found in addproject.html"
     assert 'Add Activity' in html, "Add Activity step not found in addproject.html"
-    assert 'data-step="3"' in html, "Step 3 not rendered for Add Activity"
+    assert 'data-step="3"' in html and 'data-step="4"' in html, "Step 3/4 containers missing"
     assert 'selected_activities[]' in html, "Activity selection input missing"
-    print(" [PASS] Add Project wizard: Step 3 (Add Activity) rendered cleanly at position 3")
+    assert 'Choose Staff' in html, "Choose Staff column missing"
+    print(" [PASS] Add Project wizard: Step 3 (Team Assignment) & Step 4 (Add Activity with Choose Staff) rendered cleanly")
 
-    # 3. Test Project Creation with Activities and Form attachment
+    # 3. Test Project Creation with Activities, Activity-wise Staff, and Form attachment
     client_name = "Apex Solar Phase 2"
     proj_name = "Apex 5MW Farm"
     post_data = {
@@ -84,13 +86,15 @@ def run_tests():
         'reporting_frequency': 'Weekly',
         'site_manager': str(employee.id),
         'field_staff[]': [str(employee.id)],
-        # Step 3 activities
+        # Step 4 activities
         'selected_activities[]': [str(act_daily.id), str(act_monthly.id)],
         f'activity_frequency_{act_daily.id}': 'Daily',
         f'activity_form_{act_daily.id}': str(form.id) if form else '',
+        f'activity_staff_{act_daily.id}': str(employee.id),
         f'activity_duration_{act_daily.id}': '1 hr',
         f'activity_frequency_{act_monthly.id}': 'Monthly',
         f'activity_form_{act_monthly.id}': '',
+        f'activity_staff_{act_monthly.id}': str(employee.id),
         f'activity_duration_{act_monthly.id}': '3 hrs',
     }
 
