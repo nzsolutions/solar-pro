@@ -250,11 +250,11 @@
     </div>
     <div class="wizard-step" data-step-indicator="3">
         <div class="wizard-step-circle">3</div>
-        <div class="wizard-step-label">Add Activity</div>
+        <div class="wizard-step-label">Team Assignment</div>
     </div>
     <div class="wizard-step" data-step-indicator="4">
         <div class="wizard-step-circle">4</div>
-        <div class="wizard-step-label">Team Assignment</div>
+        <div class="wizard-step-label">Add Activity</div>
     </div>
     <div class="wizard-step" data-step-indicator="5">
         <div class="wizard-step-circle">5</div>
@@ -495,8 +495,67 @@
         </div>
     </div>
 
-    <!-- Step 3: Add Activity -->
+    <!-- Step 3: Team Assignment -->
     <div class="form-step" data-step="3">
+        <div class="form-card">
+            <h5>Team Assignment</h5>
+
+            <!-- Site Manager -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Site Manager <span class="text-danger">*</span></label>
+                    <select name="site_manager" class="form-select" id="site_manager" required>
+                        <option value="">Select Site Manager</option>
+                        {% for manager in siteManagers %}
+                            <option value="{{ manager.id }}" data-name="{{ manager.name }}">{{ manager.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="invalid-feedback-custom d-none" id="site_manager_error">Please select a site manager.</div>
+                </div>
+            </div>
+
+            <!-- Field Staff Checkbox Grid -->
+            <div class="mb-3">
+                <label class="form-label">Field Staff (multi-select)</label>
+                <div class="p-3 border rounded bg-light">
+                    <div class="row g-3">
+                        {% for staff in fieldStaff %}
+                            <div class="col-md-4 col-sm-6">
+                                <div class="form-check d-flex align-items-center gap-2">
+                                    <input class="form-check-input custom-checkbox field-staff-chk"
+                                        type="checkbox"
+                                        name="field_staff[]"
+                                        value="{{ staff.id }}"
+                                        id="staff_{{ staff.id }}"
+                                        data-name="{{ staff.name }}">
+                                    <label class="form-check-label mb-0" for="staff_{{ staff.id }}">
+                                        {{ staff.name }}
+                                    </label>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="wizard-step-error-banner" id="step3_error_banner">
+            <i class="bi bi-exclamation-circle-fill"></i>
+            <span id="step3_error_msg">Please select a Site Manager before continuing.</span>
+        </div>
+        <div class="wizard-nav-btns">
+            <button type="button" class="btn btn-outline-secondary btn-back">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+            <div class="spacer"></div>
+            <button type="button" class="btn hover-lift btn-next" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
+                Next <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 4: Add Activity -->
+    <div class="form-step" data-step="4">
         <div class="form-card">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
@@ -514,10 +573,11 @@
                         <tr style="font-size: 0.83rem; text-transform: uppercase; letter-spacing: 0.03em;">
                             <th style="width: 50px;" class="text-center">Select</th>
                             <th>Activity Details</th>
-                            <th style="width: 150px;">Category</th>
-                            <th style="width: 170px;">Frequency</th>
-                            <th style="width: 260px;">Attached Form</th>
-                            <th style="width: 130px;">Est. Duration</th>
+                            <th style="width: 135px;">Category</th>
+                            <th style="width: 145px;">Frequency</th>
+                            <th style="width: 220px;">Attached Form</th>
+                            <th style="width: 210px;">Choose Staff</th>
+                            <th style="width: 120px;">Est. Duration</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -567,6 +627,20 @@
                                 </select>
                             </td>
                             <td>
+                                <select name="activity_staff_{{ act.id }}"
+                                        class="form-select form-select-sm activity-staff-select"
+                                        id="act_staff_{{ act.id }}"
+                                        data-activity-id="{{ act.id }}"
+                                        style="font-size: 0.83rem;">
+                                    <option value="">Choose Staff</option>
+                                </select>
+                                <div class="invalid-feedback-custom d-none activity-staff-error"
+                                     id="act_staff_error_{{ act.id }}"
+                                     style="font-size: 0.74rem;">
+                                    Please select a staff member.
+                                </div>
+                            </td>
+                            <td>
                                 <input type="text" name="activity_duration_{{ act.id }}"
                                     class="form-control form-control-sm"
                                     value="{{ act.estimated_duration|default:'' }}"
@@ -576,7 +650,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6" class="text-center py-4 text-muted">
+                            <td colspan="7" class="text-center py-4 text-muted">
                                 <i class="bi bi-info-circle me-1"></i> No active activities found in Activity Master. Please add activities under Masters &gt; Activity Master.
                             </td>
                         </tr>
@@ -589,60 +663,10 @@
             </div>
         </div>
 
-        <div class="wizard-nav-btns">
-            <button type="button" class="btn btn-outline-secondary btn-back">
-                <i class="bi bi-arrow-left"></i> Back
-            </button>
-            <div class="spacer"></div>
-            <button type="button" class="btn hover-lift btn-next" style="background-color: var(--accent-orange); color: white; font-weight: 500;">
-                Next <i class="bi bi-arrow-right"></i>
-            </button>
+        <div class="wizard-step-error-banner" id="step4_error_banner">
+            <i class="bi bi-exclamation-circle-fill"></i>
+            <span id="step4_error_msg">Please assign a staff member for every selected activity before continuing.</span>
         </div>
-    </div>
-
-    <!-- Step 4: Team Assignment -->
-    <div class="form-step" data-step="4">
-        <div class="form-card">
-            <h5>Team Assignment</h5>
-
-            <!-- Site Manager -->
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label class="form-label">Site Manager <span class="text-danger">*</span></label>
-                    <select name="site_manager" class="form-select" id="site_manager" required>
-                        <option value="">Select Site Manager</option>
-                        {% for manager in siteManagers %}
-                            <option value="{{ manager.id }}">{{ manager.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="invalid-feedback-custom d-none" id="site_manager_error">Please select a site manager.</div>
-                </div>
-            </div>
-
-            <!-- Field Staff Checkbox Grid -->
-            <div class="mb-3">
-                <label class="form-label">Field Staff (multi-select)</label>
-                <div class="p-3 border rounded bg-light">
-                    <div class="row g-3">
-                        {% for staff in fieldStaff %}
-                            <div class="col-md-4 col-sm-6">
-                                <div class="form-check d-flex align-items-center gap-2">
-                                    <input class="form-check-input custom-checkbox"
-                                        type="checkbox"
-                                        name="field_staff[]"
-                                        value="{{ staff.id }}"
-                                        id="staff_{{ staff.id }}">
-                                    <label class="form-check-label mb-0" for="staff_{{ staff.id }}">
-                                        {{ staff.name }}
-                                    </label>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <div class="wizard-nav-btns">
             <button type="button" class="btn btn-outline-secondary btn-back">
                 <i class="bi bi-arrow-left"></i> Back
@@ -890,7 +914,82 @@
         toggleFreePeriodDate();
     }
 
+    function getSelectedTeamMembers() {
+        var members = [];
+        var seen = {};
+        var siteMgrEl = document.getElementById('site_manager');
+        if (siteMgrEl && siteMgrEl.value && siteMgrEl.value.trim()) {
+            var smId = siteMgrEl.value.trim();
+            var smOpt = siteMgrEl.options[siteMgrEl.selectedIndex];
+            var smName = smOpt ? (smOpt.dataset.name || smOpt.textContent.trim()) : '';
+            if (!seen[smId]) {
+                seen[smId] = true;
+                members.push({ id: smId, name: smName });
+            }
+        }
+        document.querySelectorAll('input[name="field_staff[]"]:checked').forEach(function (chk) {
+            var empId = (chk.value || '').trim();
+            var empName = chk.dataset.name || '';
+            if (!empName) {
+                var lbl = document.querySelector('label[for="' + chk.id + '"]');
+                empName = lbl ? lbl.textContent.trim() : ('Employee #' + empId);
+            }
+            if (empId && !seen[empId]) {
+                seen[empId] = true;
+                members.push({ id: empId, name: empName });
+            }
+        });
+        return members;
+    }
+
+    function syncActivityStaffDropdowns() {
+        var teamMembers = getSelectedTeamMembers();
+        var validIds = {};
+        teamMembers.forEach(function (m) { validIds[m.id] = true; });
+
+        document.querySelectorAll('.activity-staff-select').forEach(function (sel) {
+            var previousValue = sel.value ? sel.value.trim() : '';
+
+            sel.innerHTML = '';
+            var placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = teamMembers.length ? 'Choose Staff' : 'Select team in Step 3 first';
+            sel.appendChild(placeholder);
+
+            teamMembers.forEach(function (m) {
+                var opt = document.createElement('option');
+                opt.value = m.id;
+                opt.textContent = m.name;
+                sel.appendChild(opt);
+            });
+
+            if (previousValue && validIds[previousValue]) {
+                sel.value = previousValue;
+            } else {
+                sel.value = '';
+                var actId = sel.dataset.activityId;
+                var errEl = document.getElementById('act_staff_error_' + actId);
+                markField(sel, errEl, true);
+            }
+        });
+
+        refreshStep4BannerState();
+    }
+
+    function refreshStep4BannerState() {
+        var banner = document.getElementById('step4_error_banner');
+        if (!banner || !banner.classList.contains('show')) return;
+        var hasInvalid = document.querySelectorAll('.activity-staff-select.is-invalid').length > 0;
+        if (!hasInvalid) {
+            hideStepErrorBanner(4);
+        }
+    }
+
     function showStep(step) {
+        if (step === 4) {
+            syncActivityStaffDropdowns();
+        }
+
         formSteps.forEach(function (el) {
             el.classList.toggle('active-step', parseInt(el.dataset.step, 10) === step);
         });
@@ -1026,11 +1125,70 @@
             }
         }
 
-        if (step === 4) {
+        if (step === 3) {
             var siteManager = document.getElementById('site_manager');
             var siteManagerValid = siteManager && siteManager.value.trim().length > 0;
             markField(siteManager, document.getElementById('site_manager_error'), siteManagerValid);
-            if (!siteManagerValid) { valid = false; firstInvalid = firstInvalid || siteManager; }
+            if (!siteManagerValid) {
+                valid = false;
+                firstInvalid = firstInvalid || siteManager;
+                showStepErrorBanner(3, 'Please select a Site Manager before continuing.');
+            } else {
+                hideStepErrorBanner(3);
+            }
+        }
+
+        if (step === 4) {
+            syncActivityStaffDropdowns();
+            var teamMembers = getSelectedTeamMembers();
+            var teamIdSet = {};
+            teamMembers.forEach(function (m) { teamIdSet[m.id] = true; });
+
+            var missingActivities = [];
+            var invalidTeamActivities = [];
+
+            document.querySelectorAll('.activity-row').forEach(function (row) {
+                var actId = row.dataset.activityId;
+                var chk = document.getElementById('act_chk_' + actId);
+                var staffSelect = document.getElementById('act_staff_' + actId);
+                var errEl = document.getElementById('act_staff_error_' + actId);
+                var titleEl = row.querySelector('label[for="act_chk_' + actId + '"]');
+                var actTitle = titleEl ? titleEl.textContent.trim() : ('Activity #' + actId);
+
+                if (chk && chk.checked) {
+                    var selectedStaffId = staffSelect ? staffSelect.value.trim() : '';
+                    if (!selectedStaffId) {
+                        valid = false;
+                        firstInvalid = firstInvalid || staffSelect;
+                        if (errEl) errEl.textContent = 'Please select a staff member.';
+                        markField(staffSelect, errEl, false);
+                        missingActivities.push(actTitle);
+                    } else if (!teamIdSet[selectedStaffId]) {
+                        valid = false;
+                        firstInvalid = firstInvalid || staffSelect;
+                        if (errEl) errEl.textContent = 'Selected staff must belong to the project team.';
+                        markField(staffSelect, errEl, false);
+                        invalidTeamActivities.push(actTitle);
+                    } else {
+                        markField(staffSelect, errEl, true);
+                    }
+                } else {
+                    markField(staffSelect, errEl, true);
+                }
+            });
+
+            if (!valid) {
+                var parts = [];
+                if (missingActivities.length) {
+                    parts.push('Please assign a staff member for: ' + missingActivities.join(', '));
+                }
+                if (invalidTeamActivities.length) {
+                    parts.push('Selected staff is not in the project team for: ' + invalidTeamActivities.join(', '));
+                }
+                showStepErrorBanner(4, parts.join(' | '));
+            } else {
+                hideStepErrorBanner(4);
+            }
         }
 
         if (firstInvalid) {
@@ -1040,7 +1198,51 @@
         return valid;
     }
 
-    // Real-time input clearing
+    // Real-time input clearing & dynamic Team -> Activity Staff synchronization
+    var siteManagerEl = document.getElementById('site_manager');
+    if (siteManagerEl) {
+        siteManagerEl.addEventListener('change', function () {
+            if (siteManagerEl.value.trim().length > 0) {
+                markField(siteManagerEl, document.getElementById('site_manager_error'), true);
+                hideStepErrorBanner(3);
+            }
+            syncActivityStaffDropdowns();
+        });
+    }
+
+    document.querySelectorAll('input[name="field_staff[]"]').forEach(function (chk) {
+        chk.addEventListener('change', function () {
+            syncActivityStaffDropdowns();
+        });
+    });
+
+    document.querySelectorAll('.activity-select-chk').forEach(function (chk) {
+        chk.addEventListener('change', function () {
+            var actId = chk.dataset.id;
+            if (!chk.checked) {
+                var staffSel = document.getElementById('act_staff_' + actId);
+                var errEl = document.getElementById('act_staff_error_' + actId);
+                markField(staffSel, errEl, true);
+                refreshStep4BannerState();
+            }
+        });
+    });
+
+    document.querySelectorAll('.activity-staff-select').forEach(function (sel) {
+        sel.addEventListener('change', function () {
+            var actId = sel.dataset.activityId;
+            var errEl = document.getElementById('act_staff_error_' + actId);
+            var teamMembers = getSelectedTeamMembers();
+            var teamIdSet = {};
+            teamMembers.forEach(function (m) { teamIdSet[m.id] = true; });
+            var val = sel.value ? sel.value.trim() : '';
+            if (val && teamIdSet[val]) {
+                markField(sel, errEl, true);
+                refreshStep4BannerState();
+            }
+        });
+    });
+
     var siteEl = document.getElementById('site_id');
     if (siteEl) {
         siteEl.addEventListener('change', function() {
@@ -1096,15 +1298,21 @@
             if (target < currentStep) {
                 showStep(target);
             } else if (target > currentStep) {
-                if (validateStep(currentStep)) {
-                    hideStepErrorBanner(currentStep);
-                    showStep(target);
+                for (var s = currentStep; s < target; s++) {
+                    if (!validateStep(s)) {
+                        showStep(s);
+                        return;
+                    }
+                    hideStepErrorBanner(s);
+                    stepCompleted[s - 1] = true;
                 }
+                showStep(target);
             }
         });
         dot.style.cursor = 'pointer';
     });
 
+    syncActivityStaffDropdowns();
     showStep(1);
 
     var wizardForm = document.getElementById('projectWizardForm');
@@ -1114,6 +1322,11 @@
             e.preventDefault();
             showStep(1);
             showStepErrorBanner(1, 'Please complete the required Client & Site information before saving.');
+            return;
+        }
+        if (!validateStep(3)) {
+            e.preventDefault();
+            showStep(3);
             return;
         }
         if (!validateStep(4)) {

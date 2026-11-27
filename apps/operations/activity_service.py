@@ -28,7 +28,7 @@ class ProjectActivityService:
         """
         Takes project and list of dicts:
         activities_data = [
-            {'activity_id': 1, 'form_id': 4, 'frequency': 'Monthly', 'estimated_duration': '2 hrs'},
+            {'activity_id': 1, 'form_id': 4, 'frequency': 'Monthly', 'estimated_duration': '2 hrs', 'assigned_employee_id': 5},
             ...
         ]
         Saves ProjectActivity records and triggers instance generation.
@@ -54,19 +54,24 @@ class ProjectActivityService:
                 frequency = item.get('frequency') or activity.default_frequency or 'Monthly'
                 estimated_duration = item.get('estimated_duration') or activity.estimated_duration or ''
 
+                defaults = {
+                    'company_id': company_id,
+                    'form': form_obj,
+                    'frequency': frequency,
+                    'start_date': project.start_date,
+                    'end_date': project.end_date,
+                    'estimated_duration': estimated_duration,
+                    'status': 'active',
+                    'added_by': user_name,
+                }
+                if 'assigned_employee_id' in item:
+                    emp_id = item.get('assigned_employee_id')
+                    defaults['assigned_employee_id'] = int(emp_id) if emp_id is not None and str(emp_id).isdigit() else None
+
                 proj_act, created = ProjectActivity.objects.update_or_create(
                     project=project,
                     activity=activity,
-                    defaults={
-                        'company_id': company_id,
-                        'form': form_obj,
-                        'frequency': frequency,
-                        'start_date': project.start_date,
-                        'end_date': project.end_date,
-                        'estimated_duration': estimated_duration,
-                        'status': 'active',
-                        'added_by': user_name,
-                    }
+                    defaults=defaults
                 )
                 keep_activity_ids.append(act_id)
 
@@ -89,7 +94,8 @@ class ProjectActivityService:
     def generate_instances_for_activity(cls, project_activity):
         """
         Generates occurrences for a ProjectActivity based on start_date, end_date, and frequency.
-        Safe to retry (idempotent). Preserves existing completed or in-progress records.
+        Uses the activity-wise assigned employee strictly without overwriting with generic project-level defaults.
+        Safe to retry (idempotent). Preserves existing completed, in-progress, and reassigned records.
         """
         project = project_activity.project
         start_date = project_activity.start_date or project.start_date
@@ -107,22 +113,20 @@ class ProjectActivityService:
         existing_instances = {inst.scheduled_date: inst for inst in project_activity.instances.all()}
         created_count = 0
 
-        # Assign default staff if project has a manager or field staff
-        default_employee_id = project.site_manager
-        if not default_employee_id and project.field_staff and len(project.field_staff) > 0:
-            first_staff = project.field_staff[0]
-            if str(first_staff).isdigit():
-                default_employee_id = int(first_staff)
+        # Use only the activity-specific assigned employee; never assign generically to Site Manager or Field Staff
+        activity_employee_id = project_activity.assigned_employee_id
 
         for s_date in scheduled_dates:
             if s_date in existing_instances:
-                # Update due date or frequency if pending
+                # Update frequency if pending; preserve existing instance employee assignment
                 inst = existing_instances[s_date]
                 if inst.status == 'Pending':
-                    if not inst.assigned_employee_id and default_employee_id:
-                        inst.assigned_employee_id = default_employee_id
+                    update_fields = ['frequency', 'updated_at']
+                    if not inst.assigned_employee_id and activity_employee_id:
+                        inst.assigned_employee_id = activity_employee_id
+                        update_fields.append('assigned_employee')
                     inst.frequency = frequency
-                    inst.save(update_fields=['assigned_employee', 'frequency', 'updated_at'])
+                    inst.save(update_fields=update_fields)
                 continue
 
             ProjectActivityInstance.objects.create(
@@ -133,7 +137,7 @@ class ProjectActivityService:
                 scheduled_date=s_date,
                 due_date=s_date,
                 frequency=frequency,
-                assigned_employee_id=default_employee_id,
+                assigned_employee_id=activity_employee_id,
                 status='Pending'
             )
             created_count += 1
