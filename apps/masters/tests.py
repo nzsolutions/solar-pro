@@ -265,8 +265,12 @@ class ActivitySchedulingApprovedLeaveReassignmentTests(TestCase):
         self.assertNotIn(self.inst_outside_date.id, pending_ids)
         self.assertNotIn(self.inst_unrelated.id, pending_ids)
 
-        # Empty state for employee with no affected tasks
-        self.assertIn('No Affected Tasks', html)
+        # Removed sections must not appear in rendered HTML
+        self.assertNotIn('id="approvedLeavesSection"', html)
+        self.assertNotIn('id="schedulesTable"', html)
+        self.assertNotIn('id="tasksTable"', html)
+        self.assertNotIn('id="schedTabs"', html)
+        self.assertIn('Tasks Requiring Reassignment', html)
 
     @patch('apps.expenses.views.send_fcm_notification')
     def test_end_to_end_leave_approval_reassignment_notification_and_refresh(self, mock_fcm):
